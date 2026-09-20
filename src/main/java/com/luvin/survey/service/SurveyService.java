@@ -9,6 +9,6 @@ import java.util.List;
 public interface SurveyService {
     List<SurveyListItemResponse> getSurveys();
     SurveyDetailResponse getSurveyDetail(Long surveyId);
-    SurveyOptionResponse getSurveyOptions(Long surveyId);
+    SurveyOptionResponse getSurveyOptions(Long surveyId, Long questionId);
     void submit(Long memberId, Long surveyId, SurveySubmitRequest request);
 }
