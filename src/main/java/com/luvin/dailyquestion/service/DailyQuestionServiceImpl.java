@@ -6,7 +6,6 @@ import com.luvin.common.exception.DuplicateAnswerException;
 import com.luvin.dailyquestion.domain.DailyQuestion;
 import com.luvin.dailyquestion.domain.DailyQuestionAnswer;
 import com.luvin.dailyquestion.domain.DailyQuestionOption;
-import com.luvin.dailyquestion.dto.DailyQuestionHistoryResponse;
 import com.luvin.dailyquestion.dto.DailyQuestionOptionResponse;
 import com.luvin.dailyquestion.dto.DailyQuestionOptionResultResponse;
 import com.luvin.dailyquestion.dto.DailyQuestionTodayResponse;
@@ -89,14 +88,6 @@ public class DailyQuestionServiceImpl implements DailyQuestionService {
         }
 
         dailyQuestionAnswerRepository.save(new DailyQuestionAnswer(memberId, question, option));
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<DailyQuestionHistoryResponse> getHistory(Long memberId) {
-        return dailyQuestionAnswerRepository.findAllByMemberIdOrderByAnsweredAtDesc(memberId).stream()
-                .map(DailyQuestionHistoryResponse::from)
-                .collect(Collectors.toList());
     }
 
     /**
