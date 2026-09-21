@@ -2,11 +2,10 @@ package com.luvin.survey.controller;
 
 import com.luvin.common.response.MessageResponse;
 import com.luvin.common.security.SecurityUtils;
-import com.luvin.survey.dto.*;
+import com.luvin.survey.dto.SurveyOptionResponse;
+import com.luvin.survey.dto.SurveySubmitRequest;
 import com.luvin.survey.service.SurveyService;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/surveys")
@@ -18,27 +17,15 @@ public class SurveyController {
         this.surveyService = surveyService;
     }
 
-    @GetMapping
-    public List<SurveyListItemResponse> getSurveys() {
-        return surveyService.getSurveys();
+    @GetMapping("/{questionId}")
+    public SurveyOptionResponse getQuestion(@PathVariable Long questionId) {
+        return surveyService.getQuestion(questionId);
     }
 
-    @GetMapping("/{surveyId}")
-    public SurveyDetailResponse getSurveyDetail(@PathVariable Long surveyId) {
-        return surveyService.getSurveyDetail(surveyId);
-    }
-
-    @GetMapping("/{surveyId}/option")
-    public SurveyOptionResponse getSurveyOptions(@PathVariable Long surveyId,
-                                                 @RequestParam(required = false) Long questionId) {
-        return surveyService.getSurveyOptions(surveyId, questionId);
-    }
-
-    @PostMapping("/{surveyId}/submit")
-    public MessageResponse submit(@PathVariable Long surveyId,
-                                  @RequestBody SurveySubmitRequest body) {
+    @PostMapping("/submit")
+    public MessageResponse submit(@RequestBody SurveySubmitRequest body) {
         Long memberId = SecurityUtils.getCurrentUserId();
-        surveyService.submit(memberId, surveyId, body);
+        surveyService.submit(memberId, body);
         return new MessageResponse("설문 제출 완료");
     }
 }

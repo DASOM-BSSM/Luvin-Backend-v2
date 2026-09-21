@@ -1,18 +1,15 @@
 package com.luvin.survey.service;
 
-import com.luvin.common.exception.*;
-import com.luvin.survey.domain.Survey;
+import com.luvin.common.exception.SurveyOptionNotFoundException;
+import com.luvin.common.exception.SurveyQuestionNotFoundException;
 import com.luvin.survey.domain.SurveyAnswer;
 import com.luvin.survey.domain.SurveyOption;
 import com.luvin.survey.domain.SurveyQuestion;
-import com.luvin.survey.dto.SurveyDetailResponse;
-import com.luvin.survey.dto.SurveyListItemResponse;
 import com.luvin.survey.dto.SurveyOptionResponse;
 import com.luvin.survey.dto.SurveySubmitRequest;
 import com.luvin.survey.repository.SurveyAnswerRepository;
 import com.luvin.survey.repository.SurveyOptionRepository;
 import com.luvin.survey.repository.SurveyQuestionRepository;
-import com.luvin.survey.repository.SurveyRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,16 +19,13 @@ import java.util.stream.Collectors;
 @Service
 public class SurveyServiceImpl implements SurveyService {
 
-    private final SurveyRepository surveyRepository;
     private final SurveyQuestionRepository surveyQuestionRepository;
     private final SurveyOptionRepository surveyOptionRepository;
     private final SurveyAnswerRepository surveyAnswerRepository;
 
-    public SurveyServiceImpl(SurveyRepository surveyRepository,
-                             SurveyQuestionRepository surveyQuestionRepository,
+    public SurveyServiceImpl(SurveyQuestionRepository surveyQuestionRepository,
                              SurveyOptionRepository surveyOptionRepository,
                              SurveyAnswerRepository surveyAnswerRepository) {
-        this.surveyRepository = surveyRepository;
         this.surveyQuestionRepository = surveyQuestionRepository;
         this.surveyOptionRepository = surveyOptionRepository;
         this.surveyAnswerRepository = surveyAnswerRepository;
@@ -39,42 +33,9 @@ public class SurveyServiceImpl implements SurveyService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<SurveyListItemResponse> getSurveys() {
-        return surveyRepository.findAll().stream()
-                .map(SurveyListItemResponse::from)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public SurveyDetailResponse getSurveyDetail(Long surveyId) {
-        Survey survey = surveyRepository.findById(surveyId)
-                .orElseThrow(() -> new SurveyNotFoundException(surveyId));
-
-        List<SurveyDetailResponse.QuestionItem> questions = surveyQuestionRepository
-                .findAllBySurvey_SurveyIdOrderByQuestionIdAsc(surveyId).stream()
-                .map(q -> new SurveyDetailResponse.QuestionItem(q.getQuestionId(), q.getContent()))
-                .collect(Collectors.toList());
-
-        return new SurveyDetailResponse(survey.getSurveyId(), survey.getTitle(), questions);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public SurveyOptionResponse getSurveyOptions(Long surveyId, Long questionId) {
-        if (!surveyRepository.existsById(surveyId)) {
-            throw new SurveyNotFoundException(surveyId);
-        }
-
-        SurveyQuestion question = (questionId == null)
-                ? surveyQuestionRepository.findFirstBySurvey_SurveyIdOrderByQuestionIdAsc(surveyId)
-                        .orElseThrow(() -> new SurveyQuestionNotFoundException(null))
-                : surveyQuestionRepository.findById(questionId)
-                        .orElseThrow(() -> new SurveyQuestionNotFoundException(questionId));
-
-        if (!question.getSurvey().getSurveyId().equals(surveyId)) {
-            throw new SurveyQuestionNotFoundException(questionId);
-        }
+    public SurveyOptionResponse getQuestion(Long questionId) {
+        SurveyQuestion question = surveyQuestionRepository.findById(questionId)
+                .orElseThrow(() -> new SurveyQuestionNotFoundException(questionId));
 
         List<SurveyOptionResponse.OptionItem> options = surveyOptionRepository
                 .findAllByQuestion_QuestionIdOrderByOptionIdAsc(question.getQuestionId()).stream()
@@ -86,11 +47,7 @@ public class SurveyServiceImpl implements SurveyService {
 
     @Override
     @Transactional
-    public void submit(Long memberId, Long surveyId, SurveySubmitRequest request) {
-        if (!surveyRepository.existsById(surveyId)) {
-            throw new SurveyNotFoundException(surveyId);
-        }
-
+    public void submit(Long memberId, SurveySubmitRequest request) {
         for (SurveySubmitRequest.AnswerItem answerItem : request.getAnswers()) {
             SurveyQuestion question = surveyQuestionRepository.findById(answerItem.getQuestionId())
                     .orElseThrow(() -> new SurveyQuestionNotFoundException(answerItem.getQuestionId()));
