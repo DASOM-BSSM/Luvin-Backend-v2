@@ -29,8 +29,9 @@ public class SurveyController {
     }
 
     @GetMapping("/{surveyId}/option")
-    public SurveyOptionResponse getSurveyOptions(@PathVariable Long surveyId) {
-        return surveyService.getSurveyOptions(surveyId);
+    public SurveyOptionResponse getSurveyOptions(@PathVariable Long surveyId,
+                                                 @RequestParam(required = false) Long questionId) {
+        return surveyService.getSurveyOptions(surveyId, questionId);
     }
 
     @PostMapping("/{surveyId}/submit")

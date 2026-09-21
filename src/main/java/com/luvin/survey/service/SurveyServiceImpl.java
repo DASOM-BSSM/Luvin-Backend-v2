@@ -61,14 +61,20 @@ public class SurveyServiceImpl implements SurveyService {
 
     @Override
     @Transactional(readOnly = true)
-    public SurveyOptionResponse getSurveyOptions(Long surveyId) {
+    public SurveyOptionResponse getSurveyOptions(Long surveyId, Long questionId) {
         if (!surveyRepository.existsById(surveyId)) {
             throw new SurveyNotFoundException(surveyId);
         }
 
-        SurveyQuestion question = surveyQuestionRepository
-                .findFirstBySurvey_SurveyIdOrderByQuestionIdAsc(surveyId)
-                .orElseThrow(() -> new SurveyQuestionNotFoundException(null));
+        SurveyQuestion question = (questionId == null)
+                ? surveyQuestionRepository.findFirstBySurvey_SurveyIdOrderByQuestionIdAsc(surveyId)
+                        .orElseThrow(() -> new SurveyQuestionNotFoundException(null))
+                : surveyQuestionRepository.findById(questionId)
+                        .orElseThrow(() -> new SurveyQuestionNotFoundException(questionId));
+
+        if (!question.getSurvey().getSurveyId().equals(surveyId)) {
+            throw new SurveyQuestionNotFoundException(questionId);
+        }
 
         List<SurveyOptionResponse.OptionItem> options = surveyOptionRepository
                 .findAllByQuestion_QuestionIdOrderByOptionIdAsc(question.getQuestionId()).stream()
