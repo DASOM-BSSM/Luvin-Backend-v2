@@ -29,8 +29,8 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(e.getMessage()));
     }
 
-    @ExceptionHandler(DuplicateAnswerException.class)
-    public ResponseEntity<ApiResponse<Void>> handleDuplicateAnswer(DuplicateAnswerException e) {
+    @ExceptionHandler({DuplicateAnswerException.class, DuplicateVoteException.class})
+    public ResponseEntity<ApiResponse<Void>> handleDuplicateAnswer(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(e.getMessage()));
     }
@@ -42,7 +42,13 @@ public class GlobalExceptionHandler {
             SurveyQuestionNotFoundException.class,
             SurveyOptionNotFoundException.class,
             DailyQuestionNotFoundException.class,
-            DailyQuestionOptionNotFoundException.class
+            DailyQuestionOptionNotFoundException.class,
+            EpisodeNotFoundException.class,
+            ParticipantNotFoundException.class,
+            GameNotFoundException.class,
+            MatchNotFoundException.class,
+            RebakeNotFoundException.class,
+            ReportNotFoundException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleNotFound(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)

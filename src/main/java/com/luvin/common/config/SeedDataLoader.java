@@ -10,6 +10,10 @@ import com.luvin.survey.domain.SurveyQuestion;
 import com.luvin.survey.repository.SurveyOptionRepository;
 import com.luvin.survey.repository.SurveyQuestionRepository;
 import com.luvin.survey.repository.SurveyRepository;
+import com.luvin.simulation.domain.EpisodeGame;
+import com.luvin.simulation.domain.SimulationCharacter;
+import com.luvin.simulation.repository.EpisodeGameRepository;
+import com.luvin.simulation.repository.SimulationCharacterRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
@@ -27,6 +31,8 @@ public class SeedDataLoader implements ApplicationRunner {
     private final SurveyOptionRepository surveyOptionRepository;
     private final DailyQuestionRepository dailyQuestionRepository;
     private final DailyQuestionOptionRepository dailyQuestionOptionRepository;
+    private final SimulationCharacterRepository simulationCharacterRepository;
+    private final EpisodeGameRepository episodeGameRepository;
 
     @Override
     @Transactional
@@ -38,6 +44,30 @@ public class SeedDataLoader implements ApplicationRunner {
         if (dailyQuestionRepository.count() == 0) {
             seedDailyQuestions();
         }
+
+        if (simulationCharacterRepository.count() == 0) {
+            seedSimulationCharacters();
+        }
+
+        if (episodeGameRepository.count() == 0) {
+            seedEpisodeGames();
+        }
+    }
+
+    /**
+     * 유저 본인(AiClone) 외에 에피소드에 고정으로 등장하는 AI 출연진("빵") 풀.
+     */
+    private void seedSimulationCharacters() {
+        List.of("민준", "서연", "지호", "하은").forEach(name ->
+                simulationCharacterRepository.save(SimulationCharacter.builder().name(name).build()));
+    }
+
+    /**
+     * 투표 자격을 얻기 위해 진행하는 고정 2개 게임 (순서대로 노출).
+     */
+    private void seedEpisodeGames() {
+        episodeGameRepository.save(new EpisodeGame(1, "밸런스 게임"));
+        episodeGameRepository.save(new EpisodeGame(2, "타이밍 맞추기"));
     }
 
     private void seedPersonalitySurvey() {
