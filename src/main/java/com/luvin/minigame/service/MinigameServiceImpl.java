@@ -10,6 +10,7 @@ import com.luvin.minigame.dto.MinigamePlayRequest;
 import com.luvin.minigame.dto.MinigamePlayResponse;
 import com.luvin.minigame.repository.MinigamePlayResultRepository;
 import com.luvin.minigame.repository.MinigameRepository;
+import com.luvin.token.service.TokenService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,11 +22,14 @@ public class MinigameServiceImpl implements MinigameService {
 
     private final MinigameRepository minigameRepository;
     private final MinigamePlayResultRepository minigamePlayResultRepository;
+    private final TokenService tokenService;
 
     public MinigameServiceImpl(MinigameRepository minigameRepository,
-                                MinigamePlayResultRepository minigamePlayResultRepository) {
+                                MinigamePlayResultRepository minigamePlayResultRepository,
+                                TokenService tokenService) {
         this.minigameRepository = minigameRepository;
         this.minigamePlayResultRepository = minigamePlayResultRepository;
+        this.tokenService = tokenService;
     }
 
     @Override
@@ -53,6 +57,10 @@ public class MinigameServiceImpl implements MinigameService {
         int earnedToken = success ? minigame.getRewardToken() : 0;
 
         minigamePlayResultRepository.save(new MinigamePlayResult(memberId, minigame, success, earnedToken));
+
+        if (earnedToken > 0) {
+            tokenService.grantToken(memberId, earnedToken, "미니게임 보상: " + minigame.getTitle());
+        }
 
         return new MinigamePlayResponse(minigame.getGameId(), new MinigamePlayResponse.Reward(earnedToken));
     }
