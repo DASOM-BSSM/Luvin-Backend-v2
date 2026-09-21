@@ -2,12 +2,10 @@ package com.luvin.dailyquestion.repository;
 
 import com.luvin.dailyquestion.domain.DailyQuestionAnswer;
 import org.springframework.data.jpa.repository.JpaRepository;
-import java.util.List;
 import java.util.Optional;
 
 public interface DailyQuestionAnswerRepository extends JpaRepository<DailyQuestionAnswer, Long> {
     boolean existsByMemberIdAndDailyQuestion_DailyQuestionId(Long memberId, Long dailyQuestionId);
-    List<DailyQuestionAnswer> findAllByMemberIdOrderByAnsweredAtDesc(Long memberId);
     Optional<DailyQuestionAnswer> findTopByMemberIdOrderByDailyQuestion_DailyQuestionIdDesc(Long memberId);
     long countByMemberId(Long memberId);
 
