@@ -9,4 +9,5 @@ public interface TokenService {
     TokenBalanceResponse getMyTokenStatus(Long memberId);
     TokenUseResponse useToken(Long memberId, TokenUseRequest request);
     TokenHistoryListResponse getHistory(Long memberId);
+    void grantToken(Long memberId, int amount, String reason);
 }
