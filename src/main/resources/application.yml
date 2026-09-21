@@ -1,8 +1,8 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/luvin
-    username: postgres
-    password: 비밀번호
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
 
   jpa:
     hibernate:
@@ -14,3 +14,14 @@ spring:
 
 server:
   port: 8080
+
+app:
+  jwt:
+    # 운영에서는 반드시 환경변수 JWT_SECRET으로 덮어써야 한다. (HS256이라 최소 32바이트 이상 필요)
+    secret: ${JWT_SECRET:local-dev-only-please-change-this-secret-key-before-deploy}
+    # 리프레시 토큰이 따로 없어서 access token 하나로 계속 쓰는 구조라 넉넉하게 14일로 잡았다.
+    access-token-expiration-seconds: ${JWT_ACCESS_TOKEN_EXPIRATION_SECONDS:1209600}
+  oauth:
+    google:
+      # 구글 클라우드 콘솔에서 발급받은 OAuth 클라이언트 ID. 비어있으면 로그인 자체가 막힌다 (fail-closed).
+      client-id: ${GOOGLE_CLIENT_ID:}

@@ -23,6 +23,12 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(e.getMessage()));
     }
 
+    @ExceptionHandler({InvalidGoogleTokenException.class, UnauthenticatedException.class})
+    public ResponseEntity<ApiResponse<Void>> handleUnauthenticated(RuntimeException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
     @ExceptionHandler(DuplicateAnswerException.class)
     public ResponseEntity<ApiResponse<Void>> handleDuplicateAnswer(DuplicateAnswerException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

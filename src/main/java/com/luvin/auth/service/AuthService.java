@@ -2,8 +2,6 @@ package com.luvin.auth.service;
 
 import com.luvin.auth.dto.AuthLoginRequest;
 import com.luvin.auth.dto.AuthLoginResponse;
-import com.luvin.common.exception.BusinessException;
-import com.luvin.common.exception.ErrorCode;
 import com.luvin.common.security.AuthenticatedUser;
 import com.luvin.common.security.JwtTokenProvider;
 import com.luvin.common.security.TokenBlacklistService;
@@ -20,33 +18,25 @@ public class AuthService {
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenBlacklistService tokenBlacklistService;
+    private final GoogleTokenVerifier googleTokenVerifier;
 
     @Transactional
     public AuthLoginResponse login(AuthLoginRequest request) {
-        boolean isNewUser;
+        GoogleUserInfo googleUser = googleTokenVerifier.verify(request.idToken());
 
-        if (request.googleToken().isBlank() || request.googleToken().startsWith("invalid")) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT);
-        }
+        User user = userRepository.findByGoogleId(googleUser.googleId()).orElse(null);
+        boolean isNewUser = user == null;
 
-        User user = userRepository.findByGoogleId(request.googleId()).orElse(null);
-        if (user == null) {
+        if (isNewUser) {
             user = userRepository.save(User.builder()
-                    .googleId(request.googleId())
-                    .name(request.nickname())
-                    .email(request.email())
-                    .nickname(request.nickname())
+                    .googleId(googleUser.googleId())
+                    .name(googleUser.name())
+                    .email(googleUser.email())
+                    .nickname(googleUser.name())
                     .age(20)
                     .mbti("INFP")
                     .datingStyle("신중형")
                     .build());
-            isNewUser = true;
-        } else {
-            isNewUser = false;
-        }
-
-        if (!request.nickname().equals(user.getNickname())) {
-            user.updateOAuthProfile(request.nickname());
         }
 
         String accessToken = jwtTokenProvider.createAccessToken(
@@ -62,8 +52,8 @@ public class AuthService {
     }
 
     public void logout(String token) {
-        if (token != null && !token.isBlank()) {
-            tokenBlacklistService.blacklist(token);
+        if (token != null && !token.isBlank() && jwtTokenProvider.isValid(token)) {
+            tokenBlacklistService.blacklist(token, jwtTokenProvider.getExpiration(token));
         }
     }
 }
