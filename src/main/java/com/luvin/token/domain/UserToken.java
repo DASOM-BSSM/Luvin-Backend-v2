@@ -37,6 +37,10 @@ public class UserToken {
         this.tokenBalance -= amount;
     }
 
+    public void earn(int amount) {
+        this.tokenBalance += amount;
+    }
+
     public Long getId() { return id; }
     public Long getMemberId() { return memberId; }
     public int getTokenBalance() { return tokenBalance; }

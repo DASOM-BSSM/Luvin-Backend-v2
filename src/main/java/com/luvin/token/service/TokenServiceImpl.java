@@ -70,6 +70,24 @@ public class TokenServiceImpl implements TokenService {
         return new TokenHistoryListResponse(histories);
     }
 
+    @Override
+    @Transactional
+    public void grantToken(Long memberId, int amount, String reason) {
+        if (amount <= 0) {
+            return;
+        }
+
+        UserToken userToken = getOrCreateUserToken(memberId);
+        userToken.earn(amount);
+
+        tokenHistoryRepository.save(new TokenHistory(
+                memberId,
+                TokenHistoryType.REWARD,
+                amount,
+                reason
+        ));
+    }
+
     private UserToken getOrCreateUserToken(Long memberId) {
         return userTokenRepository.findByMemberId(memberId)
                 .orElseGet(() -> userTokenRepository.save(
