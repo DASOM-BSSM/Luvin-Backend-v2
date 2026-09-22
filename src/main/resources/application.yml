@@ -1,6 +1,7 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/luvin
+    # RDS로 옮길 때는 DB_URL을 jdbc:postgresql://<rds-endpoint>:5432/luvin 형태로 덮어쓴다.
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/luvin}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
 
@@ -25,3 +26,6 @@ app:
     google:
       # 구글 클라우드 콘솔에서 발급받은 OAuth 클라이언트 ID. 비어있으면 로그인 자체가 막힌다 (fail-closed).
       client-id: ${GOOGLE_CLIENT_ID:}
+  ai:
+    # AI 서비스(FastAPI) base url. 지금은 AWS EC2 IP로 직접 지정하고, 추후 내부 도메인으로 전환한다.
+    base-url: ${AI_SERVICE_BASE_URL}
