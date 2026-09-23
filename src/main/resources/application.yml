@@ -25,6 +25,10 @@ management:
     health:
       show-details: never
 
+springdoc:
+  api-docs:
+    path: /openapi.json
+
 app:
   jwt:
     # 운영에서는 반드시 환경변수 JWT_SECRET으로 덮어써야 한다. (HS256이라 최소 32바이트 이상 필요)
