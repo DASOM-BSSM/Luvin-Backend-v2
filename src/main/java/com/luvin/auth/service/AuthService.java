@@ -19,11 +19,21 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenBlacklistService tokenBlacklistService;
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final GoogleAuthorizationCodeExchanger googleAuthorizationCodeExchanger;
 
     @Transactional
     public AuthLoginResponse login(AuthLoginRequest request) {
-        GoogleUserInfo googleUser = googleTokenVerifier.verify(request.idToken());
+        return loginWithGoogleUser(googleTokenVerifier.verify(request.idToken()));
+    }
 
+    /** 웹 OAuth 리디렉션(authorization code) 플로우 콜백에서 사용한다. */
+    @Transactional
+    public AuthLoginResponse loginWithAuthorizationCode(String code) {
+        String idToken = googleAuthorizationCodeExchanger.exchangeForIdToken(code);
+        return loginWithGoogleUser(googleTokenVerifier.verify(idToken));
+    }
+
+    private AuthLoginResponse loginWithGoogleUser(GoogleUserInfo googleUser) {
         User user = userRepository.findByGoogleId(googleUser.googleId()).orElse(null);
         boolean isNewUser = user == null;
 
