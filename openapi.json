@@ -1,0 +1,2874 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "OpenAPI definition",
+        "version": "v0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8080",
+            "description": "Generated server url"
+        }
+    ],
+    "paths": {
+        "/api/users/me": {
+            "get": {
+                "tags": [
+                    "user-controller"
+                ],
+                "operationId": "getMyProfile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/UserProfileResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "user-controller"
+                ],
+                "operationId": "updateMyProfile",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UserProfileUpdateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tokens/use": {
+            "post": {
+                "tags": [
+                    "token-controller"
+                ],
+                "operationId": "useToken",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TokenUseRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenUseResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/surveys/submit": {
+            "post": {
+                "tags": [
+                    "survey-controller"
+                ],
+                "operationId": "submit",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SurveySubmitRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/simulation/report": {
+            "get": {
+                "tags": [
+                    "report-controller"
+                ],
+                "operationId": "getReport",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ReportData"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "report-controller"
+                ],
+                "operationId": "saveReport",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReportData"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/simulation/highlights": {
+            "get": {
+                "tags": [
+                    "highlight-controller"
+                ],
+                "operationId": "getHighlights",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/HighlightItem"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "highlight-controller"
+                ],
+                "operationId": "saveHighlights",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/HighlightSaveRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/minigames/{gameId}/play": {
+            "post": {
+                "tags": [
+                    "minigame-controller"
+                ],
+                "operationId": "play",
+                "parameters": [
+                    {
+                        "name": "gameId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/MinigamePlayRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MinigamePlayResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/matches/{matchId}/conversations": {
+            "get": {
+                "tags": [
+                    "match-controller"
+                ],
+                "operationId": "getOneOnOneConversation",
+                "parameters": [
+                    {
+                        "name": "matchId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ConversationMessageResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "match-controller"
+                ],
+                "operationId": "saveOneOnOneConversation",
+                "parameters": [
+                    {
+                        "name": "matchId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ConversationSaveRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes": {
+            "get": {
+                "tags": [
+                    "episode-controller"
+                ],
+                "operationId": "getEpisodes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/EpisodeResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "episode-controller"
+                ],
+                "operationId": "createEpisode",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/EpisodeCreateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/EpisodeResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/{episodeId}/vote": {
+            "post": {
+                "tags": [
+                    "vote-controller"
+                ],
+                "operationId": "vote",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/VoteRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/{episodeId}/vote-results": {
+            "get": {
+                "tags": [
+                    "vote-controller"
+                ],
+                "operationId": "getVoteResults",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VoteResultData"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "vote-controller"
+                ],
+                "operationId": "saveVoteResults",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/VoteResultData"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/{episodeId}/rebakes": {
+            "post": {
+                "tags": [
+                    "rebake-controller"
+                ],
+                "operationId": "saveRebakeConversations",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RebakeSaveRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/{episodeId}/games/{gameId}/result": {
+            "post": {
+                "tags": [
+                    "game-controller"
+                ],
+                "operationId": "saveGameResult",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "gameId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GameResultRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/{episodeId}/conversations": {
+            "get": {
+                "tags": [
+                    "conversation-controller"
+                ],
+                "operationId": "getConversations",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ConversationMessageResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "conversation-controller"
+                ],
+                "operationId": "saveConversations",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ConversationSaveRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/daily_questions/{questionId}/answer": {
+            "post": {
+                "tags": [
+                    "daily-question-controller"
+                ],
+                "operationId": "answer",
+                "parameters": [
+                    {
+                        "name": "questionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DailyQuestionAnswerRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/logout": {
+            "post": {
+                "tags": [
+                    "auth-controller"
+                ],
+                "operationId": "logout",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseVoid"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/google": {
+            "post": {
+                "tags": [
+                    "auth-controller"
+                ],
+                "operationId": "googleLogin",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AuthLoginRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAuthLoginResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analysis": {
+            "get": {
+                "tags": [
+                    "analysis-controller"
+                ],
+                "operationId": "getSummary",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAnalysisSummaryResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "analysis-controller"
+                ],
+                "operationId": "generateAnalysis",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAnalysisSummaryResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analysis/chat": {
+            "post": {
+                "tags": [
+                    "analysis-controller"
+                ],
+                "operationId": "chat",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AnalysisChatRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAnalysisChatResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons": {
+            "post": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "createSeason",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateSeasonHttpRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiSeasonStatusView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/episodes/{number}/seen": {
+            "post": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "markMessagesSeen",
+                "parameters": [
+                    {
+                        "name": "number",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/MarkSeenHttpRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseVoid"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/episodes/{number}/rerolls": {
+            "post": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "requestReroll",
+                "parameters": [
+                    {
+                        "name": "number",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RerollHttpRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiRerollView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/episodes/{number}/generations": {
+            "post": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "requestGeneration",
+                "parameters": [
+                    {
+                        "name": "number",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiEpisodeProgressView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/episodes/3/selection": {
+            "post": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "submitEpisode3Result",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Episode3ResultHttpRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiSelectionView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/episodes/1/selection": {
+            "post": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "submitEpisode1Selection",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Episode1SelectionHttpRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiSelectionView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tokens/me": {
+            "get": {
+                "tags": [
+                    "token-controller"
+                ],
+                "operationId": "getMyTokenStatus",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenBalanceResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tokens/history": {
+            "get": {
+                "tags": [
+                    "token-controller"
+                ],
+                "operationId": "getHistory",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TokenHistoryListResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/surveys/{questionId}": {
+            "get": {
+                "tags": [
+                    "survey-controller"
+                ],
+                "operationId": "getQuestion",
+                "parameters": [
+                    {
+                        "name": "questionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SurveyOptionResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/minigames": {
+            "get": {
+                "tags": [
+                    "minigame-controller"
+                ],
+                "operationId": "getMinigames",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MinigameListResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/minigames/{gameId}": {
+            "get": {
+                "tags": [
+                    "minigame-controller"
+                ],
+                "operationId": "getMinigameDetail",
+                "parameters": [
+                    {
+                        "name": "gameId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MinigameDetailResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/matches/final-couple": {
+            "get": {
+                "tags": [
+                    "match-controller"
+                ],
+                "operationId": "getFinalCouple",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MatchResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/games": {
+            "get": {
+                "tags": [
+                    "game-controller"
+                ],
+                "operationId": "getGames",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/GameResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/{episodeId}": {
+            "get": {
+                "tags": [
+                    "episode-controller"
+                ],
+                "operationId": "getEpisode",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/EpisodeResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/{episodeId}/vote-options": {
+            "get": {
+                "tags": [
+                    "vote-controller"
+                ],
+                "operationId": "getVoteOptions",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ParticipantResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/{episodeId}/rebakes/{participantId}": {
+            "get": {
+                "tags": [
+                    "rebake-controller"
+                ],
+                "operationId": "getRebakeConversation",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "participantId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ConversationMessageResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/{episodeId}/participants": {
+            "get": {
+                "tags": [
+                    "episode-controller"
+                ],
+                "operationId": "getParticipants",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/ParticipantResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/{episodeId}/matches": {
+            "get": {
+                "tags": [
+                    "match-controller"
+                ],
+                "operationId": "getMatches",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/MatchResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/daily_questions/today": {
+            "get": {
+                "tags": [
+                    "daily-question-controller"
+                ],
+                "operationId": "getTodayQuestion",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DailyQuestionTodayResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/contents/recommendations": {
+            "get": {
+                "tags": [
+                    "content-controller"
+                ],
+                "operationId": "getRecommendations",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ContentRecommendationListResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/health": {
+            "get": {
+                "tags": [
+                    "auth-controller"
+                ],
+                "operationId": "health",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseString"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/auth/google/login": {
+            "get": {
+                "tags": [
+                    "auth-controller"
+                ],
+                "operationId": "googleLoginRedirect",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
+        "/api/auth/google/callback": {
+            "get": {
+                "tags": [
+                    "auth-controller"
+                ],
+                "operationId": "googleCallback",
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "error",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAuthLoginResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analysis/report": {
+            "get": {
+                "tags": [
+                    "analysis-controller"
+                ],
+                "operationId": "getReport_1",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAnalysisReportResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analysis/clone": {
+            "get": {
+                "tags": [
+                    "analysis-controller"
+                ],
+                "operationId": "getClone",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiCloneResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/report": {
+            "get": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "getReport_2",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiReportView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/me": {
+            "get": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "getStatus",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiSeasonStatusView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/episodes/{number}": {
+            "get": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "getEpisodeMessages",
+                "parameters": [
+                    {
+                        "name": "number",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    },
+                    {
+                        "name": "after_sequence",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiEpisodeMessagesView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "UserProfileUpdateRequest": {
+                "type": "object",
+                "properties": {
+                    "nickname": {
+                        "type": "string"
+                    },
+                    "job": {
+                        "type": "string"
+                    },
+                    "bio": {
+                        "type": "string"
+                    }
+                }
+            },
+            "MessageResponse": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "TokenUseRequest": {
+                "type": "object",
+                "properties": {
+                    "amount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "usageType": {
+                        "type": "string",
+                        "enum": [
+                            "SIMULATION"
+                        ]
+                    }
+                },
+                "required": [
+                    "usageType"
+                ]
+            },
+            "TokenUseResponse": {
+                "type": "object",
+                "properties": {
+                    "usedToken": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "remainingToken": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AnswerItem": {
+                "type": "object",
+                "properties": {
+                    "questionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "optionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "SurveySubmitRequest": {
+                "type": "object",
+                "properties": {
+                    "answers": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AnswerItem"
+                        }
+                    }
+                }
+            },
+            "ReportData": {
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "string"
+                    },
+                    "strength": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "weakness": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "advice": {
+                        "type": "string"
+                    }
+                }
+            },
+            "HighlightItem": {
+                "type": "object",
+                "properties": {
+                    "episodeId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "type": "string"
+                    },
+                    "importance": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "HighlightSaveRequest": {
+                "type": "object",
+                "properties": {
+                    "highlights": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/HighlightItem"
+                        }
+                    }
+                }
+            },
+            "MinigamePlayRequest": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^(\uc131\uacf5|\uc2e4\ud328)$"
+                    }
+                }
+            },
+            "MinigamePlayResponse": {
+                "type": "object",
+                "properties": {
+                    "gameId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "reward": {
+                        "$ref": "#/components/schemas/Reward"
+                    }
+                }
+            },
+            "Reward": {
+                "type": "object",
+                "properties": {
+                    "token": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "ConversationSaveRequest": {
+                "type": "object",
+                "properties": {
+                    "messages": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MessageItem"
+                        }
+                    }
+                }
+            },
+            "MessageItem": {
+                "type": "object",
+                "properties": {
+                    "speakerParticipantId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "sequence": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "EpisodeCreateRequest": {
+                "type": "object",
+                "properties": {
+                    "episodeNumber": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                }
+            },
+            "EpisodeResponse": {
+                "type": "object",
+                "properties": {
+                    "episodeId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "episodeNumber": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                }
+            },
+            "VoteRequest": {
+                "type": "object",
+                "properties": {
+                    "selectedParticipantId": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "MatchItem": {
+                "type": "object",
+                "properties": {
+                    "participantAId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "participantBId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "isFinal": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "PickItem": {
+                "type": "object",
+                "properties": {
+                    "participantId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "votedForParticipantId": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "VoteResultData": {
+                "type": "object",
+                "properties": {
+                    "picks": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PickItem"
+                        }
+                    },
+                    "matches": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MatchItem"
+                        }
+                    }
+                }
+            },
+            "OutcomeItem": {
+                "type": "object",
+                "properties": {
+                    "participantId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "messages": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MessageItem"
+                        }
+                    }
+                }
+            },
+            "RebakeSaveRequest": {
+                "type": "object",
+                "properties": {
+                    "outcomes": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OutcomeItem"
+                        }
+                    }
+                }
+            },
+            "GameResultRequest": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "DailyQuestionAnswerRequest": {
+                "type": "object",
+                "properties": {
+                    "selectedOption": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "ApiResponseVoid": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "type": "object"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AuthLoginRequest": {
+                "type": "object",
+                "properties": {
+                    "idToken": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            },
+            "ApiResponseAuthLoginResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AuthLoginResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AuthLoginResponse": {
+                "type": "object",
+                "properties": {
+                    "userId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "nickname": {
+                        "type": "string"
+                    },
+                    "isNewUser": {
+                        "type": "boolean"
+                    },
+                    "accessToken": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AnalysisSummaryResponse": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "datingStyle": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseAnalysisSummaryResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AnalysisSummaryResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AnalysisChatRequest": {
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            },
+            "AnalysisChatResponse": {
+                "type": "object",
+                "properties": {
+                    "userMessage": {
+                        "type": "string"
+                    },
+                    "cloneReply": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseAnalysisChatResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AnalysisChatResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiCharacterProfileRequest": {
+                "type": "object",
+                "properties": {
+                    "gender": {
+                        "type": "string"
+                    },
+                    "adultAge": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "personality": {
+                        "type": "string"
+                    },
+                    "traits": {
+                        "$ref": "#/components/schemas/AiTraitsRequest"
+                    }
+                }
+            },
+            "AiTraitsRequest": {
+                "type": "object",
+                "properties": {
+                    "affectionExpression": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "relationshipAnxiety": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "relationshipAvoidance": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "emotionalAttunement": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "relationshipInitiative": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "practicalPriority": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "reassuranceNeed": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "jealousyReactivity": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "relationshipEnergyDependence": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "emotionalSuppression": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "conflictConfrontation": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "relationshipPace": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "interestExpressionFrequency": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "CreateSeasonHttpRequest": {
+                "type": "object",
+                "properties": {
+                    "representative": {
+                        "$ref": "#/components/schemas/AiCharacterProfileRequest"
+                    }
+                },
+                "required": [
+                    "representative"
+                ]
+            },
+            "AiCharacterView": {
+                "type": "object",
+                "properties": {
+                    "characterId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "role": {
+                        "type": "string"
+                    },
+                    "gender": {
+                        "type": "string"
+                    },
+                    "adultAge": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "personality": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiSeasonStatusView": {
+                "type": "object",
+                "properties": {
+                    "seasonId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "revision": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "currentEpisode": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "characters": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AiCharacterView"
+                        }
+                    }
+                }
+            },
+            "ApiResponseAiSeasonStatusView": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AiSeasonStatusView"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "MarkSeenHttpRequest": {
+                "type": "object",
+                "properties": {
+                    "sequence": {
+                        "type": "integer",
+                        "format": "int32",
+                        "minimum": 0
+                    }
+                }
+            },
+            "RerollHttpRequest": {
+                "type": "object",
+                "properties": {
+                    "partnerId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "required": [
+                    "partnerId"
+                ]
+            },
+            "AiRerollView": {
+                "type": "object",
+                "properties": {
+                    "jobId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "jobStatus": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseAiRerollView": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AiRerollView"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiEpisodeProgressView": {
+                "type": "object",
+                "properties": {
+                    "episodeNumber": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "jobId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "jobStatus": {
+                        "type": "string"
+                    },
+                    "versionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "errorCode": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseAiEpisodeProgressView": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AiEpisodeProgressView"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Episode3ResultHttpRequest": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "partnerId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                }
+            },
+            "AiSelectionView": {
+                "type": "object",
+                "properties": {
+                    "selectionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "partnerId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "revision": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "ApiResponseAiSelectionView": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AiSelectionView"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Episode1SelectionHttpRequest": {
+                "type": "object",
+                "properties": {
+                    "partnerId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "required": [
+                    "partnerId"
+                ]
+            },
+            "UserProfileResponse": {
+                "type": "object",
+                "properties": {
+                    "memberId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "nickname": {
+                        "type": "string"
+                    },
+                    "gender": {
+                        "type": "string"
+                    },
+                    "age": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "job": {
+                        "type": "string"
+                    },
+                    "bio": {
+                        "type": "string"
+                    },
+                    "personalityType": {
+                        "type": "string"
+                    },
+                    "surveyCompleted": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "TokenBalanceResponse": {
+                "type": "object",
+                "properties": {
+                    "tokenBalance": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "freeSimulationCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "TokenHistoryListResponse": {
+                "type": "object",
+                "properties": {
+                    "histories": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/TokenHistoryResponse"
+                        }
+                    }
+                }
+            },
+            "TokenHistoryResponse": {
+                "type": "object",
+                "properties": {
+                    "historyId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "USE",
+                            "REWARD"
+                        ]
+                    },
+                    "amount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "OptionItem": {
+                "type": "object",
+                "properties": {
+                    "optionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "content": {
+                        "type": "string"
+                    }
+                }
+            },
+            "SurveyOptionResponse": {
+                "type": "object",
+                "properties": {
+                    "questionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "question": {
+                        "type": "string"
+                    },
+                    "options": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OptionItem"
+                        }
+                    }
+                }
+            },
+            "MinigameListItemResponse": {
+                "type": "object",
+                "properties": {
+                    "gameId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "rewardToken": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "MinigameListResponse": {
+                "type": "object",
+                "properties": {
+                    "games": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MinigameListItemResponse"
+                        }
+                    }
+                }
+            },
+            "MinigameDetailResponse": {
+                "type": "object",
+                "properties": {
+                    "gameId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "thumbnailUrl": {
+                        "type": "string"
+                    },
+                    "rewardToken": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "ConversationMessageResponse": {
+                "type": "object",
+                "properties": {
+                    "sequence": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "speakerParticipantId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "speakerName": {
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string"
+                    }
+                }
+            },
+            "MatchResponse": {
+                "type": "object",
+                "properties": {
+                    "matchId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "participantAId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "participantBId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "isFinal": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "GameResponse": {
+                "type": "object",
+                "properties": {
+                    "gameId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "gameOrder": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "title": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ParticipantResponse": {
+                "type": "object",
+                "properties": {
+                    "participantId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                }
+            },
+            "DailyQuestionOptionResponse": {
+                "type": "object",
+                "properties": {
+                    "optionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "content": {
+                        "type": "string"
+                    }
+                }
+            },
+            "DailyQuestionOptionResultResponse": {
+                "type": "object",
+                "properties": {
+                    "optionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "voteCount": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "percentage": {
+                        "type": "number",
+                        "format": "double"
+                    }
+                }
+            },
+            "DailyQuestionTodayResponse": {
+                "type": "object",
+                "properties": {
+                    "questionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "question": {
+                        "type": "string"
+                    },
+                    "options": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DailyQuestionOptionResponse"
+                        }
+                    },
+                    "answered": {
+                        "type": "boolean"
+                    },
+                    "selectedOptionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DailyQuestionOptionResultResponse"
+                        }
+                    },
+                    "totalCount": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "ContentRecommendationListResponse": {
+                "type": "object",
+                "properties": {
+                    "contents": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/ContentRecommendationResponse"
+                        }
+                    }
+                }
+            },
+            "ContentRecommendationResponse": {
+                "type": "object",
+                "properties": {
+                    "contentId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "contentType": {
+                        "type": "string"
+                    },
+                    "thumbnailUrl": {
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseString": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AnalysisReportResponse": {
+                "type": "object",
+                "properties": {
+                    "nickname": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "type": "string"
+                    },
+                    "strengths": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "cautions": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "ApiResponseAnalysisReportResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AnalysisReportResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiCloneResponse": {
+                "type": "object",
+                "properties": {
+                    "cloneId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "cloneName": {
+                        "type": "string"
+                    },
+                    "speakingStyle": {
+                        "type": "string"
+                    },
+                    "datingStyle": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseAiCloneResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AiCloneResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiReportView": {
+                "type": "object",
+                "properties": {
+                    "finalPartnerId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "narrative": {
+                        "type": "string"
+                    },
+                    "highlights": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "renderMode": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseAiReportView": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AiReportView"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiEpisodeMessagesView": {
+                "type": "object",
+                "properties": {
+                    "episodeNumber": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "versionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "topic": {
+                        "$ref": "#/components/schemas/AiTopicView"
+                    },
+                    "messages": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AiMessageView"
+                        }
+                    },
+                    "hasMore": {
+                        "type": "boolean"
+                    },
+                    "nextAfterSequence": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
+            },
+            "AiMessageView": {
+                "type": "object",
+                "properties": {
+                    "messageId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "sequence": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "sceneKind": {
+                        "type": "string"
+                    },
+                    "speakerId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "fromRepresentative": {
+                        "type": "boolean"
+                    },
+                    "text": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiTopicView": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "category": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseAiEpisodeMessagesView": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AiEpisodeMessagesView"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    }
+}
