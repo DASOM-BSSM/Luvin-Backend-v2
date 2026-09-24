@@ -70,9 +70,11 @@ Flyway 등 전용 도구가 추가되면, 서비스 갱신 전에 아래 순서�
 role만 사용한다. AI 배포용 `luvin-staging-github-actions-deploy`(`github_actions.tf`)와는 완전히
 분리되어 있고, 서로의 리소스에 접근할 수 없다.
 
-- 신뢰 조건: `token.actions.githubusercontent.com:sub == repo:DASOM-BSSM/Luvin-Backend-v2:ref:refs/heads/master`
+- 신뢰 조건: `token.actions.githubusercontent.com:sub == repo:DASOM-BSSM@269608495/Luvin-Backend-v2@1355673035:ref:refs/heads/master`
   — 이 저장소의 `master` 브랜치에서 실행된 워크플로만 이 role을 assume할 수 있다. 장기 액세스 키는
-  쓰지 않는다.
+  쓰지 않는다. `DASOM-BSSM` 조직이 GitHub Actions OIDC subject claim 커스터마이징(조직/저장소 ID
+  포함)을 켜 놔서, `sub`가 표준 `repo:OWNER/REPO:ref:...` 형식이 아니라 ID가 붙은 형식으로 나온다
+  (실제 워크플로 실행의 토큰으로 확인함).
 - 권한은 `luvin-staging-backend` ECR 저장소, `luvin-staging-backend` ECS 서비스, 그 타겟그룹의
   `DescribeTargetHealth`, task definition의 execution/task role에 대한 `iam:PassRole`로만
   한정된다. Secrets Manager 값 자체에 대한 권한은 없다(ECS 실행 role이 시크릿을 읽지, 배포 role이
@@ -85,11 +87,8 @@ role만 사용한다. AI 배포용 `luvin-staging-github-actions-deploy`(`github
   `dasom-bssm.com`/`www.dasom-bssm.com`만 커버한다. 지금 `https://luvin-api.dasom-bssm.com`은
   TLS 인증서 불일치로 실패한다(직접 확인함). `luvin-api.dasom-bssm.com`을 SAN에 포함한 새 ACM
   인증서를 발급하고 리스너를 갱신해야 한다 — 이번 작업 범위 밖이라 고치지 않았다.
-- `luvin-ai-v1`의 기존 AI 배포 role(`github_actions.tf`)의 OIDC 신뢰 조건 `sub` 값이
-  `repo:DASOM-BSSM@269608495/luvin-ai-v1@1378212335:ref:refs/heads/main` 형태로, org/repo ID가
-  `@` 뒤에 붙어 있다. GitHub Actions의 표준 `sub` claim 형식은 ID 접미사 없이
-  `repo:OWNER/REPO:ref:refs/heads/BRANCH`이고, ID를 claim 값 자체에 붙이는 방식은 문서화된 기능이
-  아니다 — 이 조건이 실제 토큰과 일치하지 않아 AI 배포 워크플로가 OIDC로 role을 assume하지 못하고
-  있을 가능성이 있다. 이번 백엔드 role은 표준 형식으로 만들었다. AI 쪽은 건드리지 않았으니, 최근
-  AI 배포 워크플로 실행 로그에서 `AssumeRoleWithWebIdentity`가 실제로 성공했는지 확인해보는 걸
-  권한다.
+- ~~`luvin-ai-v1`의 기존 AI 배포 role의 OIDC 신뢰 조건이 비표준 형식이라 의심했던 부분~~ — 확인
+  결과 **AI 쪽이 맞았다.** `DASOM-BSSM` 조직이 OIDC subject claim 커스터마이징을 켜 놔서 조직/저장소
+  ID가 `sub`에 포함되는 게 이 조직의 정상 동작이다 (실제 백엔드 워크플로 토큰으로 확인, 위 신뢰
+  조건 항목 참고). 처음에 표준 형식으로 만들었다가 실제 배포에서 `AssumeRoleWithWebIdentity` 거부를
+  겪고 나서 바로잡았다.
