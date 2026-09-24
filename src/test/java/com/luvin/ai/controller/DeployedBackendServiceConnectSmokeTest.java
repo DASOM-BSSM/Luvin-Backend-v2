@@ -3,6 +3,7 @@ package com.luvin.ai.controller;
 import com.luvin.common.security.AuthenticatedUser;
 import com.luvin.common.security.JwtProperties;
 import com.luvin.common.security.JwtTokenProvider;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -23,7 +24,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 실제로 도달하는지 외부에서 검증하는 수동 스모크 테스트. DB/전체 컨텍스트 없이 JwtTokenProvider만
  * 올려 실제 배포본과 같은 서명 키로 토큰을 만들고, 배포된 공인 IP로 직접 HTTP 요청을 보낸다.
  * JWT_SECRET_FOR_TEST 환경변수(배포된 시크릿 값)가 필요하다.
+ *
+ * 배포된 ALB에 실제로 의존하므로 manual 태그로 기본 ./gradlew test에서 제외한다
+ * (./gradlew manualTest로 로컬에서만 실행).
  */
+@Tag("manual")
 class DeployedBackendServiceConnectSmokeTest {
 
     @Configuration

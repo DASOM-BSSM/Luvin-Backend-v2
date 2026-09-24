@@ -48,5 +48,15 @@ dependencies {
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'manual'
+    }
+}
+
+// 실제 AI 서버/배포된 ALB 등 외부 인프라에 의존하는 수동 통합 테스트.
+// CI에서는 도달 불가능하므로 기본 test에서 제외하고 여기서만 돌린다.
+tasks.register('manualTest', Test) {
+    useJUnitPlatform {
+        includeTags 'manual'
+    }
 }

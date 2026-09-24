@@ -1,0 +1,91 @@
+name: Deploy backend staging
+
+'on':
+  pull_request:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'openapi.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: luvin
+          POSTGRES_USER: luvin
+          POSTGRES_PASSWORD: luvin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U luvin"
+          --health-interval 2s
+          --health-timeout 2s
+          --health-retries 15
+    env:
+      # CI 전용 임시 Postgres 서비스 컨테이너. 실제 스테이징 RDS는 ECS 보안그룹에서만
+      # 접근 가능해 CI 러너에서 도달할 수 없다.
+      DB_URL: jdbc:postgresql://localhost:5432/luvin
+      DB_USERNAME: luvin
+      DB_PASSWORD: luvin
+      # 실제로 호출하지 않는 테스트만 도는 값이라 네트워크로 도달 가능할 필요는 없다.
+      AI_SERVICE_BASE_URL: http://localhost:1
+      JWT_SECRET: ci-test-only-secret-key-not-used-in-staging-0123456789
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: ./gradlew --no-daemon test
+      - run: ./gradlew --no-daemon bootJar
+      - name: Build image (no push)
+        run: docker build --platform linux/amd64 -t luvin-staging-backend:ci .
+
+  deploy:
+    needs: verify
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ap-northeast-2
+      AWS_ACCOUNT_ID: '014548222237'
+      ECR_REPOSITORY: luvin-staging-backend
+      ECS_CLUSTER: luvin-staging
+      ECS_SERVICE: luvin-staging-backend
+      CONTAINER_NAME: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ap-northeast-2
+          role-to-assume: arn:aws:iam::014548222237:role/luvin-staging-backend-github-actions-deploy
+      - name: Build and push immutable image
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$registry"
+          docker build --platform linux/amd64 --tag "$registry/$ECR_REPOSITORY:$GITHUB_SHA" .
+          docker push "$registry/$ECR_REPOSITORY:$GITHUB_SHA"
+          digest="$(aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids "imageTag=$GITHUB_SHA" --query 'imageDetails[0].imageDigest' --output text)"
+          test "$digest" != None
+          echo "uri=$registry/$ECR_REPOSITORY@$digest" >> "$GITHUB_OUTPUT"
+      - name: Deploy to ECS
+        env:
+          IMAGE_URI: ${{ steps.image.outputs.uri }}
+        run: bash infra/deploy/deploy-backend-staging.sh
