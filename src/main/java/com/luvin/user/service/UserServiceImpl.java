@@ -34,7 +34,7 @@ public class UserServiceImpl implements UserService {
     public void updateProfile(Long memberId, UserProfileUpdateRequest request) {
         User user = userRepository.findById(memberId)
                 .orElseThrow(() -> new UserNotFoundException(memberId));
-        user.updateProfile(request.getNickname(), request.getJob(), request.getBio());
+        user.updateProfile(request.getNickname(), request.getGender(), request.getJob(), request.getBio());
         // JPA 변경 감지(dirty checking)로 트랜잭션 종료 시 자동 반영 -> save() 호출 불필요
     }
 }

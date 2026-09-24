@@ -85,8 +85,9 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void updateProfile(String nickname, String job, String bio) {
+    public void updateProfile(String nickname, String gender, String job, String bio) {
         if (nickname != null) this.nickname = nickname;
+        if (gender != null) this.gender = gender;
         if (job != null) this.job = job;
         if (bio != null) this.bio = bio;
     }

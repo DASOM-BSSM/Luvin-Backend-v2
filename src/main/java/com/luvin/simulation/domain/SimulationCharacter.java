@@ -25,4 +25,8 @@ public class SimulationCharacter {
 
     @Column(nullable = false, length = 50)
     private String name;
+
+    /** User.gender와 동일한 자유 문자열 규칙("MALE"/"FEMALE")을 따른다. */
+    @Column(nullable = false, length = 10)
+    private String gender;
 }
