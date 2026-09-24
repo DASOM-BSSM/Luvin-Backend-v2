@@ -42,5 +42,6 @@ out/
 ### env ###
 .env
 
-### terraform (local staging area for luvin-ai-v1 infra; state/plan contain secrets, never commit) ###
-/infra/
+### terraform (local staging area for luvin-infra; state/plan contain secrets, never commit) ###
+### infra/deploy/ is real app deploy tooling and must stay tracked. ###
+/infra/terraform/
