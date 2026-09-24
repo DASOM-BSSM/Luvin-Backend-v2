@@ -1610,6 +1610,9 @@
                     "nickname": {
                         "type": "string"
                     },
+                    "gender": {
+                        "type": "string"
+                    },
                     "job": {
                         "type": "string"
                     },
@@ -2047,13 +2050,6 @@
                     "gender": {
                         "type": "string"
                     },
-                    "adultAge": {
-                        "type": "integer",
-                        "format": "int32"
-                    },
-                    "personality": {
-                        "type": "string"
-                    },
                     "traits": {
                         "$ref": "#/components/schemas/AiTraitsRequest"
                     }
@@ -2138,13 +2134,6 @@
                         "type": "string"
                     },
                     "gender": {
-                        "type": "string"
-                    },
-                    "adultAge": {
-                        "type": "integer",
-                        "format": "int32"
-                    },
-                    "personality": {
                         "type": "string"
                     }
                 }
@@ -2556,6 +2545,9 @@
                         "format": "int64"
                     },
                     "name": {
+                        "type": "string"
+                    },
+                    "gender": {
                         "type": "string"
                     }
                 }

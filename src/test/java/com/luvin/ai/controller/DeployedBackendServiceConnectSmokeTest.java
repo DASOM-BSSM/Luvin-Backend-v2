@@ -57,8 +57,8 @@ class DeployedBackendServiceConnectSmokeTest {
             String token = provider.createAccessToken(
                     new AuthenticatedUser(999999999L, "smoke@test.local", "smoke"));
 
-            String body = "{\"representative\":{\"gender\":\"female\",\"adultAge\":25," +
-                    "\"personality\":\"친절하고 다정한 성격\",\"traits\":{" +
+            String body = "{\"representative\":{\"gender\":\"female\"," +
+                    "\"traits\":{" +
                     "\"affectionExpression\":50,\"relationshipAnxiety\":50,\"relationshipAvoidance\":50," +
                     "\"emotionalAttunement\":50,\"relationshipInitiative\":50,\"practicalPriority\":50," +
                     "\"reassuranceNeed\":50,\"jealousyReactivity\":50,\"relationshipEnergyDependence\":50," +

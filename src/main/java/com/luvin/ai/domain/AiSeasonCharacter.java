@@ -47,20 +47,11 @@ public class AiSeasonCharacter {
     @Column(name = "gender", length = 10)
     private String gender;
 
-    @Column(name = "adult_age")
-    private Integer adultAge;
-
-    @Column(name = "personality", length = 1000)
-    private String personality;
-
-    public AiSeasonCharacter(AiSeason season, UUID characterId, AiCharacterRole role,
-                              String gender, Integer adultAge, String personality) {
+    public AiSeasonCharacter(AiSeason season, UUID characterId, AiCharacterRole role, String gender) {
         this.season = season;
         this.characterId = characterId;
         this.role = role;
         this.gender = gender;
-        this.adultAge = adultAge;
-        this.personality = personality;
     }
 
     public boolean isRepresentative() {

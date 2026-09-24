@@ -5,8 +5,6 @@ import java.util.UUID;
 public record AiCharacterView(
         UUID characterId,
         String role,
-        String gender,
-        Integer adultAge,
-        String personality
+        String gender
 ) {
 }
