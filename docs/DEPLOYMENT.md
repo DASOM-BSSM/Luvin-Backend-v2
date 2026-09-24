@@ -8,10 +8,10 @@ ECR(`luvin-staging-backend`)·ALB 타겟그룹을 그대로 사용하며, 이 �
 ## 파이프라인
 
 - **PR**: `verify` job만 실행 — 테스트(`./gradlew test`), 빌드(`bootJar`, `docker build`). 배포하지 않는다.
-- **`main` push**: `verify` 통과 후 `deploy` job 실행 — 이미지를 커밋 SHA로 ECR에 push하고, digest를
+- **`master` push**: `verify` 통과 후 `deploy` job 실행 — 이미지를 커밋 SHA로 ECR에 push하고, digest를
   구해 불변 참조(`repo@sha256:...`)로 배포한다. 태그만으로 배포하지 않는다(태그는 나중에 다른 이미지를
   가리키도록 덮어써질 수 있어 불변성이 없다).
-- **`workflow_dispatch`**: 수동 재실행. `main`의 최신 코드로 verify→deploy를 다시 돈다.
+- **`workflow_dispatch`**: 수동 재실행. `master`의 최신 코드로 verify→deploy를 다시 돈다.
 - `concurrency: backend-staging-deploy`로 동시 배포를 막는다(새 실행이 기존 배포를 취소하지 않고
   대기한다).
 
@@ -70,8 +70,8 @@ Flyway 등 전용 도구가 추가되면, 서비스 갱신 전에 아래 순서�
 role만 사용한다. AI 배포용 `luvin-staging-github-actions-deploy`(`github_actions.tf`)와는 완전히
 분리되어 있고, 서로의 리소스에 접근할 수 없다.
 
-- 신뢰 조건: `token.actions.githubusercontent.com:sub == repo:DASOM-BSSM/Luvin-Backend-v2:ref:refs/heads/main`
-  — 이 저장소의 `main` 브랜치에서 실행된 워크플로만 이 role을 assume할 수 있다. 장기 액세스 키는
+- 신뢰 조건: `token.actions.githubusercontent.com:sub == repo:DASOM-BSSM/Luvin-Backend-v2:ref:refs/heads/master`
+  — 이 저장소의 `master` 브랜치에서 실행된 워크플로만 이 role을 assume할 수 있다. 장기 액세스 키는
   쓰지 않는다.
 - 권한은 `luvin-staging-backend` ECR 저장소, `luvin-staging-backend` ECS 서비스, 그 타겟그룹의
   `DescribeTargetHealth`, task definition의 execution/task role에 대한 `iam:PassRole`로만

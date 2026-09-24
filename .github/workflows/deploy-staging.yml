@@ -3,7 +3,7 @@ name: Deploy backend staging
 'on':
   pull_request:
   push:
-    branches: [main]
+    branches: [master]
     paths-ignore:
       - '**.md'
       - 'openapi.json'
