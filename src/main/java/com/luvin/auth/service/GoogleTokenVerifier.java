@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.util.List;
+
 @Component
 public class GoogleTokenVerifier {
 
@@ -38,11 +40,11 @@ public class GoogleTokenVerifier {
             throw new InvalidGoogleTokenException("구글 토큰 검증 응답이 올바르지 않습니다.");
         }
 
-        String expectedClientId = googleOAuthProperties.clientId();
-        if (expectedClientId == null || expectedClientId.isBlank()) {
-            throw new InvalidGoogleTokenException("서버에 app.oauth.google.client-id(구글 클라이언트 ID)가 설정되지 않았습니다.");
+        List<String> allowedClientIds = googleOAuthProperties.clientIds();
+        if (allowedClientIds == null || allowedClientIds.isEmpty()) {
+            throw new InvalidGoogleTokenException("서버에 app.oauth.google.client-ids(구글 클라이언트 ID 목록)가 설정되지 않았습니다.");
         }
-        if (!expectedClientId.equals(response.aud())) {
+        if (!allowedClientIds.contains(response.aud())) {
             throw new InvalidGoogleTokenException("이 서버용으로 발급되지 않은 구글 토큰입니다.");
         }
 

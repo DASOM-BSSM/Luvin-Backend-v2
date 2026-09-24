@@ -37,9 +37,13 @@ app:
     access-token-expiration-seconds: ${JWT_ACCESS_TOKEN_EXPIRATION_SECONDS:1209600}
   oauth:
     google:
-      # 구글 클라우드 콘솔에서 발급받은 OAuth 클라이언트 ID. 비어있으면 로그인 자체가 막힌다 (fail-closed).
-      client-id: ${GOOGLE_CLIENT_ID:}
-      # 웹 OAuth 리디렉션(authorization code) 플로우 전용. ID 토큰을 그대로 POST하는 기존 플로우는 필요 없다.
+      # ID 토큰 검증(aud claim)에 허용할 클라이언트 ID 목록. 안드로이드/iOS/웹이 각자 다른
+      # client-id로 토큰을 발급하므로 전부 나열한다 (콤마로 구분). 비어있으면 로그인 자체가
+      # 막힌다 (fail-closed).
+      client-ids: ${GOOGLE_CLIENT_IDS:}
+      # 웹 OAuth 리디렉션(authorization code) 플로우 전용 — 위 client-ids 중 웹 클라이언트 ID와
+      # 동일해야 한다.
+      web-client-id: ${GOOGLE_WEB_CLIENT_ID:}
       client-secret: ${GOOGLE_CLIENT_SECRET:}
       # 구글 콘솔의 "승인된 리디렉션 URI"와 정확히 일치해야 한다.
       redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/auth/google/callback}

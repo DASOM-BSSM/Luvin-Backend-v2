@@ -42,7 +42,7 @@ public class AuthController {
     @GetMapping("/google/login")
     public ResponseEntity<Void> googleLoginRedirect() {
         URI target = UriComponentsBuilder.fromUriString("https://accounts.google.com/o/oauth2/v2/auth")
-                .queryParam("client_id", googleOAuthProperties.clientId())
+                .queryParam("client_id", googleOAuthProperties.webClientId())
                 .queryParam("redirect_uri", googleOAuthProperties.redirectUri())
                 .queryParam("response_type", "code")
                 .queryParam("scope", "openid email profile")
