@@ -30,6 +30,9 @@ public class GoogleAuthorizationCodeExchanger {
         if (code == null || code.isBlank()) {
             throw new InvalidGoogleTokenException("구글 authorization code가 없습니다.");
         }
+        if (googleOAuthProperties.webClientId() == null || googleOAuthProperties.webClientId().isBlank()) {
+            throw new InvalidGoogleTokenException("서버에 app.oauth.google.web-client-id가 설정되지 않았습니다.");
+        }
         if (googleOAuthProperties.clientSecret() == null || googleOAuthProperties.clientSecret().isBlank()) {
             throw new InvalidGoogleTokenException("서버에 app.oauth.google.client-secret이 설정되지 않았습니다.");
         }
@@ -39,7 +42,7 @@ public class GoogleAuthorizationCodeExchanger {
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("code", code);
-        form.add("client_id", googleOAuthProperties.clientId());
+        form.add("client_id", googleOAuthProperties.webClientId());
         form.add("client_secret", googleOAuthProperties.clientSecret());
         form.add("redirect_uri", googleOAuthProperties.redirectUri());
         form.add("grant_type", "authorization_code");
