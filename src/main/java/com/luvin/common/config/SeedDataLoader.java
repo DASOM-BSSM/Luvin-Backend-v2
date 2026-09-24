@@ -56,10 +56,19 @@ public class SeedDataLoader implements ApplicationRunner {
 
     /**
      * 유저 본인(AiClone) 외에 에피소드에 고정으로 등장하는 AI 출연진("빵") 풀.
+     * 이성 참가자 구성(EpisodeServiceImpl)이 이 gender 값을 기준으로 캐스팅을 필터링한다.
      */
     private void seedSimulationCharacters() {
-        List.of("민준", "서연", "지호", "하은").forEach(name ->
-                simulationCharacterRepository.save(SimulationCharacter.builder().name(name).build()));
+        List.of(
+                new CharacterSeed("민준", "MALE"),
+                new CharacterSeed("지호", "MALE"),
+                new CharacterSeed("서연", "FEMALE"),
+                new CharacterSeed("하은", "FEMALE")
+        ).forEach(seed -> simulationCharacterRepository.save(
+                SimulationCharacter.builder().name(seed.name()).gender(seed.gender()).build()));
+    }
+
+    private record CharacterSeed(String name, String gender) {
     }
 
     /**

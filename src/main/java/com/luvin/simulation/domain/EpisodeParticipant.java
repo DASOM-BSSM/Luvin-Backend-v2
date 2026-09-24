@@ -36,12 +36,21 @@ public class EpisodeParticipant {
     @Column(nullable = false, length = 50)
     private String name;
 
+    /**
+     * name과 동일하게 생성 시점 스냅샷이다. SELF는 User.gender, CAST는 SimulationCharacter.gender.
+     * User.gender가 아직 없는 유저(현재 PUT /api/users/me에 gender 설정 경로가 없어 null일 수 있음)는
+     * null로 저장될 수 있다.
+     */
+    @Column(length = 10)
+    private String gender;
+
     public EpisodeParticipant(Episode episode, ParticipantType participantType,
-                               SimulationCharacter character, String name) {
+                               SimulationCharacter character, String name, String gender) {
         this.episode = episode;
         this.participantType = participantType;
         this.character = character;
         this.name = name;
+        this.gender = gender;
     }
 
     public boolean isSelf() {
