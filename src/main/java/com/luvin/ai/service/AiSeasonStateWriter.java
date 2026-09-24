@@ -58,9 +58,7 @@ public class AiSeasonStateWriter {
                 season,
                 c.id(),
                 AiCharacterRole.fromWire(c.role(), null),
-                c.gender(),
-                c.adultAge(),
-                c.personality())));
+                c.gender())));
 
         return season;
     }

@@ -38,8 +38,6 @@ class AiServiceClientConnectionTest {
 
             CreateSeasonRequestDto request = CreateSeasonRequestDto.of(new CharacterProfileDto(
                     "female",
-                    25,
-                    "친절하고 다정한 성격",
                     new TraitsDto(50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50)
             ));
 

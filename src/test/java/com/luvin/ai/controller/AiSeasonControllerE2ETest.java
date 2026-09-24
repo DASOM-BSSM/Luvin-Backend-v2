@@ -78,8 +78,6 @@ class AiSeasonControllerE2ETest {
 
         CreateSeasonHttpRequest body = new CreateSeasonHttpRequest(new AiCharacterProfileRequest(
                 "female",
-                25,
-                "친절하고 다정한 성격",
                 new AiTraitsRequest(50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50)
         ));
 

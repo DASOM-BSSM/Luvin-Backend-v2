@@ -11,16 +11,13 @@ import java.util.Set;
 
 /**
  * AI 호출 전 Spring이 수행해야 하는 검증 (요구사항 3.3):
- * 성별 male|female, 나이 19..120, 성격 설명 1..1000자, 13개 성향 전부 필수·1..100·boolean/NaN/Infinity 금지.
+ * 성별 male|female, 13개 성향 전부 필수·1..100·boolean/NaN/Infinity 금지.
  * 여기서 막힌 요청은 절대 AI 서비스로 전달되지 않는다.
  */
 @Component
 public class AiInputValidator {
 
     private static final Set<String> ALLOWED_GENDERS = Set.of("male", "female");
-    private static final int MIN_ADULT_AGE = 19;
-    private static final int MAX_ADULT_AGE = 120;
-    private static final int MAX_PERSONALITY_LENGTH = 1000;
     private static final int TRAIT_MIN = 1;
     private static final int TRAIT_MAX = 100;
 
@@ -29,28 +26,12 @@ public class AiInputValidator {
             throw new AiInputValidationException("캐릭터 프로필이 없습니다.");
         }
         validateGender(profile.gender());
-        validateAdultAge(profile.adultAge());
-        validatePersonality(profile.personality());
         validateTraits(profile.traits());
     }
 
     private void validateGender(String gender) {
         if (gender == null || !ALLOWED_GENDERS.contains(gender)) {
             throw new AiInputValidationException("gender는 male 또는 female이어야 합니다.");
-        }
-    }
-
-    private void validateAdultAge(Integer adultAge) {
-        if (adultAge == null || adultAge < MIN_ADULT_AGE || adultAge > MAX_ADULT_AGE) {
-            throw new AiInputValidationException(
-                    "adult_age는 " + MIN_ADULT_AGE + ".." + MAX_ADULT_AGE + " 범위의 정수여야 합니다.");
-        }
-    }
-
-    private void validatePersonality(String personality) {
-        if (personality == null || personality.isEmpty() || personality.length() > MAX_PERSONALITY_LENGTH) {
-            throw new AiInputValidationException(
-                    "personality는 1.." + MAX_PERSONALITY_LENGTH + "자여야 합니다.");
         }
     }
 

@@ -404,13 +404,13 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                 t.reassuranceNeed(), t.jealousyReactivity(), t.relationshipEnergyDependence(),
                 t.emotionalSuppression(), t.conflictConfrontation(), t.relationshipPace(),
                 t.interestExpressionFrequency());
-        return new CharacterProfileDto(r.gender(), r.adultAge(), r.personality(), traits);
+        return new CharacterProfileDto(r.gender(), traits);
     }
 
     private AiSeasonStatusView toStatusView(AiSeason season, List<AiSeasonCharacter> characters) {
         List<AiCharacterView> characterViews = characters.stream()
                 .map(c -> new AiCharacterView(
-                        c.getCharacterId(), c.getRole().name(), c.getGender(), c.getAdultAge(), c.getPersonality()))
+                        c.getCharacterId(), c.getRole().name(), c.getGender()))
                 .collect(Collectors.toList());
         return new AiSeasonStatusView(
                 season.getSeasonId(), season.getRevision(), season.getCurrentEpisode(),

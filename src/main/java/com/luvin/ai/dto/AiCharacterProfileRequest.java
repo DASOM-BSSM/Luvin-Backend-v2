@@ -6,8 +6,6 @@ package com.luvin.ai.dto;
  */
 public record AiCharacterProfileRequest(
         String gender,
-        Integer adultAge,
-        String personality,
         AiTraitsRequest traits
 ) {
 }
