@@ -47,6 +47,12 @@ public interface AiSeasonOrchestrationService {
     /** 2·4화 1:1 상대 변경. 다음 화 generation이 이미 접수됐으면 거부한다. */
     AiRerollView requestReroll(Long memberId, int episodeNumber, UUID requestedPartnerId);
 
+    /**
+     * 해당 회차의 가장 최근 reroll 요청 상태를 조회한다(폴링용). POST 응답 이후 완료 여부를 확인할
+     * 별도 수단이 없던 문제를 해결한다. 한 번도 reroll을 요청한 적이 없으면 404.
+     */
+    AiRerollView getRerollStatus(Long memberId, int episodeNumber);
+
     /** episodeNumber 화 완성 메시지 pagination 조회. version_id를 고정해서 조회한다. */
     AiEpisodeMessagesView getEpisodeMessages(Long memberId, int episodeNumber, Integer afterSequence, Integer limit);
 
