@@ -63,12 +63,24 @@ public class AiSeason {
     @Column(name = "jpa_version", nullable = false)
     private Long jpaVersion;
 
+    /**
+     * 이 시즌을 생성할 때 쓴 {@code survey_results.id}. from-survey 경로로 만든 시즌만 값이 있고,
+     * 레거시 POST /api/ai/seasons(원시 traits) 경로로 만든 시즌은 null이다 — 서버가 추측하지 않는다.
+     */
+    @Column(name = "survey_result_id")
+    private UUID surveyResultId;
+
     public AiSeason(Long memberId, UUID seasonId, Integer revision, Integer currentEpisode) {
+        this(memberId, seasonId, revision, currentEpisode, null);
+    }
+
+    public AiSeason(Long memberId, UUID seasonId, Integer revision, Integer currentEpisode, UUID surveyResultId) {
         this.memberId = memberId;
         this.seasonId = seasonId;
         this.revision = revision;
         this.currentEpisode = currentEpisode;
         this.status = AiSeasonStatus.IN_PROGRESS;
+        this.surveyResultId = surveyResultId;
         LocalDateTime now = LocalDateTime.now();
         this.createdAt = now;
         this.updatedAt = now;

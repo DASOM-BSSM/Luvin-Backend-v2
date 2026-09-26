@@ -8,19 +8,24 @@ import com.luvin.ai.domain.AiGameResult;
 import com.luvin.ai.domain.AiRerollRequest;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonCharacter;
+import com.luvin.ai.domain.AiSeasonCreationInput;
 import com.luvin.ai.domain.AiSelection;
 import com.luvin.ai.domain.AiSelectionSource;
 import com.luvin.ai.repository.AiEpisodeProgressRepository;
 import com.luvin.ai.repository.AiRerollRequestRepository;
 import com.luvin.ai.repository.AiSeasonCharacterRepository;
+import com.luvin.ai.repository.AiSeasonCreationInputRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.ai.repository.AiSelectionRepository;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
+import com.luvin.survey.domain.SurveyResultV2;
+import com.luvin.survey.repository.SurveyResultV2Repository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -43,16 +48,27 @@ public class AiSeasonStateWriter {
     private final AiEpisodeProgressRepository episodeProgressRepository;
     private final AiSelectionRepository selectionRepository;
     private final AiRerollRequestRepository rerollRequestRepository;
+    private final AiSeasonCreationInputRepository seasonCreationInputRepository;
+    private final SurveyResultV2Repository surveyResultV2Repository;
 
     @Transactional
     public AiSeason persistNewSeason(Long memberId, SeasonResponseDto response) {
+        return persistNewSeason(memberId, response, null);
+    }
+
+    @Transactional
+    public AiSeason persistNewSeasonFromSurvey(Long memberId, SeasonResponseDto response, UUID surveyResultId) {
+        return persistNewSeason(memberId, response, surveyResultId);
+    }
+
+    private AiSeason persistNewSeason(Long memberId, SeasonResponseDto response, UUID surveyResultId) {
         AiSeason raceExisting = seasonRepository.findByMemberId(memberId).orElse(null);
         if (raceExisting != null) {
             return raceExisting;
         }
 
         AiSeason season = seasonRepository.save(new AiSeason(
-                memberId, response.seasonId(), response.revision(), response.currentEpisode()));
+                memberId, response.seasonId(), response.revision(), response.currentEpisode(), surveyResultId));
 
         response.characters().forEach(c -> seasonCharacterRepository.save(new AiSeasonCharacter(
                 season,
@@ -61,6 +77,32 @@ public class AiSeasonStateWriter {
                 c.gender())));
 
         return season;
+    }
+
+    /**
+     * 이미 저장된 생성 입력이 있으면 그대로 반환하고(재설문 후에도 payload 고정), 없으면 새로 저장한다.
+     * 원격 AI 호출 "이전에" 커밋되어야 하므로 orchestration 서비스가 이 메서드를 먼저 호출한 뒤
+     * 반환값을 그대로 재시도에도 재사용한다.
+     */
+    @Transactional
+    public AiSeasonCreationInput persistPendingCreationInput(Long memberId, UUID surveyResultId,
+                                                               String profileJson, String requestHash) {
+        return seasonCreationInputRepository.findByMemberId(memberId)
+                .orElseGet(() -> {
+                    SurveyResultV2 surveyResult = surveyResultV2Repository.getReferenceById(surveyResultId);
+                    return seasonCreationInputRepository.save(new AiSeasonCreationInput(
+                            memberId, surveyResult, profileJson, requestHash, UUID.randomUUID()));
+                });
+    }
+
+    @Transactional
+    public void markCreationInputSucceeded(Long creationInputId) {
+        seasonCreationInputRepository.findById(creationInputId).ifPresent(AiSeasonCreationInput::markSucceeded);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<AiSeasonCreationInput> findCreationInput(Long memberId) {
+        return seasonCreationInputRepository.findByMemberId(memberId);
     }
 
     @Transactional

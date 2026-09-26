@@ -1,0 +1,146 @@
+{
+  "survey_version": "bread_survey.v1-draft",
+  "scoring_version": "evidence.v1-draft",
+  "classification_version": "bread_profiles.v1-draft",
+  "primary_type": "donut",
+  "secondary_type": "madeleine",
+  "mixed": true,
+  "poor_fit": false,
+  "tie": true,
+  "top_two_distance_gap": 0.0,
+  "distances": {
+    "donut": 9.5,
+    "madeleine": 9.5,
+    "cream_bread": 9.604686,
+    "pretzel": 9.616248,
+    "castella": 9.810708,
+    "red_bean_bread": 9.966991,
+    "baguette": 10.012492,
+    "salt_bread": 10.17759
+  },
+  "core_scores": {
+    "affection_expression": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "relationship_anxiety": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "relationship_avoidance": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "emotional_attunement": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "relationship_initiative": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "practical_priority": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "reassurance_need": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "jealousy_reactivity": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "relationship_energy_dependence": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "emotional_suppression": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "conflict_confrontation": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "relationship_pace": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "interest_expression_frequency": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    }
+  },
+  "auxiliary_scores": {
+    "behavioral_care": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "relationship_maintenance": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "defensive_expression": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "initiative_pride": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "social_approach": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "refusal_difficulty": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    },
+    "relationship_clarity": {
+      "score": 50.5,
+      "evidence_weight": 2,
+      "observations": 1,
+      "direction_conflict": false
+    }
+  },
+  "reason_evidence": []
+}

@@ -5,6 +5,7 @@ import com.luvin.ai.dto.AiTraitsRequest;
 import com.luvin.ai.service.exception.AiInputValidationException;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -13,13 +14,17 @@ import java.util.Set;
  * AI 호출 전 Spring이 수행해야 하는 검증 (요구사항 3.3):
  * 성별 male|female, 13개 성향 전부 필수·1..100·boolean/NaN/Infinity 금지.
  * 여기서 막힌 요청은 절대 AI 서비스로 전달되지 않는다.
+ *
+ * BigDecimal 자체가 boolean/NaN/Infinity를 표현할 수 없으므로(파싱 시점에 이미 배제됨),
+ * 여기서는 null 여부와 1..100 범위만 compareTo로 재검증한다. 문자열 숫자("50")가 JSON 바인딩
+ * 단계에서 자동 강제 변환되는지는 컨트롤러의 Jackson 설정에 달려 있고 이 클래스 범위 밖이다.
  */
 @Component
 public class AiInputValidator {
 
     private static final Set<String> ALLOWED_GENDERS = Set.of("male", "female");
-    private static final int TRAIT_MIN = 1;
-    private static final int TRAIT_MAX = 100;
+    private static final BigDecimal TRAIT_MIN = BigDecimal.ONE;
+    private static final BigDecimal TRAIT_MAX = BigDecimal.valueOf(100);
 
     public void validateCharacterProfile(AiCharacterProfileRequest profile) {
         if (profile == null) {
@@ -40,7 +45,7 @@ public class AiInputValidator {
             throw new AiInputValidationException("traits가 없습니다.");
         }
 
-        Map<String, Integer> fields = new LinkedHashMap<>();
+        Map<String, BigDecimal> fields = new LinkedHashMap<>();
         fields.put("affection_expression", traits.affectionExpression());
         fields.put("relationship_anxiety", traits.relationshipAnxiety());
         fields.put("relationship_avoidance", traits.relationshipAvoidance());
@@ -55,14 +60,12 @@ public class AiInputValidator {
         fields.put("relationship_pace", traits.relationshipPace());
         fields.put("interest_expression_frequency", traits.interestExpressionFrequency());
 
-        for (Map.Entry<String, Integer> entry : fields.entrySet()) {
-            Integer value = entry.getValue();
+        for (Map.Entry<String, BigDecimal> entry : fields.entrySet()) {
+            BigDecimal value = entry.getValue();
             if (value == null) {
                 throw new AiInputValidationException("13개 성향 중 " + entry.getKey() + "가 누락되었습니다.");
             }
-            // Integer 타입 자체가 boolean/NaN/Infinity를 표현할 수 없으므로 컴파일 타임에 그 경우를 배제한다.
-            // 범위만 명시적으로 재검증한다.
-            if (value < TRAIT_MIN || value > TRAIT_MAX) {
+            if (value.compareTo(TRAIT_MIN) < 0 || value.compareTo(TRAIT_MAX) > 0) {
                 throw new AiInputValidationException(
                         entry.getKey() + "는 " + TRAIT_MIN + ".." + TRAIT_MAX + " 범위여야 합니다. 입력값=" + value);
             }

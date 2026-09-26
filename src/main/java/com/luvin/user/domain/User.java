@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Getter
 @Entity
@@ -50,6 +51,13 @@ public class User {
 
     @Column(name = "personality_type", length = 50)
     private String personalityType; // 빵 타입 (설문 결과로 계산되어 저장됨)
+
+    /**
+     * 본인의 최신 유효 설문 v2 결과(survey_results.id). surveyCompleted는 이 값의 존재 여부로 판단하고,
+     * 답변 1개만 있거나 legacy 미분류 응답만 있는 경우와 구분한다.
+     */
+    @Column(name = "latest_survey_result_id")
+    private UUID latestSurveyResultId;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -101,5 +109,15 @@ public class User {
     // 설문 완료 후 빵 타입 계산 결과를 저장할 때 사용
     public void updatePersonalityType(String personalityType) {
         this.personalityType = personalityType;
+    }
+
+    /** 설문 v2 제출 transaction 안에서만 호출한다. 과거 결과를 가리키도록 되돌리지 않는다(호출부 책임). */
+    public void applySurveyResult(UUID surveyResultId, String personalityType) {
+        this.latestSurveyResultId = surveyResultId;
+        this.personalityType = personalityType;
+    }
+
+    public boolean hasCompletedSurveyV2() {
+        return latestSurveyResultId != null;
     }
 }

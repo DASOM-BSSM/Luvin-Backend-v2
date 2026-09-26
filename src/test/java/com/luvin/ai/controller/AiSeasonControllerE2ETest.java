@@ -23,6 +23,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,6 +41,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = LuvinBackendV2Application.class)
 @AutoConfigureTestRestTemplate
 class AiSeasonControllerE2ETest {
+
+    private static final BigDecimal FIFTY = BigDecimal.valueOf(50);
 
     @LocalServerPort
     private int port;
@@ -78,7 +81,7 @@ class AiSeasonControllerE2ETest {
 
         CreateSeasonHttpRequest body = new CreateSeasonHttpRequest(new AiCharacterProfileRequest(
                 "female",
-                new AiTraitsRequest(50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50)
+                new AiTraitsRequest(FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY)
         ));
 
         HttpHeaders headers = new HttpHeaders();
