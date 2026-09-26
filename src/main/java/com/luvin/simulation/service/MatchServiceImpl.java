@@ -53,7 +53,7 @@ public class MatchServiceImpl implements MatchService {
         Match match = getMatchOrThrow(memberId, matchId);
         return oneOnOneMessageRepository.findAllByMatch_MatchIdOrderBySequenceAsc(match.getMatchId()).stream()
                 .map(m -> new ConversationMessageResponse(
-                        m.getSequence(), m.getSpeaker().getParticipantId(), m.getSpeaker().getName(), m.getContent()))
+                        m.getMessageId(), m.getSequence(), m.getSpeaker().getParticipantId(), m.getSpeaker().getName(), m.getContent()))
                 .collect(Collectors.toList());
     }
 

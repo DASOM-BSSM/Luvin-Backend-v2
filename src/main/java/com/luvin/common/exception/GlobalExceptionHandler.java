@@ -48,7 +48,8 @@ public class GlobalExceptionHandler {
             GameNotFoundException.class,
             MatchNotFoundException.class,
             RebakeNotFoundException.class,
-            ReportNotFoundException.class
+            ReportNotFoundException.class,
+            MessageNotFoundException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleNotFound(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
