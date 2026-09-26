@@ -33,8 +33,10 @@ public class TokenServiceImpl implements TokenService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public TokenBalanceResponse getMyTokenStatus(Long memberId) {
+        // getOrCreateUserToken이 신규 유저에 한해 INSERT를 수행할 수 있으므로 readOnly로 두면 안 된다
+        // (PostgreSQL이 read-only transaction 안의 INSERT를 거부해 500으로 이어짐).
         UserToken userToken = getOrCreateUserToken(memberId);
         return new TokenBalanceResponse(userToken.getTokenBalance(), userToken.getFreeSimulationCount());
     }
