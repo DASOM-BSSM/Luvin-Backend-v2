@@ -28,11 +28,30 @@ public final class SurveyDefinitionConfigLoader {
             if (in == null) {
                 throw new SurveyDefinitionInvalidException("설문 definition 리소스를 찾을 수 없습니다: " + resourcePath);
             }
+            return parse(in);
+        } catch (IOException e) {
+            throw new SurveyDefinitionInvalidException("설문 definition 파싱에 실패했습니다: " + resourcePath + " (" + e.getMessage() + ")");
+        }
+    }
+
+    /** DB에 저장된 config_json 등 이미 메모리에 있는 원문을 파싱할 때 사용한다. */
+    public static SurveyDefinitionConfig parse(String json) {
+        try {
+            SurveyDefinitionConfig config = OBJECT_MAPPER.readValue(json, SurveyDefinitionConfig.class);
+            validate(config);
+            return config;
+        } catch (IOException e) {
+            throw new SurveyDefinitionInvalidException("설문 definition 파싱에 실패했습니다: " + e.getMessage());
+        }
+    }
+
+    private static SurveyDefinitionConfig parse(InputStream in) throws IOException {
+        try {
             SurveyDefinitionConfig config = OBJECT_MAPPER.readValue(in, SurveyDefinitionConfig.class);
             validate(config);
             return config;
         } catch (IOException e) {
-            throw new SurveyDefinitionInvalidException("설문 definition 파싱에 실패했습니다: " + resourcePath + " (" + e.getMessage() + ")");
+            throw new SurveyDefinitionInvalidException("설문 definition 파싱에 실패했습니다: " + e.getMessage());
         }
     }
 

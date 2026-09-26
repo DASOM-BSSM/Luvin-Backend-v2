@@ -1,18 +1,20 @@
 package com.luvin.ai.dto;
 
+import java.math.BigDecimal;
+
 public record AiTraitsRequest(
-        Integer affectionExpression,
-        Integer relationshipAnxiety,
-        Integer relationshipAvoidance,
-        Integer emotionalAttunement,
-        Integer relationshipInitiative,
-        Integer practicalPriority,
-        Integer reassuranceNeed,
-        Integer jealousyReactivity,
-        Integer relationshipEnergyDependence,
-        Integer emotionalSuppression,
-        Integer conflictConfrontation,
-        Integer relationshipPace,
-        Integer interestExpressionFrequency
+        BigDecimal affectionExpression,
+        BigDecimal relationshipAnxiety,
+        BigDecimal relationshipAvoidance,
+        BigDecimal emotionalAttunement,
+        BigDecimal relationshipInitiative,
+        BigDecimal practicalPriority,
+        BigDecimal reassuranceNeed,
+        BigDecimal jealousyReactivity,
+        BigDecimal relationshipEnergyDependence,
+        BigDecimal emotionalSuppression,
+        BigDecimal conflictConfrontation,
+        BigDecimal relationshipPace,
+        BigDecimal interestExpressionFrequency
 ) {
 }

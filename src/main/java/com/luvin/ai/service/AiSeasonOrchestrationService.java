@@ -19,6 +19,12 @@ public interface AiSeasonOrchestrationService {
     /** 이미 시즌이 있으면 그 상태를 그대로 반환한다 (멱등). */
     AiSeasonStatusView createSeason(Long memberId, AiCharacterProfileRequest representative);
 
+    /**
+     * 서버가 저장한 설문 v2 결과(gender + 13개 core 점수)로 시즌을 생성한다. 기존 시즌이 있으면 그대로
+     * 반환하고, 요청한 surveyResultId가 본인의 최신 결과가 아니면 409(SURVEY_RESULT_STALE)를 던진다.
+     */
+    AiSeasonStatusView createSeasonFromSurvey(Long memberId, java.util.UUID surveyResultId);
+
     /** 재시작/새로고침 후 최신 시즌 상태 복구. AI GET season으로 revision/currentEpisode를 동기화한다. */
     AiSeasonStatusView getStatus(Long memberId);
 

@@ -1,7 +1,6 @@
 package com.luvin.user.service;
 
 import com.luvin.common.exception.UserNotFoundException;
-import com.luvin.survey.repository.SurveyAnswerRepository;
 import com.luvin.user.domain.User;
 import com.luvin.user.dto.UserProfileResponse;
 import com.luvin.user.dto.UserProfileUpdateRequest;
@@ -13,11 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
-    private final SurveyAnswerRepository surveyAnswerRepository;
 
-    public UserServiceImpl(UserRepository userRepository, SurveyAnswerRepository surveyAnswerRepository) {
+    public UserServiceImpl(UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.surveyAnswerRepository = surveyAnswerRepository;
     }
 
     @Override
@@ -25,8 +22,9 @@ public class UserServiceImpl implements UserService {
     public UserProfileResponse getProfile(Long memberId) {
         User user = userRepository.findById(memberId)
                 .orElseThrow(() -> new UserNotFoundException(memberId));
-        boolean surveyCompleted = surveyAnswerRepository.existsByMemberId(memberId);
-        return UserProfileResponse.from(user, surveyCompleted);
+        // surveyCompleted는 본인의 유효한 설문 v2 결과가 연결돼 있을 때만 true다 — 기존 답변 1개만
+        // 있거나 legacy 미분류 응답만 있는 경우는 false로 취급해 새 설문을 안내한다.
+        return UserProfileResponse.from(user, user.hasCompletedSurveyV2());
     }
 
     @Override

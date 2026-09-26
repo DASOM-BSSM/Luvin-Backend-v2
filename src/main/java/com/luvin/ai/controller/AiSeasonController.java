@@ -6,6 +6,7 @@ import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
 import com.luvin.ai.dto.AiSelectionView;
+import com.luvin.ai.dto.CreateSeasonFromSurveyRequest;
 import com.luvin.ai.dto.CreateSeasonHttpRequest;
 import com.luvin.ai.dto.Episode1SelectionHttpRequest;
 import com.luvin.ai.dto.Episode3ResultHttpRequest;
@@ -44,6 +45,16 @@ public class AiSeasonController {
     public ApiResponse<AiSeasonStatusView> createSeason(@Valid @RequestBody CreateSeasonHttpRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(orchestrationService.createSeason(memberId, request.representative()));
+    }
+
+    /**
+     * 서버가 저장한 설문 v2 결과로 시즌을 생성한다. 전환 기간 동안 이 경로가 authoritative source가
+     * 되도록 유도하고, 기존 POST(위 createSeason)는 내부 테스트 fixture 용도로만 남긴다.
+     */
+    @PostMapping("/from-survey")
+    public ApiResponse<AiSeasonStatusView> createSeasonFromSurvey(@Valid @RequestBody CreateSeasonFromSurveyRequest request) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(orchestrationService.createSeasonFromSurvey(memberId, request.surveyResultId()));
     }
 
     @GetMapping("/me")

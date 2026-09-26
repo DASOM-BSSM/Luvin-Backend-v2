@@ -89,12 +89,42 @@
                 }
             }
         },
+        "/api/surveys/v2/submissions": {
+            "post": {
+                "tags": [
+                    "survey-v-2-controller"
+                ],
+                "operationId": "submit",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SurveyV2SubmitRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseSurveyResultResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/surveys/submit": {
             "post": {
                 "tags": [
                     "survey-controller"
                 ],
-                "operationId": "submit",
+                "operationId": "submit_1",
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -887,6 +917,36 @@
                 }
             }
         },
+        "/api/ai/seasons/from-survey": {
+            "post": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "createSeasonFromSurvey",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateSeasonFromSurveyRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiSeasonStatusView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/ai/seasons/episodes/{number}/seen": {
             "post": {
                 "tags": [
@@ -1124,6 +1184,77 @@
                             "*/*": {
                                 "schema": {
                                     "$ref": "#/components/schemas/SurveyOptionResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/surveys/v2/submissions/{clientSubmissionId}": {
+            "get": {
+                "tags": [
+                    "survey-v-2-controller"
+                ],
+                "operationId": "getSubmission",
+                "parameters": [
+                    {
+                        "name": "clientSubmissionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseSurveyResultResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/surveys/v2/results/me": {
+            "get": {
+                "tags": [
+                    "survey-v-2-controller"
+                ],
+                "operationId": "getMyResult",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseSurveyResultResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/surveys/v2/definition": {
+            "get": {
+                "tags": [
+                    "survey-v-2-controller"
+                ],
+                "operationId": "getDefinition",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseSurveyDefinitionResponse"
                                 }
                             }
                         }
@@ -1730,12 +1861,119 @@
                 "type": "object",
                 "properties": {
                     "questionId": {
-                        "type": "integer",
-                        "format": "int64"
+                        "type": "string",
+                        "minLength": 1
                     },
-                    "optionId": {
-                        "type": "integer",
-                        "format": "int64"
+                    "answerId": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            },
+            "SurveyV2SubmitRequest": {
+                "type": "object",
+                "properties": {
+                    "definitionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "surveyVersion": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "clientSubmissionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "answers": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AnswerItem"
+                        },
+                        "maxItems": 20,
+                        "minItems": 20
+                    }
+                },
+                "required": [
+                    "answers",
+                    "clientSubmissionId",
+                    "definitionId"
+                ]
+            },
+            "ApiResponseSurveyResultResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/SurveyResultResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "SurveyResultResponse": {
+                "type": "object",
+                "properties": {
+                    "resultId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "clientSubmissionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "definitionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "surveyVersion": {
+                        "type": "string"
+                    },
+                    "scoringVersion": {
+                        "type": "string"
+                    },
+                    "classificationVersion": {
+                        "type": "string"
+                    },
+                    "primaryType": {
+                        "type": "string"
+                    },
+                    "primaryLabel": {
+                        "type": "string"
+                    },
+                    "secondaryType": {
+                        "type": "string"
+                    },
+                    "mixed": {
+                        "type": "boolean"
+                    },
+                    "poorFit": {
+                        "type": "boolean"
+                    },
+                    "tie": {
+                        "type": "boolean"
+                    },
+                    "displayName": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "type": "string"
+                    },
+                    "reasonTexts": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "completedAt": {
+                        "type": "string",
+                        "format": "date-time"
                     }
                 }
             },
@@ -2001,6 +2239,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -2023,6 +2264,9 @@
                         "$ref": "#/components/schemas/AuthLoginResponse"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }
@@ -2070,6 +2314,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -2104,6 +2351,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -2122,56 +2372,43 @@
                 "type": "object",
                 "properties": {
                     "affectionExpression": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "relationshipAnxiety": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "relationshipAvoidance": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "emotionalAttunement": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "relationshipInitiative": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "practicalPriority": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "reassuranceNeed": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "jealousyReactivity": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "relationshipEnergyDependence": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "emotionalSuppression": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "conflictConfrontation": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "relationshipPace": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "interestExpressionFrequency": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     }
                 }
             },
@@ -2224,6 +2461,10 @@
                         "items": {
                             "$ref": "#/components/schemas/AiCharacterView"
                         }
+                    },
+                    "sourceSurveyResultId": {
+                        "type": "string",
+                        "format": "uuid"
                     }
                 }
             },
@@ -2238,8 +2479,23 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
+            },
+            "CreateSeasonFromSurveyRequest": {
+                "type": "object",
+                "properties": {
+                    "surveyResultId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "required": [
+                    "surveyResultId"
+                ]
             },
             "MarkSeenHttpRequest": {
                 "type": "object",
@@ -2286,6 +2542,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -2322,6 +2581,9 @@
                         "$ref": "#/components/schemas/AiEpisodeProgressView"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }
@@ -2365,6 +2627,9 @@
                         "$ref": "#/components/schemas/AiSelectionView"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }
@@ -2412,6 +2677,10 @@
                     },
                     "surveyCompleted": {
                         "type": "boolean"
+                    },
+                    "latestSurveyResultId": {
+                        "type": "string",
+                        "format": "uuid"
                     }
                 }
             },
@@ -2492,6 +2761,75 @@
                         "type": "array",
                         "items": {
                             "$ref": "#/components/schemas/OptionItem"
+                        }
+                    }
+                }
+            },
+            "ApiResponseSurveyDefinitionResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/SurveyDefinitionResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "QuestionItem": {
+                "type": "object",
+                "properties": {
+                    "questionId": {
+                        "type": "string"
+                    },
+                    "order": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "text": {
+                        "type": "string"
+                    },
+                    "answers": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AnswerItem"
+                        }
+                    }
+                }
+            },
+            "SurveyDefinitionResponse": {
+                "type": "object",
+                "properties": {
+                    "definitionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "surveyVersion": {
+                        "type": "string"
+                    },
+                    "scoringVersion": {
+                        "type": "string"
+                    },
+                    "classificationVersion": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "questionCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "questions": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/QuestionItem"
                         }
                     }
                 }
@@ -2751,6 +3089,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -2788,6 +3129,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -2819,6 +3163,9 @@
                         "$ref": "#/components/schemas/AiCloneResponse"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }
@@ -2857,6 +3204,9 @@
                         "$ref": "#/components/schemas/AiReportView"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }
@@ -2940,6 +3290,9 @@
                         "$ref": "#/components/schemas/AiEpisodeMessagesView"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }

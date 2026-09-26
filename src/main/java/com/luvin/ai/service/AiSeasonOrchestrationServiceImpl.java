@@ -24,10 +24,12 @@ import com.luvin.ai.domain.AiJobStatus;
 import com.luvin.ai.domain.AiRerollRequest;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonCharacter;
+import com.luvin.ai.domain.AiSeasonCreationInput;
 import com.luvin.ai.domain.AiSelection;
 import com.luvin.ai.domain.AiSelectionSource;
 import com.luvin.ai.dto.AiCharacterProfileRequest;
 import com.luvin.ai.dto.AiCharacterView;
+import com.luvin.ai.dto.AiTraitsRequest;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiMessageView;
@@ -46,10 +48,22 @@ import com.luvin.ai.service.exception.AiEpisodeProgressionException;
 import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
+import com.luvin.survey.domain.SurveyResultV2;
+import com.luvin.survey.service.exception.ProfileRequiredException;
+import com.luvin.survey.service.exception.SurveyResultNotFoundException;
+import com.luvin.survey.service.exception.SurveyResultStaleException;
+import com.luvin.user.domain.User;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -82,6 +96,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     private final AiSeasonCharacterRepository seasonCharacterRepository;
     private final AiEpisodeProgressRepository episodeProgressRepository;
     private final AiSelectionRepository selectionRepository;
+    private final AiTraitsWireAdapter traitsWireAdapter;
+    private final com.luvin.user.repository.UserRepository userRepository;
+    private final com.luvin.survey.repository.SurveyResultV2Repository surveyResultV2Repository;
 
     public AiSeasonOrchestrationServiceImpl(AiServiceClient aiServiceClient,
                                              AiInputValidator inputValidator,
@@ -91,7 +108,10 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                                              AiSeasonRepository seasonRepository,
                                              AiSeasonCharacterRepository seasonCharacterRepository,
                                              AiEpisodeProgressRepository episodeProgressRepository,
-                                             AiSelectionRepository selectionRepository) {
+                                             AiSelectionRepository selectionRepository,
+                                             AiTraitsWireAdapter traitsWireAdapter,
+                                             com.luvin.user.repository.UserRepository userRepository,
+                                             com.luvin.survey.repository.SurveyResultV2Repository surveyResultV2Repository) {
         this.aiServiceClient = aiServiceClient;
         this.inputValidator = inputValidator;
         this.ownerSubjectProvider = ownerSubjectProvider;
@@ -101,6 +121,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         this.seasonCharacterRepository = seasonCharacterRepository;
         this.episodeProgressRepository = episodeProgressRepository;
         this.selectionRepository = selectionRepository;
+        this.traitsWireAdapter = traitsWireAdapter;
+        this.userRepository = userRepository;
+        this.surveyResultV2Repository = surveyResultV2Repository;
     }
 
     // ---------------------------------------------------------------- 시즌 생성
@@ -124,6 +147,56 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         SeasonResponseDto response = aiServiceClient.createSeason(ownerSubject, idempotencyKey, request);
 
         AiSeason season = stateWriter.persistNewSeason(memberId, response);
+        return toStatusView(season, stateWriter.findCharacters(season.getId()));
+    }
+
+    @Override
+    public AiSeasonStatusView createSeasonFromSurvey(Long memberId, UUID surveyResultId) {
+        AiSeason existing = seasonRepository.findByMemberId(memberId).orElse(null);
+        if (existing != null) {
+            // 멱등: 기존 시즌이 있으면 재설문 결과로 바꾸지 않고 그대로 반환한다.
+            return toStatusView(existing, stateWriter.findCharacters(existing.getId()));
+        }
+
+        AiSeasonCreationInput creationInput = stateWriter.findCreationInput(memberId).orElse(null);
+        if (creationInput == null) {
+            User user = userRepository.findById(memberId)
+                    .orElseThrow(() -> new com.luvin.common.exception.UserNotFoundException(memberId));
+            // 요청한 surveyResultId가 본인의 "현재 최신" 결과가 아니면, 서버가 임의로 최신으로
+            // 보정하지 않고 409로 재조회를 요구한다 (요구사항: 서버가 몰래 최신판으로 채점하지 않는다).
+            if (user.getLatestSurveyResultId() == null || !user.getLatestSurveyResultId().equals(surveyResultId)) {
+                throw new SurveyResultStaleException();
+            }
+            SurveyResultV2 surveyResult = surveyResultV2Repository
+                    .findByIdAndSubmission_MemberId(surveyResultId, memberId)
+                    .orElseThrow(SurveyResultNotFoundException::new);
+            if (user.getGender() == null) {
+                throw new ProfileRequiredException("시즌을 생성하려면 먼저 gender를 설정해야 합니다.");
+            }
+
+            AiTraitsRequest traits = coreScoresToTraits(surveyResult.getCoreScoresJson());
+            // User.gender는 이 프로젝트 관례상 대문자("MALE"/"FEMALE")로 저장되지만, AI 계약의
+            // gender는 소문자(male|female)다 — 여기서만 변환하고 기본 성별을 추측하지는 않는다.
+            AiCharacterProfileRequest representative = new AiCharacterProfileRequest(
+                    user.getGender().toLowerCase(), traits);
+            inputValidator.validateCharacterProfile(representative);
+            CharacterProfileDto clientProfile = toClientProfile(representative);
+            String profileJson = writeProfileJson(clientProfile);
+
+            // 원격 호출 "이전에" 커밋 — 사용자가 직후 재설문해도 이 snapshot과 idempotency key는 바뀌지 않는다.
+            creationInput = stateWriter.persistPendingCreationInput(
+                    memberId, surveyResultId, profileJson, sha256Hex(profileJson));
+        }
+
+        CharacterProfileDto clientProfile = readProfileJson(creationInput.getProfileJson());
+        String ownerSubject = ownerSubjectProvider.resolve(memberId);
+        CreateSeasonRequestDto request = CreateSeasonRequestDto.of(clientProfile);
+        SeasonResponseDto response = aiServiceClient.createSeason(
+                ownerSubject, creationInput.getIdempotencyKey(), request);
+
+        AiSeason season = stateWriter.persistNewSeasonFromSurvey(
+                memberId, response, creationInput.getSurveyResult().getId());
+        stateWriter.markCreationInputSucceeded(creationInput.getId());
         return toStatusView(season, stateWriter.findCharacters(season.getId()));
     }
 
@@ -396,6 +469,54 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         }
     }
 
+    private static final ObjectMapper PROFILE_JSON_MAPPER = new ObjectMapper();
+
+    /** survey_results.core_scores(snake_case, {"score":..,"evidence_weight":..,...} 형태)에서 score만 뽑는다. */
+    private AiTraitsRequest coreScoresToTraits(String coreScoresJson) {
+        try {
+            JsonNode root = PROFILE_JSON_MAPPER.readTree(coreScoresJson);
+            return new AiTraitsRequest(
+                    scoreOf(root, "affection_expression"), scoreOf(root, "relationship_anxiety"),
+                    scoreOf(root, "relationship_avoidance"), scoreOf(root, "emotional_attunement"),
+                    scoreOf(root, "relationship_initiative"), scoreOf(root, "practical_priority"),
+                    scoreOf(root, "reassurance_need"), scoreOf(root, "jealousy_reactivity"),
+                    scoreOf(root, "relationship_energy_dependence"), scoreOf(root, "emotional_suppression"),
+                    scoreOf(root, "conflict_confrontation"), scoreOf(root, "relationship_pace"),
+                    scoreOf(root, "interest_expression_frequency"));
+        } catch (Exception e) {
+            throw new IllegalStateException("저장된 core_scores를 파싱할 수 없습니다.", e);
+        }
+    }
+
+    private BigDecimal scoreOf(JsonNode root, String dimensionKey) {
+        return root.get(dimensionKey).get("score").decimalValue();
+    }
+
+    private String writeProfileJson(CharacterProfileDto profile) {
+        try {
+            return PROFILE_JSON_MAPPER.writeValueAsString(profile);
+        } catch (Exception e) {
+            throw new IllegalStateException("시즌 생성 입력을 JSON으로 직렬화할 수 없습니다.", e);
+        }
+    }
+
+    private CharacterProfileDto readProfileJson(String json) {
+        try {
+            return PROFILE_JSON_MAPPER.readValue(json, CharacterProfileDto.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("저장된 시즌 생성 입력을 파싱할 수 없습니다.", e);
+        }
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
+        }
+    }
+
     private CharacterProfileDto toClientProfile(AiCharacterProfileRequest r) {
         var t = r.traits();
         TraitsDto traits = new TraitsDto(
@@ -404,7 +525,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                 t.reassuranceNeed(), t.jealousyReactivity(), t.relationshipEnergyDependence(),
                 t.emotionalSuppression(), t.conflictConfrontation(), t.relationshipPace(),
                 t.interestExpressionFrequency());
-        return new CharacterProfileDto(r.gender(), traits);
+        return new CharacterProfileDto(r.gender(), traitsWireAdapter.forWire(traits));
     }
 
     private AiSeasonStatusView toStatusView(AiSeason season, List<AiSeasonCharacter> characters) {
@@ -414,7 +535,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                 .collect(Collectors.toList());
         return new AiSeasonStatusView(
                 season.getSeasonId(), season.getRevision(), season.getCurrentEpisode(),
-                season.getStatus().name(), characterViews);
+                season.getStatus().name(), characterViews, season.getSurveyResultId());
     }
 
     private AiEpisodeProgressView toProgressView(AiEpisodeProgress progress) {

@@ -13,6 +13,13 @@ spring:
       hibernate:
         format_sql: true
 
+  # 기존 34개 테이블은 ddl-auto:update가 계속 관리한다(전체 baseline 전환은 별도 범위).
+  # 설문 v2용 신규 테이블만 Flyway로 관리 — baseline-on-migrate로 이미 데이터가 있는
+  # 기존 DB 위에도 안전하게 처음 적용할 수 있게 한다.
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: "0"
+
 server:
   port: 8080
 
@@ -50,3 +57,6 @@ app:
   ai:
     # AI 서비스(FastAPI) base url. 지금은 AWS EC2 IP로 직접 지정하고, 추후 내부 도메인으로 전환한다.
     base-url: ${AI_SERVICE_BASE_URL}
+    # AI 서비스가 실제로 decimal 성향 점수를 받는지 계약이 확인되기 전까지는 false로 두어
+    # AiTraitsWireAdapter가 wire 직전에 정수로 반올림한다. 계약 확인 후에만 true로 바꾼다.
+    decimal-traits-enabled: ${AI_DECIMAL_TRAITS_ENABLED:false}

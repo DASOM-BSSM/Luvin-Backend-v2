@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -24,6 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @Tag("manual")
 class AiServiceClientConnectionTest {
 
+    private static final BigDecimal FIFTY = BigDecimal.valueOf(50);
+
     // ApplicationContextRunner는 SpringApplication 부트스트랩을 거치지 않아 spring-dotenv(.env)가
     // 적용되지 않으므로, 여기서는 OS 환경변수를 직접 읽어 app.ai.base-url로 넘긴다.
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
@@ -38,7 +41,7 @@ class AiServiceClientConnectionTest {
 
             CreateSeasonRequestDto request = CreateSeasonRequestDto.of(new CharacterProfileDto(
                     "female",
-                    new TraitsDto(50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50)
+                    new TraitsDto(FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY, FIFTY)
             ));
 
             SeasonResponseDto response = client.createSeason(
