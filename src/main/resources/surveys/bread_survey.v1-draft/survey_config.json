@@ -1,0 +1,1256 @@
+{
+  "survey_version": "bread_survey.v1-draft",
+  "scoring_version": "evidence.v1-draft",
+  "classification_version": "bread_profiles.v1-draft",
+  "status": "unvalidated_editorial_prototype",
+  "prior_weight": 2,
+  "distance_gap_threshold": 3,
+  "poor_fit_distance_threshold": 18,
+  "dimensions": {
+    "affection_expression": {
+      "label": "애정 표현성",
+      "kind": "core"
+    },
+    "relationship_anxiety": {
+      "label": "관계 불안도",
+      "kind": "core"
+    },
+    "relationship_avoidance": {
+      "label": "관계 회피성",
+      "kind": "core"
+    },
+    "emotional_attunement": {
+      "label": "감정 동조성",
+      "kind": "core"
+    },
+    "relationship_initiative": {
+      "label": "관계 주도성",
+      "kind": "core"
+    },
+    "practical_priority": {
+      "label": "현실 우선성",
+      "kind": "core"
+    },
+    "reassurance_need": {
+      "label": "확신 요구도",
+      "kind": "core"
+    },
+    "jealousy_reactivity": {
+      "label": "질투 반응성",
+      "kind": "core"
+    },
+    "relationship_energy_dependence": {
+      "label": "관계 에너지 의존도",
+      "kind": "core"
+    },
+    "emotional_suppression": {
+      "label": "감정 억제성",
+      "kind": "core"
+    },
+    "conflict_confrontation": {
+      "label": "갈등 직면성",
+      "kind": "core"
+    },
+    "relationship_pace": {
+      "label": "관계 속도감",
+      "kind": "core"
+    },
+    "interest_expression_frequency": {
+      "label": "관심 표현 빈도",
+      "kind": "core"
+    },
+    "behavioral_care": {
+      "label": "행동적 돌봄",
+      "kind": "auxiliary"
+    },
+    "relationship_maintenance": {
+      "label": "관계 유지 의향",
+      "kind": "auxiliary"
+    },
+    "defensive_expression": {
+      "label": "반대 표현 경향",
+      "kind": "auxiliary"
+    },
+    "initiative_pride": {
+      "label": "먼저 다가가기의 체면 부담",
+      "kind": "auxiliary"
+    },
+    "social_approach": {
+      "label": "사교적 접근성",
+      "kind": "auxiliary"
+    },
+    "refusal_difficulty": {
+      "label": "거절 어려움",
+      "kind": "auxiliary"
+    },
+    "relationship_clarity": {
+      "label": "관계 명확성 선호",
+      "kind": "auxiliary"
+    }
+  },
+  "questions": [
+    {
+      "id": "q01",
+      "text": "좋아하는 사람과 더 가까워지고 싶을 때, 나는?",
+      "primary_dimension": "relationship_initiative",
+      "answers": [
+        {
+          "id": "q01_a1",
+          "text": "이번 주에 같이 할 일을 정해서 먼저 만나자고 한다.",
+          "evidence": {
+            "relationship_initiative": {
+              "value": 1,
+              "weight": 2
+            },
+            "relationship_pace": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q01_a2",
+          "text": "가볍게 만나자고 말하고, 구체적인 일정은 함께 정한다.",
+          "evidence": {
+            "relationship_initiative": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q01_a3",
+          "text": "상대가 먼저 만나자고 할 때까지 기다리는 편이다.",
+          "evidence": {
+            "relationship_initiative": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q02",
+      "text": "평소 다정하던 상대의 답장이 오늘은 짧다면?",
+      "primary_dimension": "relationship_anxiety",
+      "answers": [
+        {
+          "id": "q02_a1",
+          "text": "바쁜 날인가 보다 하고 내 일을 한다.",
+          "evidence": {
+            "relationship_anxiety": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q02_a2",
+          "text": "조금 신경 쓰이지만, 오늘 하루는 지켜본다.",
+          "evidence": {
+            "relationship_anxiety": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q02_a3",
+          "text": "마음이 달라졌나 불안해서, 나에게 서운한 게 있는지 확인하고 싶다.",
+          "evidence": {
+            "relationship_anxiety": {
+              "value": 1,
+              "weight": 2
+            },
+            "reassurance_need": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q03",
+      "text": "서로 깊은 속마음을 나누는 사이가 되어갈 때, 나는?",
+      "primary_dimension": "relationship_avoidance",
+      "answers": [
+        {
+          "id": "q03_a1",
+          "text": "내 속마음도 편하게 이야기하며 더 가까워진다.",
+          "evidence": {
+            "relationship_avoidance": {
+              "value": -1,
+              "weight": 2
+            },
+            "emotional_suppression": {
+              "value": -1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q03_a2",
+          "text": "편한 이야기부터 나누며, 아직 어려운 이야기는 남겨둔다.",
+          "evidence": {
+            "relationship_avoidance": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q03_a3",
+          "text": "내 깊은 마음까지 보여주는 건 부담스러워 혼자 간직한다.",
+          "evidence": {
+            "relationship_avoidance": {
+              "value": 1,
+              "weight": 2
+            },
+            "emotional_suppression": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q04",
+      "text": "상대가 속상한 일을 이야기하고 난 뒤, 나는?",
+      "primary_dimension": "emotional_attunement",
+      "answers": [
+        {
+          "id": "q04_a1",
+          "text": "마음을 이해하고 이야기를 들어도 내 기분은 비교적 유지된다.",
+          "evidence": {
+            "emotional_attunement": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q04_a2",
+          "text": "듣는 동안에는 같이 속상하지만, 이후에는 내 기분으로 돌아온다.",
+          "evidence": {
+            "emotional_attunement": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q04_a3",
+          "text": "상대의 일이 내 일처럼 느껴져, 내 기분도 한동안 가라앉는다.",
+          "evidence": {
+            "emotional_attunement": {
+              "value": 1,
+              "weight": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q05",
+      "text": "많이 끌리는 사람과 생활 방식이나 미래 계획이 꽤 다르다면?",
+      "primary_dimension": "practical_priority",
+      "answers": [
+        {
+          "id": "q05_a1",
+          "text": "마음이 크니 우선 만나보고, 차이는 함께 알아가고 싶다.",
+          "evidence": {
+            "practical_priority": {
+              "value": -1,
+              "weight": 2
+            },
+            "relationship_pace": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q05_a2",
+          "text": "끌리는 마음과 서로 맞출 수 있는 부분을 함께 살펴본다.",
+          "evidence": {
+            "practical_priority": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q05_a3",
+          "text": "현실적으로 함께할 수 있는지 확인한 뒤 관계를 시작하고 싶다.",
+          "evidence": {
+            "practical_priority": {
+              "value": 1,
+              "weight": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q06",
+      "text": "상대가 평소 행동으로 잘 챙겨줘도, 좋아한다는 말을 듣는 건?",
+      "primary_dimension": "reassurance_need",
+      "answers": [
+        {
+          "id": "q06_a1",
+          "text": "행동으로 충분히 느껴져서 굳이 확인하지 않아도 된다.",
+          "evidence": {
+            "reassurance_need": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q06_a2",
+          "text": "가끔 분명하게 표현해주면 좋다.",
+          "evidence": {
+            "reassurance_need": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q06_a3",
+          "text": "말로도 자주 확인해야 마음이 놓인다.",
+          "evidence": {
+            "reassurance_need": {
+              "value": 1,
+              "weight": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q07",
+      "text": "좋아하는 사람이 다른 사람과 유난히 즐겁게 대화한다면?",
+      "primary_dimension": "jealousy_reactivity",
+      "answers": [
+        {
+          "id": "q07_a1",
+          "text": "그럴 수 있다고 생각하고 별로 신경 쓰지 않는다.",
+          "evidence": {
+            "jealousy_reactivity": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q07_a2",
+          "text": "조금 질투 나지만, 잠깐 지나가는 기분에 가깝다.",
+          "evidence": {
+            "jealousy_reactivity": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q07_a3",
+          "text": "계속 신경 쓰이지만 티는 내지 않으려고 한다.",
+          "evidence": {
+            "jealousy_reactivity": {
+              "value": 1,
+              "weight": 2
+            },
+            "emotional_suppression": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q08",
+      "text": "서로 바빠 며칠 동안 충분히 연락하지 못하면, 나는?",
+      "primary_dimension": "relationship_energy_dependence",
+      "answers": [
+        {
+          "id": "q08_a1",
+          "text": "아쉬워도 내 일상의 활력은 평소와 비슷하다.",
+          "evidence": {
+            "relationship_energy_dependence": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q08_a2",
+          "text": "조금 허전해서 여유가 생기면 이야기 나누고 싶다.",
+          "evidence": {
+            "relationship_energy_dependence": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q08_a3",
+          "text": "활력이 많이 줄어들어 틈날 때마다 짧게라도 연락하고 싶다.",
+          "evidence": {
+            "relationship_energy_dependence": {
+              "value": 1,
+              "weight": 2
+            },
+            "interest_expression_frequency": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q09",
+      "text": "상대에게 서운한 마음이 생겼을 때, 나는?",
+      "primary_dimension": "emotional_suppression",
+      "answers": [
+        {
+          "id": "q09_a1",
+          "text": "서운하다는 감정을 숨기지 않고, 무엇이 서운했는지 이야기한다.",
+          "evidence": {
+            "emotional_suppression": {
+              "value": -1,
+              "weight": 2
+            },
+            "conflict_confrontation": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q09_a2",
+          "text": "먼저 마음을 정리하고, 그래도 남아 있으면 이야기한다.",
+          "evidence": {
+            "emotional_suppression": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q09_a3",
+          "text": "서운해도 겉으로는 괜찮은 척하고 이야기를 꺼내지 않는다.",
+          "evidence": {
+            "emotional_suppression": {
+              "value": 1,
+              "weight": 2
+            },
+            "conflict_confrontation": {
+              "value": -1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q10",
+      "text": "둘 사이에 같은 문제가 반복된다면, 나는?",
+      "primary_dimension": "conflict_confrontation",
+      "answers": [
+        {
+          "id": "q10_a1",
+          "text": "먼저 대화할 시간을 잡고, 서로 바꿀 수 있는 점을 이야기한다.",
+          "evidence": {
+            "conflict_confrontation": {
+              "value": 1,
+              "weight": 2
+            },
+            "relationship_initiative": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q10_a2",
+          "text": "이야기를 꺼낼 기회가 생기면 내 생각도 나눈다.",
+          "evidence": {
+            "conflict_confrontation": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q10_a3",
+          "text": "문제를 직접 꺼내기보다 자연스럽게 나아지기를 기다린다.",
+          "evidence": {
+            "conflict_confrontation": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q11",
+      "text": "서로 호감이 있다는 걸 알게 됐다면, 편안한 속도는?",
+      "primary_dimension": "relationship_pace",
+      "answers": [
+        {
+          "id": "q11_a1",
+          "text": "자주 만나면서 빠르게 가까워지는 것.",
+          "evidence": {
+            "relationship_pace": {
+              "value": 1,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q11_a2",
+          "text": "몇 번 더 만나며 서로에게 맞는 속도를 찾는 것.",
+          "evidence": {
+            "relationship_pace": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q11_a3",
+          "text": "시간을 충분히 두고 조금씩 가까워지는 것.",
+          "evidence": {
+            "relationship_pace": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q12",
+      "text": "좋아하는 사람과 작은 일상을 나누는 나는?",
+      "primary_dimension": "interest_expression_frequency",
+      "answers": [
+        {
+          "id": "q12_a1",
+          "text": "생각나면 내가 먼저 짧은 안부나 이야기를 자주 보낸다.",
+          "evidence": {
+            "interest_expression_frequency": {
+              "value": 1,
+              "weight": 2
+            },
+            "relationship_initiative": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q12_a2",
+          "text": "서로 여유 있는 시간에 모아서 이야기하는 편이다.",
+          "evidence": {
+            "interest_expression_frequency": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q12_a3",
+          "text": "특별히 나눌 이야기나 용건이 있을 때 연락하는 편이다.",
+          "evidence": {
+            "interest_expression_frequency": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q13",
+      "text": "상대 덕분에 기분이 좋아졌을 때, 나는?",
+      "primary_dimension": "affection_expression",
+      "answers": [
+        {
+          "id": "q13_a1",
+          "text": "“너랑 있으면 좋아”처럼 느낀 마음을 직접 말한다.",
+          "evidence": {
+            "affection_expression": {
+              "value": 1,
+              "weight": 2
+            },
+            "emotional_suppression": {
+              "value": -1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q13_a2",
+          "text": "칭찬이나 가벼운 농담에 마음을 조금 담아 표현한다.",
+          "evidence": {
+            "affection_expression": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q13_a3",
+          "text": "마음은 커도 그런 말을 꺼내기 어려워 속으로 간직한다.",
+          "evidence": {
+            "affection_expression": {
+              "value": -1,
+              "weight": 2
+            },
+            "emotional_suppression": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q14",
+      "text": "좋아하는 사람이 힘든 하루를 보냈다면, 가장 자연스러운 표현은?",
+      "primary_dimension": "behavioral_care",
+      "answers": [
+        {
+          "id": "q14_a1",
+          "text": "필요한 것을 물어보고, 식사를 챙기거나 일을 덜어줄 방법을 찾는다.",
+          "evidence": {
+            "behavioral_care": {
+              "value": 1,
+              "weight": 2
+            },
+            "relationship_initiative": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q14_a2",
+          "text": "말을 들어주다가 상대가 도움을 원하면 함께 방법을 찾는다.",
+          "evidence": {
+            "behavioral_care": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q14_a3",
+          "text": "“많이 힘들었겠다. 네 편이야”처럼 따뜻한 말로 마음을 전한다.",
+          "evidence": {
+            "behavioral_care": {
+              "value": -1,
+              "weight": 2
+            },
+            "affection_expression": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q15",
+      "text": "큰 문제는 없지만 처음의 설렘이 잦아들었다면, 나는?",
+      "primary_dimension": "relationship_maintenance",
+      "answers": [
+        {
+          "id": "q15_a1",
+          "text": "익숙해진 관계 안에서 함께할 새로운 즐거움을 먼저 찾아본다.",
+          "evidence": {
+            "relationship_maintenance": {
+              "value": 1,
+              "weight": 2
+            },
+            "relationship_initiative": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q15_a2",
+          "text": "내 마음이 어떤지 시간을 두고 살펴본다.",
+          "evidence": {
+            "relationship_maintenance": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q15_a3",
+          "text": "설렘이 줄었다면 이 관계를 계속할지 다시 생각해본다.",
+          "evidence": {
+            "relationship_maintenance": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q16",
+      "text": "좋아하는 사람이 다정한 말을 해서 기분이 좋을 때, 나는?",
+      "primary_dimension": "defensive_expression",
+      "answers": [
+        {
+          "id": "q16_a1",
+          "text": "“그렇게 말해주니 좋다” 하고 내 마음도 그대로 표현한다.",
+          "evidence": {
+            "defensive_expression": {
+              "value": -1,
+              "weight": 2
+            },
+            "affection_expression": {
+              "value": 1,
+              "weight": 1
+            },
+            "emotional_suppression": {
+              "value": -1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q16_a2",
+          "text": "쑥스러워서 웃거나 짧게 고맙다고 대답한다.",
+          "evidence": {
+            "defensive_expression": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q16_a3",
+          "text": "좋으면서도 “오늘 왜 이렇게 잘해줘?” 하며 괜히 튕긴다.",
+          "evidence": {
+            "defensive_expression": {
+              "value": 1,
+              "weight": 2
+            },
+            "emotional_suppression": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q17",
+      "text": "보고 싶지만 최근에는 내가 먼저 연락한 날이 많았다면?",
+      "primary_dimension": "initiative_pride",
+      "answers": [
+        {
+          "id": "q17_a1",
+          "text": "횟수와 상관없이 보고 싶다고 먼저 연락한다.",
+          "evidence": {
+            "initiative_pride": {
+              "value": -1,
+              "weight": 2
+            },
+            "relationship_initiative": {
+              "value": 1,
+              "weight": 1
+            },
+            "affection_expression": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q17_a2",
+          "text": "잠깐 망설이지만, 정말 보고 싶으면 연락한다.",
+          "evidence": {
+            "initiative_pride": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q17_a3",
+          "text": "나만 더 좋아하는 것처럼 보일까 봐 이번에는 기다린다.",
+          "evidence": {
+            "initiative_pride": {
+              "value": 1,
+              "weight": 2
+            },
+            "relationship_initiative": {
+              "value": -1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q18",
+      "text": "처음 보는 사람이 많은 모임에서, 나는?",
+      "primary_dimension": "social_approach",
+      "answers": [
+        {
+          "id": "q18_a1",
+          "text": "먼저 말을 걸고 여러 사람과 대화를 이어간다.",
+          "evidence": {
+            "social_approach": {
+              "value": 1,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q18_a2",
+          "text": "옆자리 사람이나 말을 걸어오는 사람과 이야기한다.",
+          "evidence": {
+            "social_approach": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q18_a3",
+          "text": "분위기를 살피며 익숙해질 때까지 조용히 있는 편이다.",
+          "evidence": {
+            "social_approach": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q19",
+      "text": "상대가 제안한 데이트가 내키지 않을 때, 나는?",
+      "primary_dimension": "refusal_difficulty",
+      "answers": [
+        {
+          "id": "q19_a1",
+          "text": "내 취향을 말하고 다른 데이트를 제안한다.",
+          "evidence": {
+            "refusal_difficulty": {
+              "value": -1,
+              "weight": 2
+            },
+            "relationship_initiative": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        },
+        {
+          "id": "q19_a2",
+          "text": "작은 일은 맞춰주지만, 많이 불편한 일은 어렵다고 말한다.",
+          "evidence": {
+            "refusal_difficulty": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q19_a3",
+          "text": "상대가 실망할까 봐 내키지 않아도 좋다고 하고 함께한다.",
+          "evidence": {
+            "refusal_difficulty": {
+              "value": 1,
+              "weight": 2
+            },
+            "emotional_suppression": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "q20",
+      "text": "서로 호감은 있지만 어떤 관계인지 정하지 않은 시간이 길어지면?",
+      "primary_dimension": "relationship_clarity",
+      "answers": [
+        {
+          "id": "q20_a1",
+          "text": "지금의 만남이 좋다면 이름을 정하지 않아도 괜찮다.",
+          "evidence": {
+            "relationship_clarity": {
+              "value": -1,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q20_a2",
+          "text": "조금 더 지켜보다가 필요할 때 이야기하고 싶다.",
+          "evidence": {
+            "relationship_clarity": {
+              "value": 0,
+              "weight": 2
+            }
+          }
+        },
+        {
+          "id": "q20_a3",
+          "text": "계속 만날지 판단할 수 있도록 먼저 관계를 분명히 하자고 말한다.",
+          "evidence": {
+            "relationship_clarity": {
+              "value": 1,
+              "weight": 2
+            },
+            "conflict_confrontation": {
+              "value": 1,
+              "weight": 1
+            },
+            "relationship_initiative": {
+              "value": 1,
+              "weight": 1
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "id": "cream_bread",
+      "label": "크림빵",
+      "features": {
+        "relationship_anxiety": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "reassurance_need": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "emotional_suppression": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 2
+        },
+        "emotional_attunement": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 1
+        },
+        "relationship_avoidance": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 1
+        }
+      }
+    },
+    {
+      "id": "red_bean_bread",
+      "label": "팥빵",
+      "features": {
+        "behavioral_care": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "relationship_maintenance": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "affection_expression": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 2
+        },
+        "relationship_anxiety": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 2
+        },
+        "relationship_avoidance": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 1
+        }
+      }
+    },
+    {
+      "id": "salt_bread",
+      "label": "소금빵",
+      "features": {
+        "affection_expression": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 2
+        },
+        "interest_expression_frequency": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 2
+        },
+        "jealousy_reactivity": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "relationship_pace": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 1
+        },
+        "defensive_expression": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 1
+        }
+      }
+    },
+    {
+      "id": "pretzel",
+      "label": "프레첼",
+      "features": {
+        "defensive_expression": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "initiative_pride": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "emotional_suppression": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 2
+        },
+        "affection_expression": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 1
+        }
+      }
+    },
+    {
+      "id": "donut",
+      "label": "도넛",
+      "features": {
+        "social_approach": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "relationship_energy_dependence": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "interest_expression_frequency": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 2
+        },
+        "affection_expression": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 1
+        },
+        "reassurance_need": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 1
+        }
+      }
+    },
+    {
+      "id": "baguette",
+      "label": "바게트",
+      "features": {
+        "relationship_avoidance": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "relationship_pace": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 3
+        },
+        "emotional_suppression": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 1
+        },
+        "relationship_initiative": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 1
+        }
+      }
+    },
+    {
+      "id": "madeleine",
+      "label": "마들렌",
+      "features": {
+        "practical_priority": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "conflict_confrontation": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "relationship_clarity": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "relationship_initiative": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 1
+        }
+      }
+    },
+    {
+      "id": "castella",
+      "label": "카스테라",
+      "features": {
+        "emotional_attunement": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "refusal_difficulty": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 3
+        },
+        "conflict_confrontation": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 2
+        },
+        "relationship_initiative": {
+          "range": [
+            15,
+            40
+          ],
+          "weight": 1
+        },
+        "emotional_suppression": {
+          "range": [
+            60,
+            85
+          ],
+          "weight": 1
+        }
+      }
+    }
+  ],
+  "tie_break_order": [
+    "cream_bread",
+    "red_bean_bread",
+    "salt_bread",
+    "pretzel",
+    "donut",
+    "baguette",
+    "madeleine",
+    "castella"
+  ]
+}
