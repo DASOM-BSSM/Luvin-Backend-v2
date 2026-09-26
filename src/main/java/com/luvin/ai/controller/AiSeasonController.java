@@ -89,6 +89,13 @@ public class AiSeasonController {
         return ApiResponse.ok(orchestrationService.requestReroll(memberId, episodeNumber, request.partnerId()));
     }
 
+    /** reroll 완료 여부 폴링용. 같은 회차로 reroll을 요청한 적이 없으면 404. */
+    @GetMapping("/episodes/{number}/rerolls")
+    public ApiResponse<AiRerollView> getRerollStatus(@PathVariable("number") int episodeNumber) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(orchestrationService.getRerollStatus(memberId, episodeNumber));
+    }
+
     @GetMapping("/episodes/{number}")
     public ApiResponse<AiEpisodeMessagesView> getEpisodeMessages(
             @PathVariable("number") int episodeNumber,

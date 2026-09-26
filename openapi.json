@@ -989,6 +989,35 @@
             }
         },
         "/api/ai/seasons/episodes/{number}/rerolls": {
+            "get": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "getRerollStatus",
+                "parameters": [
+                    {
+                        "name": "number",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiRerollView"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "post": {
                 "tags": [
                     "ai-season-controller"
@@ -2528,6 +2557,9 @@
                     },
                     "jobStatus": {
                         "type": "string"
+                    },
+                    "errorCode": {
+                        "type": "string"
                     }
                 }
             },
@@ -3252,7 +3284,12 @@
                         "format": "int32"
                     },
                     "sceneKind": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "group",
+                            "candidates_only",
+                            "one_to_one"
+                        ]
                     },
                     "speakerId": {
                         "type": "string",

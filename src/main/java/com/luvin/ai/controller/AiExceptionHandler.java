@@ -16,6 +16,7 @@ import com.luvin.ai.service.exception.AiEpisodeProgressionException;
 import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiReportNotReadyException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
+import com.luvin.ai.service.exception.AiRerollNotFoundException;
 import com.luvin.ai.service.exception.AiSeasonAlreadyExistsException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
 import com.luvin.common.response.ApiResponse;
@@ -39,6 +40,11 @@ public class AiExceptionHandler {
 
     @ExceptionHandler(AiSeasonNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleSeasonNotFound(AiSeasonNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(AiRerollNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRerollNotFound(AiRerollNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
     }
 

@@ -164,6 +164,11 @@ public class AiSeasonStateWriter {
         return seasonCharacterRepository.findAllBySeason_Id(seasonPk);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<AiRerollRequest> findLatestReroll(Long seasonPk, int episodeNumber) {
+        return rerollRequestRepository.findFirstBySeason_IdAndEpisodeNumberOrderByCreatedAtDesc(seasonPk, episodeNumber);
+    }
+
     private AiSeason getSeasonOrThrow(Long seasonPk) {
         return seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
     }

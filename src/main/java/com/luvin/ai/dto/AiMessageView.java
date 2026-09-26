@@ -5,7 +5,7 @@ import java.util.UUID;
 public record AiMessageView(
         UUID messageId,
         Integer sequence,
-        String sceneKind,
+        AiSceneKind sceneKind,
         UUID speakerId,
         boolean fromRepresentative,
         String text

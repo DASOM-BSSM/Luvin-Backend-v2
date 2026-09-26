@@ -13,7 +13,6 @@ import com.luvin.ai.client.dto.SeasonResponseDto;
 import com.luvin.ai.client.dto.SelectionRequestDto;
 import com.luvin.ai.client.dto.SelectionResponseDto;
 import com.luvin.ai.client.dto.TraitsDto;
-import com.luvin.ai.client.exception.AiContractViolationException;
 import com.luvin.ai.client.exception.AiRevisionConflictException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
 import com.luvin.ai.domain.AiCharacterRole;
@@ -33,6 +32,7 @@ import com.luvin.ai.dto.AiTraitsRequest;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiMessageView;
+import com.luvin.ai.dto.AiSceneKind;
 import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
@@ -47,6 +47,7 @@ import com.luvin.ai.service.exception.AiCandidateInvalidException;
 import com.luvin.ai.service.exception.AiEpisodeProgressionException;
 import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
+import com.luvin.ai.service.exception.AiRerollNotFoundException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
 import com.luvin.survey.domain.SurveyResultV2;
 import com.luvin.survey.service.exception.ProfileRequiredException;
@@ -85,7 +86,6 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     private static final int EPISODE_3 = 3;
     private static final Set<Integer> REROLLABLE_EPISODES = Set.of(2, 4);
     private static final int FINAL_EPISODE = 5;
-    private static final Set<String> VALID_SCENE_KINDS = Set.of("group", "candidates_only", "one_to_one");
 
     private final AiServiceClient aiServiceClient;
     private final AiInputValidator inputValidator;
@@ -377,7 +377,19 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
 
         AiRerollRequest saved = stateWriter.persistRerollAccepted(
                 season.getId(), episodeNumber, expectedVersionId, requestedPartnerId, idempotencyKey, jobResponse.jobId());
-        return new AiRerollView(saved.getJobId(), saved.getJobStatus().name());
+        return toRerollView(saved);
+    }
+
+    @Override
+    public AiRerollView getRerollStatus(Long memberId, int episodeNumber) {
+        AiSeason season = getOwnedSeasonOrThrow(memberId);
+        AiRerollRequest reroll = stateWriter.findLatestReroll(season.getId(), episodeNumber)
+                .orElseThrow(() -> new AiRerollNotFoundException(episodeNumber));
+        return toRerollView(reroll);
+    }
+
+    private AiRerollView toRerollView(AiRerollRequest reroll) {
+        return new AiRerollView(reroll.getJobId(), reroll.getJobStatus().name(), reroll.getErrorCode());
     }
 
     // ---------------------------------------------------------------- 메시지 조회
@@ -560,11 +572,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     }
 
     private AiMessageView toMessageView(MessageResponseDto m, UUID representativeId) {
-        // scene_kind는 group|candidates_only|one_to_one만 허용한다 (요구사항 5.6). 방어적으로 검증한다.
-        String sceneKind = m.sceneKind();
-        if (sceneKind == null || !VALID_SCENE_KINDS.contains(sceneKind)) {
-            throw new AiContractViolationException("알 수 없는 scene_kind: " + sceneKind, null);
-        }
+        // scene_kind는 group|candidates_only|one_to_one만 허용한다 (요구사항 5.6).
+        // fromWire()가 알 수 없는 값이면 AiContractViolationException을 던진다.
+        AiSceneKind sceneKind = AiSceneKind.fromWire(m.sceneKind());
         // speaker_id가 representative ID와 같을 때만 사용자 대변 AI 발화로 표시한다 (요구사항 5.1).
         boolean fromRepresentative = representativeId != null && representativeId.equals(m.speakerId());
         return new AiMessageView(m.messageId(), m.sequence(), sceneKind, m.speakerId(), fromRepresentative, m.text());
