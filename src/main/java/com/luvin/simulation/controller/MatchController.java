@@ -6,6 +6,7 @@ import com.luvin.simulation.dto.ConversationMessageResponse;
 import com.luvin.simulation.dto.ConversationSaveRequest;
 import com.luvin.simulation.dto.MatchResponse;
 import com.luvin.simulation.service.MatchService;
+import com.luvin.simulation.service.MessageLikeService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,9 +15,11 @@ import java.util.List;
 public class MatchController {
 
     private final MatchService matchService;
+    private final MessageLikeService messageLikeService;
 
-    public MatchController(MatchService matchService) {
+    public MatchController(MatchService matchService, MessageLikeService messageLikeService) {
         this.matchService = matchService;
+        this.messageLikeService = messageLikeService;
     }
 
     @GetMapping("/api/episodes/{episodeId}/matches")
@@ -39,5 +42,11 @@ public class MatchController {
                                                       @RequestBody ConversationSaveRequest body) {
         matchService.saveOneOnOneConversation(SecurityUtils.getCurrentUserId(), matchId, body);
         return new MessageResponse("1:1 대화 저장 완료");
+    }
+
+    @PostMapping("/api/matches/{matchId}/conversations/{messageId}/like")
+    public MessageResponse likeMessage(@PathVariable Long matchId, @PathVariable Long messageId) {
+        messageLikeService.likeMessage(SecurityUtils.getCurrentUserId(), matchId, messageId);
+        return new MessageResponse("하트 저장 완료");
     }
 }

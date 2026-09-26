@@ -332,6 +332,46 @@
                 }
             }
         },
+        "/api/matches/{matchId}/conversations/{messageId}/like": {
+            "post": {
+                "tags": [
+                    "match-controller"
+                ],
+                "operationId": "likeMessage",
+                "parameters": [
+                    {
+                        "name": "matchId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "messageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/episodes": {
             "get": {
                 "tags": [
@@ -1353,6 +1393,29 @@
                                     "type": "array",
                                     "items": {
                                         "$ref": "#/components/schemas/MatchResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/episodes/likes": {
+            "get": {
+                "tags": [
+                    "episode-controller"
+                ],
+                "operationId": "getLikedMessages",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/LikeMessageResponse"
                                     }
                                 }
                             }
@@ -2485,6 +2548,10 @@
             "ConversationMessageResponse": {
                 "type": "object",
                 "properties": {
+                    "messageId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
                     "sequence": {
                         "type": "integer",
                         "format": "int32"
@@ -2548,6 +2615,22 @@
                         "type": "string"
                     },
                     "gender": {
+                        "type": "string"
+                    }
+                }
+            },
+            "LikeMessageResponse": {
+                "type": "object",
+                "properties": {
+                    "episodeNumber": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "messageId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "text": {
                         "type": "string"
                     }
                 }

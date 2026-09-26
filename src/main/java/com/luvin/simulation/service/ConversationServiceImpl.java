@@ -32,7 +32,7 @@ public class ConversationServiceImpl implements ConversationService {
         return groupConversationMessageRepository
                 .findAllByEpisode_EpisodeIdOrderBySequenceAsc(episode.getEpisodeId()).stream()
                 .map(m -> new ConversationMessageResponse(
-                        m.getSequence(), m.getSpeaker().getParticipantId(), m.getSpeaker().getName(), m.getContent()))
+                        m.getMessageId(), m.getSequence(), m.getSpeaker().getParticipantId(), m.getSpeaker().getName(), m.getContent()))
                 .collect(Collectors.toList());
     }
 
