@@ -3202,6 +3202,18 @@
                     }
                 }
             },
+            "AiHighlightView": {
+                "type": "object",
+                "properties": {
+                    "messageId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "text": {
+                        "type": "string"
+                    }
+                }
+            },
             "AiReportView": {
                 "type": "object",
                 "properties": {
@@ -3215,10 +3227,7 @@
                     "highlights": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/components/schemas/AiHighlightView"
                         }
                     },
                     "renderMode": {

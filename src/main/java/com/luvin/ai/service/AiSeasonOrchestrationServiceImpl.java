@@ -31,6 +31,7 @@ import com.luvin.ai.dto.AiCharacterProfileRequest;
 import com.luvin.ai.dto.AiCharacterView;
 import com.luvin.ai.dto.AiTraitsRequest;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
+import com.luvin.ai.dto.AiHighlightView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiMessageView;
 import com.luvin.ai.dto.AiSceneKind;
@@ -441,8 +442,10 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
 
         stateWriter.markSeasonCompleted(season.getId());
 
-        return new AiReportView(response.finalPartnerId(), response.narrative(),
-                response.highlights(), response.renderMode());
+        List<AiHighlightView> highlights = response.highlights().stream()
+                .map(h -> new AiHighlightView(h.messageId(), h.text()))
+                .collect(Collectors.toList());
+        return new AiReportView(response.finalPartnerId(), response.narrative(), highlights, response.renderMode());
     }
 
     // ---------------------------------------------------------------- 내부 헬퍼
