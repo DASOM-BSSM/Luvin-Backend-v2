@@ -14,6 +14,7 @@ import com.luvin.ai.client.dto.SelectionRequestDto;
 import com.luvin.ai.client.dto.SelectionResponseDto;
 import com.luvin.ai.client.dto.TraitsDto;
 import com.luvin.ai.client.exception.AiRevisionConflictException;
+import com.luvin.ai.client.exception.AiUnclassifiedConflictException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
 import com.luvin.ai.domain.AiCharacterRole;
 import com.luvin.ai.domain.AiEpisodeProgress;
@@ -237,8 +238,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         try {
             jobResponse = aiServiceClient.requestGeneration(
                     ownerSubject, idempotencyKey, season.getSeasonId(), episodeNumber, new GenerationRequestDto(revision));
-        } catch (AiRevisionConflictException conflict) {
+        } catch (AiRevisionConflictException | AiUnclassifiedConflictException conflict) {
             // 진행 순서상 애매함이 없는 동작이므로, 최신 revision으로 한 번만 자동 재판단한다 (요구사항 6절).
+            // AI가 409에 error_code 없이 응답하는 경우도 있어(AiUnclassifiedConflictException) 함께 재시도한다.
             SeasonResponseDto refreshed = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
             jobResponse = aiServiceClient.requestGeneration(ownerSubject, idempotencyKey, season.getSeasonId(),
                     episodeNumber, new GenerationRequestDto(refreshed.revision()));
@@ -325,7 +327,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
             String ownerSubject, UUID idempotencyKey, AiSeason season, int episodeNumber, SelectionRequestDto request) {
         try {
             return aiServiceClient.submitSelection(ownerSubject, idempotencyKey, season.getSeasonId(), episodeNumber, request);
-        } catch (AiRevisionConflictException conflict) {
+        } catch (AiRevisionConflictException | AiUnclassifiedConflictException conflict) {
             SeasonResponseDto refreshed = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
             SelectionRequestDto retried = new SelectionRequestDto(
                     refreshed.revision(), request.sourceEventId(), request.source(),
@@ -369,7 +371,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         JobResponseDto jobResponse;
         try {
             jobResponse = aiServiceClient.requestReroll(ownerSubject, idempotencyKey, season.getSeasonId(), episodeNumber, request);
-        } catch (AiRevisionConflictException conflict) {
+        } catch (AiRevisionConflictException | AiUnclassifiedConflictException conflict) {
             SeasonResponseDto refreshed = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
             RerollRequestDto retried = new RerollRequestDto(refreshed.revision(), expectedVersionId, requestedPartnerId);
             jobResponse = aiServiceClient.requestReroll(ownerSubject, idempotencyKey, season.getSeasonId(), episodeNumber, retried);

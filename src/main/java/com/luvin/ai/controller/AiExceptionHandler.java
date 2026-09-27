@@ -9,6 +9,7 @@ import com.luvin.ai.client.exception.AiRevisionConflictException;
 import com.luvin.ai.client.exception.AiSelectionConflictException;
 import com.luvin.ai.client.exception.AiServerException;
 import com.luvin.ai.client.exception.AiServiceException;
+import com.luvin.ai.client.exception.AiUnclassifiedConflictException;
 import com.luvin.ai.client.exception.AiValidationException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
 import com.luvin.ai.service.exception.AiCandidateInvalidException;
@@ -58,7 +59,8 @@ public class AiExceptionHandler {
             AiRevisionConflictException.class,
             AiSelectionConflictException.class,
             AiEpisodeProgressionException.class,
-            AiSeasonAlreadyExistsException.class
+            AiSeasonAlreadyExistsException.class,
+            AiUnclassifiedConflictException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleConflict(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage()));

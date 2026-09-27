@@ -19,6 +19,7 @@ import com.luvin.ai.client.exception.AiRevisionConflictException;
 import com.luvin.ai.client.exception.AiSelectionConflictException;
 import com.luvin.ai.client.exception.AiServerException;
 import com.luvin.ai.client.exception.AiServiceException;
+import com.luvin.ai.client.exception.AiUnclassifiedConflictException;
 import com.luvin.ai.client.exception.AiValidationException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
 import org.slf4j.Logger;
@@ -204,7 +205,9 @@ public class AiServiceClient {
 
     private AiServiceException mapConflict(String message, String errorCode, String rawBody) {
         if (errorCode == null) {
-            return new AiServiceException(message, null, rawBody);
+            // errorCode를 특정할 수 없어도 HTTP status가 이미 409(충돌)임은 확실하다 — 일반
+            // AiServiceException(500계열로 처리됨)이 아니라 전용 타입으로 구분해 재시도 가능하게 한다.
+            return new AiUnclassifiedConflictException(message, rawBody);
         }
         return switch (errorCode) {
             case "REVISION_CONFLICT" -> new AiRevisionConflictException(message, errorCode, rawBody);
