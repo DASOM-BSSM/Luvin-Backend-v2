@@ -33,4 +33,9 @@ public class DiaryRoom {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    /** 방장 확인은 owner_id 하나로만 한다. */
+    public boolean isOwnedBy(Long userId) {
+        return this.ownerId.equals(userId);
+    }
 }

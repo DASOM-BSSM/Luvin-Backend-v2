@@ -46,6 +46,7 @@ public class GlobalExceptionHandler {
             DailyQuestionOptionNotFoundException.class,
             EpisodeNotFoundException.class,
             DiaryNotFoundException.class,
+            DiaryRoomNotFoundException.class,
             ParticipantNotFoundException.class,
             GameNotFoundException.class,
             MatchNotFoundException.class,
