@@ -2,6 +2,7 @@ package com.luvin.diary.service;
 
 import com.luvin.common.exception.BusinessException;
 import com.luvin.common.exception.DiaryRoomNotFoundException;
+import com.luvin.common.exception.DiaryRoomOwnerCannotLeaveException;
 import com.luvin.common.exception.ErrorCode;
 import com.luvin.common.exception.UserNotFoundException;
 import com.luvin.diary.domain.DiaryRoom;
@@ -27,7 +28,7 @@ public class DiaryRoomService {
     public DiaryRoomDto.MembershipResponse leave(Long memberId, Long roomId) {
         DiaryRoom room = getRoom(roomId);
         if (room.isOwnedBy(memberId)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT);
+            throw new DiaryRoomOwnerCannotLeaveException();
         }
         diaryRoomRepository.deleteMember(roomId, memberId);
         long memberCount = diaryRoomRepository.countMembers(roomId);
@@ -62,7 +63,7 @@ public class DiaryRoomService {
             throw new UserNotFoundException(targetUserId);
         }
         if (targetUserId.equals(memberId)) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT);
+            throw new DiaryRoomOwnerCannotLeaveException();
         }
         diaryRoomRepository.deleteMember(roomId, targetUserId);
         long memberCount = diaryRoomRepository.countMembers(roomId);

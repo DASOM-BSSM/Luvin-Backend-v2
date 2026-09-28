@@ -24,6 +24,12 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(e.getMessage()));
     }
 
+    @ExceptionHandler(DiaryRoomOwnerCannotLeaveException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOwnerCannotLeave(DiaryRoomOwnerCannotLeaveException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
     @ExceptionHandler({InvalidGoogleTokenException.class, UnauthenticatedException.class})
     public ResponseEntity<ApiResponse<Void>> handleUnauthenticated(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
