@@ -36,14 +36,14 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
      * PRIVATE 일기는 작성자 본인 것만 포함한다. 최신순.
      */
     @Query("select new com.luvin.diary.dto.DiaryDto$FeedItem("
-            + "d.id, d.userId, d.title, d.content, d.visibility, "
+            + "d.id, rm.id, d.userId, d.title, d.content, d.visibility, "
             + "(case when d.userId = :me then true else false end), "
             + "(select count(r) from DiaryReaction r where r.diary = d), "
             + "(select count(c) from DiaryComment c where c.diary = d), "
             + "(case when exists (select 1 from DiaryReaction r2 where r2.diary = d and r2.id.userId = :me) "
             + "then true else false end), "
-            + "d.createdAt) "
-            + "from Diary d "
+            + "d.createdAt, d.updatedAt) "
+            + "from Diary d left join d.room rm "
             + "where d.room.id = :roomId "
             + "and (d.visibility <> com.luvin.diary.domain.DiaryVisibility.PRIVATE or d.userId = :me) "
             + "order by d.createdAt desc")
@@ -54,14 +54,14 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
      * select 부분은 findRoomFeed와 같고, 개수 제한은 pageable로 한다 (JPQL에는 limit을 직접 못 씀).
      */
     @Query("select new com.luvin.diary.dto.DiaryDto$FeedItem("
-            + "d.id, d.userId, d.title, d.content, d.visibility, "
+            + "d.id, rm.id, d.userId, d.title, d.content, d.visibility, "
             + "(case when d.userId = :me then true else false end), "
             + "(select count(r) from DiaryReaction r where r.diary = d), "
             + "(select count(c) from DiaryComment c where c.diary = d), "
             + "(case when exists (select 1 from DiaryReaction r2 where r2.diary = d and r2.id.userId = :me) "
             + "then true else false end), "
-            + "d.createdAt) "
-            + "from Diary d "
+            + "d.createdAt, d.updatedAt) "
+            + "from Diary d left join d.room rm "
             + "where d.visibility = com.luvin.diary.domain.DiaryVisibility.PUBLIC "
             + "order by d.createdAt desc")
     List<DiaryDto.FeedItem> findCommunityFeed(@Param("me") Long me, Pageable pageable);

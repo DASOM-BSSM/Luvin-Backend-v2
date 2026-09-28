@@ -22,7 +22,7 @@ public class DiaryRoomDto {
     public record MembershipResponse(
             Long roomId,
             Long userId,
-            boolean member,
+            boolean isMember,
             long memberCount
     ){
     }
