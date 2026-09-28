@@ -6,18 +6,23 @@ import com.luvin.common.exception.DiaryRoomOwnerCannotLeaveException;
 import com.luvin.common.exception.ErrorCode;
 import com.luvin.common.exception.UserNotFoundException;
 import com.luvin.diary.domain.DiaryRoom;
+import com.luvin.diary.dto.DiaryDto;
 import com.luvin.diary.dto.DiaryRoomDto;
+import com.luvin.diary.repository.DiaryRepository;
 import com.luvin.diary.repository.DiaryRoomRepository;
 import com.luvin.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class DiaryRoomService {
     private final DiaryRoomRepository diaryRoomRepository;
     private final UserRepository userRepository;
+    private final DiaryRepository diaryRepository;
 
     private DiaryRoom getRoom(Long roomId) {
         return diaryRoomRepository.findById(roomId)
@@ -68,5 +73,14 @@ public class DiaryRoomService {
         diaryRoomRepository.deleteMember(roomId, targetUserId);
         long memberCount = diaryRoomRepository.countMembers(roomId);
         return new DiaryRoomDto.MembershipResponse(roomId, targetUserId, false, memberCount);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DiaryDto.FeedItem> getRoomDiaries(Long memberId, Long roomId) {
+        DiaryRoom room = getRoom(roomId);
+        if (!room.isOwnedBy(memberId) && !diaryRoomRepository.isMember(roomId, memberId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        return diaryRepository.findRoomFeed(roomId, memberId);
     }
 }

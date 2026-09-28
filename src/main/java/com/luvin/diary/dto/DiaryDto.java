@@ -57,4 +57,18 @@ public class DiaryDto {
             long likeCount
     ) {
     }
+
+    public record FeedItem(
+        Long diaryId,
+        Long authorId,
+        String title,
+        String content,
+        DiaryVisibility visibility,
+        boolean isMine,
+        long likeCount,
+        long commentCount,
+        boolean reacted,
+        OffsetDateTime createdAt
+    ){
+    }
 }

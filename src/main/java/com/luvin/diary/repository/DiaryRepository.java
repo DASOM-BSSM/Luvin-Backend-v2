@@ -1,10 +1,13 @@
 package com.luvin.diary.repository;
 
 import com.luvin.diary.domain.Diary;
+import com.luvin.diary.dto.DiaryDto;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.util.List;
 
 public interface DiaryRepository extends JpaRepository<Diary, Long> {
 
@@ -27,5 +30,21 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
     @Query("select count(r) from DiaryReaction r where r.diary.id = :diaryId")
     long countReactions(@Param("diaryId") Long diaryId);
 
-
+    /**
+     * 공유방 일기 목록. 공감 수, 댓글 수, 내 공감 여부를 서브쿼리로 한 번에 가져온다 (N+1 방지).
+     * PRIVATE 일기는 작성자 본인 것만 포함한다. 최신순.
+     */
+    @Query("select new com.luvin.diary.dto.DiaryDto$FeedItem("
+            + "d.id, d.userId, d.title, d.content, d.visibility, "
+            + "(case when d.userId = :me then true else false end), "
+            + "(select count(r) from DiaryReaction r where r.diary = d), "
+            + "(select count(c) from DiaryComment c where c.diary = d), "
+            + "(case when exists (select 1 from DiaryReaction r2 where r2.diary = d and r2.id.userId = :me) "
+            + "then true else false end), "
+            + "d.createdAt) "
+            + "from Diary d "
+            + "where d.room.id = :roomId "
+            + "and (d.visibility <> com.luvin.diary.domain.DiaryVisibility.PRIVATE or d.userId = :me) "
+            + "order by d.createdAt desc")
+    List<DiaryDto.FeedItem> findRoomFeed(@Param("roomId") Long roomId, @Param("me") Long me);
 }
