@@ -26,4 +26,11 @@ public class DiaryRoomDto {
             long memberCount
     ){
     }
+
+    public record KickResponse (
+            Long roomId,
+            Long userId,
+            String message
+    ){
+    }
 }

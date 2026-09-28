@@ -81,4 +81,8 @@ public class Diary {
             case PRIVATE -> false;
         };
     }
+
+    public void changeVisibility(DiaryVisibility visibility) {
+        this.visibility = visibility;
+    }
 }

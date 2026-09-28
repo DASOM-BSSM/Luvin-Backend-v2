@@ -36,8 +36,8 @@ public class DiaryRoomController {
         return ApiResponse.ok(diaryRoomService.addMember(memberId, roomId, request.userId()));
     }
 
-    @DeleteMapping("/{roomId}/members/{userId}")
-    public ApiResponse<DiaryRoomDto.MembershipResponse> kickMember(@PathVariable Long roomId, @PathVariable Long userId) {
+    @DeleteMapping("/{roomId}/members/kick")
+    public ApiResponse<DiaryRoomDto.KickResponse> kickMember(@PathVariable Long roomId, @RequestParam Long userId) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryRoomService.kickMember(memberId,roomId,userId));
     }

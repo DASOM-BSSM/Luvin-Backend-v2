@@ -59,20 +59,16 @@ public class DiaryRoomService {
     }
 
     @Transactional
-    public DiaryRoomDto.MembershipResponse kickMember(Long memberId, Long roomId, Long targetUserId) {
+    public DiaryRoomDto.KickResponse kickMember(Long memberId, Long roomId, Long targetUserId) {
         DiaryRoom room = getRoom(roomId);
         if (!room.isOwnedBy(memberId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
-        }
-        if (!userRepository.existsById(targetUserId)) {
-            throw new UserNotFoundException(targetUserId);
         }
         if (targetUserId.equals(memberId)) {
             throw new DiaryRoomOwnerCannotLeaveException();
         }
         diaryRoomRepository.deleteMember(roomId, targetUserId);
-        long memberCount = diaryRoomRepository.countMembers(roomId);
-        return new DiaryRoomDto.MembershipResponse(roomId, targetUserId, false, memberCount);
+        return new DiaryRoomDto.KickResponse(roomId, targetUserId, "공유방에서 나갔습니다.");
     }
 
     @Transactional(readOnly = true)

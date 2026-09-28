@@ -31,16 +31,17 @@ public class DiaryController {
         return ApiResponse.okMessage("일기가 삭제되었습니다.");
     }
 
-    @PostMapping("/{diaryId}/reactions")
-    public ApiResponse<DiaryDto.ReactionResponse> react(@PathVariable Long diaryId) {
+    @PostMapping("/{diaryId}/like")
+    public ApiResponse<DiaryDto.ReactionResponse> toggleLike(@PathVariable Long diaryId) {
         Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(diaryService.react(memberId, diaryId));
+        return ApiResponse.ok(diaryService.toggleLike(memberId, diaryId));
     }
 
-    @DeleteMapping("/{diaryId}/reactions")
-    public ApiResponse<DiaryDto.ReactionResponse> unreact(@PathVariable Long diaryId) {
+    @PutMapping("/{diaryId}/visibility")
+    public ApiResponse<DiaryDto.Response> updateVisibility(@PathVariable Long diaryId, @Valid @RequestBody DiaryDto.VisibilityRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(diaryService.unreact(memberId, diaryId));
+        return ApiResponse.ok(diaryService.updateVisibility(memberId, diaryId, request.visibility()));
+
     }
 
     /*

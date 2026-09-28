@@ -69,7 +69,7 @@ public class DiaryDto {
     /** 공감/공감취소 응답. */
     public record ReactionResponse(
             Long diaryId,
-            boolean isReacted,
+            boolean liked,
             long likeCount
     ) {
     }
@@ -85,7 +85,7 @@ public class DiaryDto {
             boolean isMine,
             long likeCount,
             long commentCount,
-            boolean isReacted,
+            boolean liked,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
     ) {
@@ -93,5 +93,11 @@ public class DiaryDto {
             createdAt = toKst(createdAt);
             updatedAt = toKst(updatedAt);
         }
+    }
+
+    public record VisibilityRequest(
+            @NotNull(message = "공개범위를 선택해주세요.")
+            DiaryVisibility visibility
+    ){
     }
 }

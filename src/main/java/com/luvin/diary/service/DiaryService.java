@@ -68,8 +68,7 @@ public class DiaryService {
                 .orElseThrow(() -> new DiaryNotFoundException(diaryId));
     }
 
-    @Transactional
-    public DiaryDto.ReactionResponse react(Long memberId,Long diaryId) {
+    private DiaryDto.ReactionResponse react(Long memberId,Long diaryId) {
         Diary diary = getDiary(diaryId);
         if (diary.canBeViewedBy(memberId,() -> diaryRoomRepository.isMember(diary.getRoom().getId(), memberId))) {
             diaryRepository.insertReactionIfAbsent(diary.getId(), memberId);
@@ -80,13 +79,27 @@ public class DiaryService {
         long likeCount = diaryRepository.countReactions(diary.getId());
         return new DiaryDto.ReactionResponse(diary.getId(), true, likeCount);
     }
+    @Transactional
+    public DiaryDto.ReactionResponse toggleLike(Long memberId,Long diaryId) {
+        Diary diary = getDiary(diaryId);
+        int deleted = diaryRepository.deleteReaction(diaryId, memberId);
+        if (deleted > 0) {
+            long likeCount = diaryRepository.countReactions(diaryId);
+            return new DiaryDto.ReactionResponse(diary.getId(), false, likeCount);
+        }
+        else {
+            return react(memberId, diaryId);
+        }
+    }
 
     @Transactional
-    public DiaryDto.ReactionResponse unreact(Long memberId,Long diaryId) {
-        Diary diary = getDiary(diaryId);
-        diaryRepository.deleteReaction(diary.getId(),memberId);
-        long likeCount = diaryRepository.countReactions(diaryId);
-        return new DiaryDto.ReactionResponse(diaryId, false, likeCount);
+    public DiaryDto.Response updateVisibility(Long memberId, Long diaryId, DiaryVisibility visibility){
+        Diary diary = getOwnedDiaryOrThrow(memberId, diaryId);
+        validateVisibility(diary, visibility);
+
+        diary.changeVisibility(visibility);
+        diaryRepository.flush();
+        return DiaryDto.Response.of(diary, memberId);
     }
 
     @Transactional(readOnly = true)
