@@ -10,8 +10,11 @@ import com.luvin.diary.repository.DiaryCommentRepository;
 import com.luvin.diary.repository.DiaryRepository;
 import com.luvin.diary.repository.DiaryRoomRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +23,8 @@ public class DiaryService {
     private final DiaryRepository diaryRepository;
     private final DiaryRoomRepository diaryRoomRepository;
     private final DiaryCommentRepository diaryCommentRepository;
+
+    private static final int COMMUNITY_FEED_LIMIT = 50;
 
     @Transactional
     public DiaryDto.Response updateDiary(Long memberId, Long diaryId, DiaryDto.Request request) {
@@ -82,5 +87,10 @@ public class DiaryService {
         diaryRepository.deleteReaction(diary.getId(),memberId);
         long likeCount = diaryRepository.countReactions(diaryId);
         return new DiaryDto.ReactionResponse(diaryId, false, likeCount);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DiaryDto.FeedItem> getCommunityFeed(Long memberId) {
+        return diaryRepository.findCommunityFeed(memberId, PageRequest.of(0, COMMUNITY_FEED_LIMIT));
     }
 }

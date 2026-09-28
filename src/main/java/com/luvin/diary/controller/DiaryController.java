@@ -8,6 +8,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/diaries")
@@ -39,5 +41,16 @@ public class DiaryController {
     public ApiResponse<DiaryDto.ReactionResponse> unreact(@PathVariable Long diaryId) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryService.unreact(memberId, diaryId));
+    }
+
+    /*
+    GET /api/diaries/community
+        memberId = SecurityUtils.getCurrentUserId()
+        return ApiResponse.ok(diaryService.getCommunityFeed(memberId))
+     */
+    @GetMapping("/community")
+    public ApiResponse<List<DiaryDto.FeedItem>> findCommunityFeed() {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(diaryService.getCommunityFeed(memberId));
     }
 }
