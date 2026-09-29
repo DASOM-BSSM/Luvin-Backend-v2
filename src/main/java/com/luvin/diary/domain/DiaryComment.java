@@ -37,7 +37,14 @@ public class DiaryComment {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
-}
 
-// TODO : (Long userId, String content, Diary diary) 인자를 받는 생성자 추가
-// TODO : public void update(String content) 메서드 추가
+    public DiaryComment(Long userId, String content, Diary diary) {
+        this.userId = userId;
+        this.content = content;
+        this.diary = diary;
+    }
+
+    public void update(String content) {
+        this.content = content;
+    }
+}
