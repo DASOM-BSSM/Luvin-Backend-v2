@@ -38,3 +38,6 @@ public class DiaryComment {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 }
+
+// TODO : (Long userId, String content, Diary diary) 인자를 받는 생성자 추가
+// TODO : public void update(String content) 메서드 추가

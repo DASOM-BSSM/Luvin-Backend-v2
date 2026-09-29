@@ -4,13 +4,16 @@ import jakarta.validation.constraints.NotNull;
 
 public class DiaryRoomDto {
 
-    public static class Request {
-    }
-
     public static class Response {
     }
 
     public static class MemberResponse {
+    }
+
+    public record Request(
+            String name,
+            String description
+    ) {
     }
 
     public record AddMemberRequest(
