@@ -48,7 +48,7 @@ public class DiaryCommentService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
-        return diaryCommentRepository.findByDiaryId(diaryId).stream()
+        return diaryCommentRepository.findByDiaryIdOrderByCreatedAtAsc(diaryId).stream()
                 .map(DiaryCommentDto.Response::new)
                 .toList();
     }

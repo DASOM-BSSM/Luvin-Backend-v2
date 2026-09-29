@@ -4,6 +4,7 @@ import com.luvin.common.response.ApiResponse;
 import com.luvin.common.security.SecurityUtils;
 import com.luvin.diary.dto.DiaryCommentDto;
 import com.luvin.diary.service.DiaryCommentService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,7 +21,7 @@ public class DiaryCommentController {
     @PostMapping
     public ApiResponse<DiaryCommentDto.Response> createComment(
             @PathVariable Long diaryId,
-            @RequestBody DiaryCommentDto.Request requestDto) {
+            @Valid @RequestBody DiaryCommentDto.Request requestDto) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryCommentService.createComment(memberId, diaryId, requestDto));
     }
@@ -37,7 +38,7 @@ public class DiaryCommentController {
     public ApiResponse<DiaryCommentDto.Response> updateComment(
             @PathVariable Long diaryId,
             @PathVariable Long commentId,
-            @RequestBody DiaryCommentDto.Request requestDto) {
+            @Valid @RequestBody DiaryCommentDto.Request requestDto) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryCommentService.updateComment(memberId, diaryId, commentId, requestDto));
     }
