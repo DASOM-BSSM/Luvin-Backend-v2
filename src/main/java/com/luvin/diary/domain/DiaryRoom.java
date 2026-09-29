@@ -26,9 +26,23 @@ public class DiaryRoom {
     @Column(name = "name", nullable = false, columnDefinition = "text")
     private String name;
 
+    @Column(name = "description", columnDefinition = "text")
+    private String description;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    public DiaryRoom(String name, String description, Long ownerId) {
+        this.name = name;
+        this.description = description;
+        this.ownerId = ownerId;
+    }
+
+    public void update(String name, String description) {
+        this.name = name;
+        this.description = description;
+    }
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
@@ -36,6 +50,11 @@ public class DiaryRoom {
 
     /** 방장 확인은 owner_id 하나로만 한다. */
     public boolean isOwnedBy(Long userId) {
-        return this.ownerId.equals(userId);
+        return this.ownerId != null && this.ownerId.equals(userId);
     }
+
+//    // 방장 확인은 owner_id 하나로만 한다.     -> 위에 껄로 통합함
+//    public boolean isOwnedBy(Long userId) {
+//        return this.ownerId.equals(userId);
+//    }
 }

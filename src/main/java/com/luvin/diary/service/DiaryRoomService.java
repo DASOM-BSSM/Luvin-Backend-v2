@@ -29,6 +29,68 @@ public class DiaryRoomService {
                 .orElseThrow(() -> new DiaryRoomNotFoundException(roomId));
     }
 
+    // 공유방 생성
+    @Transactional
+    public DiaryRoomDto.Response createRoom(Long memberId, DiaryRoomDto.Request requestDto) {
+        DiaryRoom room = new DiaryRoom(requestDto.name(), requestDto.description(), memberId);
+        DiaryRoom savedRoom = diaryRoomRepository.save(room);
+
+        // 방 생성을 요청한 유저를 해당 방의 첫 멤버로 자동 등록
+        diaryRoomRepository.insertMemberIfAbsent(savedRoom.getId(), memberId);
+
+        return new DiaryRoomDto.Response(savedRoom);
+    }
+
+    // 공유방 조회
+    @Transactional(readOnly = true)
+    public List<DiaryRoomDto.Response> getMyRooms(Long memberId) {
+        return diaryRoomRepository.findAllByMemberId(memberId).stream()
+                .map(DiaryRoomDto.Response::new)
+                .toList();
+    }
+
+    // 공유방 수정
+    @Transactional
+    public DiaryRoomDto.Response updateRoom(Long memberId, Long roomId, DiaryRoomDto.Request requestDto) {
+        DiaryRoom room = getRoom(roomId);
+
+        // 방장 권한 체크
+        if (!room.isOwnedBy(memberId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        room.update(requestDto.name(), null);
+        return new DiaryRoomDto.Response(room);
+    }
+
+    // 공유방 삭제
+    @Transactional
+    public void deleteRoom(Long memberId, Long roomId) {
+        DiaryRoom room = getRoom(roomId);
+
+        // 방장 권한 체크
+        if (!room.isOwnedBy(memberId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        diaryRoomRepository.delete(room);
+    }
+
+    // 공유방 목록 멤버 조회
+    @Transactional(readOnly = true)
+    public List<DiaryRoomDto.MemberResponse> getRoomMembers(Long memberId, Long roomId) {
+        DiaryRoom room = getRoom(roomId);
+
+        // 멤버 이상 접근 가능 검증
+        if (!room.isOwnedBy(memberId) && !diaryRoomRepository.isMember(roomId, memberId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        return diaryRoomRepository.findMembersByRoomId(roomId).stream()
+                .map(DiaryRoomDto.MemberResponse::new)
+                .toList();
+    }
+
     @Transactional
     public DiaryRoomDto.MembershipResponse leave(Long memberId, Long roomId) {
         DiaryRoom room = getRoom(roomId);
