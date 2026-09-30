@@ -54,6 +54,10 @@ app:
       client-secret: ${GOOGLE_CLIENT_SECRET:}
       # 구글 콘솔의 "승인된 리디렉션 URI"와 정확히 일치해야 한다.
       redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/auth/google/callback}
+  cors:
+    # 브라우저(웹 프론트)에서 직접 호출할 origin만 나열한다(콤마 구분). 앱(RN/Expo 네이티브)은
+    # CORS 제약이 없어 여기 없어도 영향받지 않는다. 비어있으면 모든 브라우저 요청이 막힌다(fail-closed).
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:8081}
   ai:
     # AI 서비스(FastAPI) base url. 지금은 AWS EC2 IP로 직접 지정하고, 추후 내부 도메인으로 전환한다.
     base-url: ${AI_SERVICE_BASE_URL}
