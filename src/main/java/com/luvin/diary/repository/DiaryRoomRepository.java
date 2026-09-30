@@ -34,6 +34,18 @@ public interface DiaryRoomRepository extends JpaRepository<DiaryRoom, Long> {
             nativeQuery = true)
     int insertMemberIfAbsent(@Param("roomId") Long roomId, @Param("userId") Long userId);
 
+    /** 방 생성 시 방장을 OWNER로 등록한다. */
+    @Modifying
+    @Query(value = "insert into diary_room_member (room_id, user_id, role, joined_at) "
+            + "values (:roomId, :userId, 'OWNER', now()) on conflict do nothing",
+            nativeQuery = true)
+    int insertOwner(@Param("roomId") Long roomId, @Param("userId") Long userId);
+
+    /** 방 삭제 전 멤버 정리 (DB FK에 ON DELETE CASCADE가 없음). */
+    @Modifying(clearAutomatically = true)
+    @Query("delete from DiaryRoomMember m where m.id.roomId = :roomId")
+    void deleteAllMembersByRoomId(@Param("roomId") Long roomId);
+
     /** 나가기, 강퇴 둘 다 사용. @return 삭제됐으면 1, 원래 멤버가 아니었으면 0 */
     @Modifying(clearAutomatically = true)
     @Query("delete from DiaryRoomMember m where m.id.roomId = :roomId and m.id.userId = :userId")

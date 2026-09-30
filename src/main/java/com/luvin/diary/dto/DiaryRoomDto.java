@@ -4,9 +4,11 @@ import com.luvin.user.domain.User;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import com.luvin.diary.domain.DiaryRoom;
+import lombok.Getter;
 
 public class DiaryRoomDto {
 
+    @Getter
     public static class Response {
         private final Long id;
         private final String name;
@@ -19,6 +21,7 @@ public class DiaryRoomDto {
         }
     }
 
+    @Getter
     public static class MemberResponse {
         private final Long id;
         private final String name;

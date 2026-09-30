@@ -35,8 +35,8 @@ public class DiaryRoomService {
         DiaryRoom room = new DiaryRoom(requestDto.name(), requestDto.description(), memberId);
         DiaryRoom savedRoom = diaryRoomRepository.save(room);
 
-        // 방 생성을 요청한 유저를 해당 방의 첫 멤버로 자동 등록
-        diaryRoomRepository.insertMemberIfAbsent(savedRoom.getId(), memberId);
+        // 방 생성을 요청한 유저를 해당 방의 방장(OWNER)으로 자동 등록
+        diaryRoomRepository.insertOwner(savedRoom.getId(), memberId);
 
         return new DiaryRoomDto.Response(savedRoom);
     }
@@ -59,7 +59,7 @@ public class DiaryRoomService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
-        room.update(requestDto.name(), null);
+        room.update(requestDto.name(), requestDto.description());
         return new DiaryRoomDto.Response(room);
     }
 
@@ -73,7 +73,10 @@ public class DiaryRoomService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
-        diaryRoomRepository.delete(room);
+        // DB FK에 ON DELETE 설정이 없어서, 딸린 데이터를 먼저 정리해야 FK 오류가 나지 않는다.
+        diaryRepository.detachFromRoom(roomId);
+        diaryRoomRepository.deleteAllMembersByRoomId(roomId);
+        diaryRoomRepository.deleteById(roomId);
     }
 
     // 공유방 목록 멤버 조회
