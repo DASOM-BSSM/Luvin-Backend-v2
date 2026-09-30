@@ -12,6 +12,13 @@ import java.util.List;
 
 public interface DiaryRepository extends JpaRepository<Diary, Long> {
 
+    List<Diary> findAllByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+
+    /** 공유방 삭제 시 그 방에 올라간 일기는 지우지 않고 방 연결만 끊는다 (ERD: set null). */
+    @Modifying(clearAutomatically = true)
+    @Query("update Diary d set d.room = null where d.room.id = :roomId")
+    void detachFromRoom(@Param("roomId") Long roomId);
+
     /** DiaryReaction은 레포지토리를 따로 두지 않으므로 일기 삭제 전 공감 정리를 여기서 한다. */
     @Modifying(clearAutomatically = true)
     @Query("delete from DiaryReaction r where r.diary.id = :diaryId")

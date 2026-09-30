@@ -17,6 +17,30 @@ public class DiaryController {
 
     private final DiaryService diaryService;
 
+    // 1. 일기 작성 (POST /api/diaries)
+    @PostMapping
+    public ApiResponse<DiaryDto.Response> createDiary(@Valid @RequestBody DiaryDto.Request request) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(diaryService.createDiary(memberId, request));
+    }
+
+    // 2. 전체/개인 일기 목록 조회 (GET /api/diaries)
+    @GetMapping
+    public ApiResponse<List<DiaryDto.Response>> getAllDiaries(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(diaryService.getAllDiaries(memberId, page, size));
+    }
+
+    // 3. 일기 상세 조회 (GET /api/diaries/{diaryId})
+    @GetMapping("/{diaryId}")
+    public ApiResponse<DiaryDto.Response> getDiary(@PathVariable Long diaryId) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(diaryService.getDiary(memberId, diaryId));
+    }
+
     @PutMapping("/{diaryId}")
     public ApiResponse<DiaryDto.Response> updateDiary(@PathVariable Long diaryId,
                                                       @Valid @RequestBody DiaryDto.Request request) {

@@ -29,6 +29,71 @@ public class DiaryRoomService {
                 .orElseThrow(() -> new DiaryRoomNotFoundException(roomId));
     }
 
+    // 공유방 생성
+    @Transactional
+    public DiaryRoomDto.Response createRoom(Long memberId, DiaryRoomDto.Request requestDto) {
+        DiaryRoom room = new DiaryRoom(requestDto.name(), requestDto.description(), memberId);
+        DiaryRoom savedRoom = diaryRoomRepository.save(room);
+
+        // 방 생성을 요청한 유저를 해당 방의 방장(OWNER)으로 자동 등록
+        diaryRoomRepository.insertOwner(savedRoom.getId(), memberId);
+
+        return new DiaryRoomDto.Response(savedRoom);
+    }
+
+    // 공유방 조회
+    @Transactional(readOnly = true)
+    public List<DiaryRoomDto.Response> getMyRooms(Long memberId) {
+        return diaryRoomRepository.findAllByMemberId(memberId).stream()
+                .map(DiaryRoomDto.Response::new)
+                .toList();
+    }
+
+    // 공유방 수정
+    @Transactional
+    public DiaryRoomDto.Response updateRoom(Long memberId, Long roomId, DiaryRoomDto.Request requestDto) {
+        DiaryRoom room = getRoom(roomId);
+
+        // 방장 권한 체크
+        if (!room.isOwnedBy(memberId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        room.update(requestDto.name(), requestDto.description());
+        return new DiaryRoomDto.Response(room);
+    }
+
+    // 공유방 삭제
+    @Transactional
+    public void deleteRoom(Long memberId, Long roomId) {
+        DiaryRoom room = getRoom(roomId);
+
+        // 방장 권한 체크
+        if (!room.isOwnedBy(memberId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        // DB FK에 ON DELETE 설정이 없어서, 딸린 데이터를 먼저 정리해야 FK 오류가 나지 않는다.
+        diaryRepository.detachFromRoom(roomId);
+        diaryRoomRepository.deleteAllMembersByRoomId(roomId);
+        diaryRoomRepository.deleteById(roomId);
+    }
+
+    // 공유방 목록 멤버 조회
+    @Transactional(readOnly = true)
+    public List<DiaryRoomDto.MemberResponse> getRoomMembers(Long memberId, Long roomId) {
+        DiaryRoom room = getRoom(roomId);
+
+        // 멤버 이상 접근 가능 검증
+        if (!room.isOwnedBy(memberId) && !diaryRoomRepository.isMember(roomId, memberId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        return diaryRoomRepository.findMembersByRoomId(roomId).stream()
+                .map(DiaryRoomDto.MemberResponse::new)
+                .toList();
+    }
+
     @Transactional
     public DiaryRoomDto.MembershipResponse leave(Long memberId, Long roomId) {
         DiaryRoom room = getRoom(roomId);
