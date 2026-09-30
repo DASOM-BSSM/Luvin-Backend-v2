@@ -55,6 +55,10 @@ public class Diary {
         this.visibility = visibility;
     }
 
+    public Diary(String title, String content, Long userId, DiaryVisibility visibility) {
+        this(userId, null, title, content, visibility);
+    }
+
     public void update(String title, String content, DiaryVisibility visibility) {
         this.title = title;
         this.content = content;

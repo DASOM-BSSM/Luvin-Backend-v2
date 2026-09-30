@@ -25,6 +25,55 @@ public class DiaryService {
     private final DiaryCommentRepository diaryCommentRepository;
 
     private static final int COMMUNITY_FEED_LIMIT = 50;
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 50;
+
+    // 일기 생성
+    @Transactional
+    public DiaryDto.Response createDiary(Long memberId, DiaryDto.Request request) {
+        if (request.visibility() == DiaryVisibility.ROOM) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+
+        Diary diary = new Diary(
+                request.title(),
+                request.content(),
+                memberId,
+                request.visibility()
+        );
+
+        Diary savedDiary = diaryRepository.save(diary);
+        return DiaryDto.Response.of(savedDiary, memberId);
+    }
+
+    // 일기 전체 조회
+    @Transactional(readOnly = true)
+    public List<DiaryDto.Response> getAllDiaries(Long memberId, int page, int size) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+
+        return diaryRepository
+                .findAllByUserIdOrderByCreatedAtDesc(
+                        memberId,
+                        PageRequest.of(safePage, safeSize)
+                )
+                .stream()
+                .map(diary -> DiaryDto.Response.of(diary, memberId))
+                .toList();
+    }
+
+    // 일기 상세 조회
+    @Transactional(readOnly = true)
+    public DiaryDto.Response getDiary(Long memberId, Long diaryId) {
+        Diary diary = getDiaryEntity(diaryId);
+
+        // 조회 권한 체크 (본인 작성 일기이거나, 공개된 일기/공유방 멤버인지 검증)
+        if (!diary.canBeViewedBy(memberId, () -> diary.getRoom() != null && diaryRoomRepository.isMember(diary.getRoom().getId(), memberId))) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        return DiaryDto.Response.of(diary, memberId);
+    }
 
     @Transactional
     public DiaryDto.Response updateDiary(Long memberId, Long diaryId, DiaryDto.Request request) {
@@ -105,5 +154,10 @@ public class DiaryService {
     @Transactional(readOnly = true)
     public List<DiaryDto.FeedItem> getCommunityFeed(Long memberId) {
         return diaryRepository.findCommunityFeed(memberId, PageRequest.of(0, COMMUNITY_FEED_LIMIT));
+    }
+
+    private Diary getDiaryEntity(Long diaryId) {
+        return diaryRepository.findById(diaryId)
+                .orElseThrow(() -> new DiaryNotFoundException(diaryId));
     }
 }
