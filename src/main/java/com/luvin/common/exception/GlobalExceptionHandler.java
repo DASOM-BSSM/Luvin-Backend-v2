@@ -3,6 +3,7 @@ package com.luvin.common.exception;
 import com.luvin.common.response.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -44,6 +45,7 @@ public class GlobalExceptionHandler {
             DailyQuestionNotFoundException.class,
             DailyQuestionOptionNotFoundException.class,
             EpisodeNotFoundException.class,
+            DiaryNotFoundException.class,
             ParticipantNotFoundException.class,
             GameNotFoundException.class,
             MatchNotFoundException.class,
@@ -54,6 +56,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleNotFound(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(e.getMessage()));
+    }
+
+    /** JSON 형식 오류나 enum에 없는 값 등 요청 body를 읽을 수 없는 경우. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotReadable(HttpMessageNotReadableException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("요청 형식이 올바르지 않습니다."));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
