@@ -29,4 +29,11 @@ public class UserController {
         userService.updateProfile(memberId, request);
         return new MessageResponse("수정 완료");
     }
+
+    @DeleteMapping("/me")
+    public MessageResponse deleteMyAccount() {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        userService.deleteAccount(memberId);
+        return new MessageResponse("회원 탈퇴가 완료되었습니다.");
+    }
 }
