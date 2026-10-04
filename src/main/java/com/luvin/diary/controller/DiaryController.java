@@ -19,7 +19,7 @@ public class DiaryController {
 
     // 1. 일기 작성 (POST /api/diaries)
     @PostMapping
-    public ApiResponse<DiaryDto.Response> createDiary(@Valid @RequestBody DiaryDto.Request request) {
+    public ApiResponse<DiaryDto.Response> createDiary(@Valid @RequestBody DiaryDto.CreateRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryService.createDiary(memberId, request));
     }
@@ -43,7 +43,7 @@ public class DiaryController {
 
     @PutMapping("/{diaryId}")
     public ApiResponse<DiaryDto.Response> updateDiary(@PathVariable Long diaryId,
-                                                      @Valid @RequestBody DiaryDto.Request request) {
+                                                      @Valid @RequestBody DiaryDto.UpdateRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryService.updateDiary(memberId, diaryId, request));
     }
@@ -55,27 +55,18 @@ public class DiaryController {
         return ApiResponse.okMessage("일기가 삭제되었습니다.");
     }
 
+    /** 이모지 반응 토글. 같은 이모지 다시 누르면 취소, 다른 이모지면 교체. */
     @PostMapping("/{diaryId}/like")
-    public ApiResponse<DiaryDto.ReactionResponse> toggleLike(@PathVariable Long diaryId) {
+    public ApiResponse<DiaryDto.ReactionResponse> toggleReaction(@PathVariable Long diaryId,
+                                                                 @Valid @RequestBody DiaryDto.ReactionRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(diaryService.toggleLike(memberId, diaryId));
+        return ApiResponse.ok(diaryService.toggleReaction(memberId, diaryId, request.emoji()));
     }
 
-    @PutMapping("/{diaryId}/visibility")
-    public ApiResponse<DiaryDto.Response> updateVisibility(@PathVariable Long diaryId, @Valid @RequestBody DiaryDto.VisibilityRequest request) {
-        Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(diaryService.updateVisibility(memberId, diaryId, request.visibility()));
-
-    }
-
-    /*
-    GET /api/diaries/community
-        memberId = SecurityUtils.getCurrentUserId()
-        return ApiResponse.ok(diaryService.getCommunityFeed(memberId))
-     */
+    /** 내가 속한 모든 방의 일기 모아보기 (최신 50개). */
     @GetMapping("/community")
-    public ApiResponse<List<DiaryDto.FeedItem>> findCommunityFeed() {
+    public ApiResponse<List<DiaryDto.FeedItem>> getMyRoomsFeed() {
         Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(diaryService.getCommunityFeed(memberId));
+        return ApiResponse.ok(diaryService.getMyRoomsFeed(memberId));
     }
 }

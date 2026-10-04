@@ -8,6 +8,7 @@ import com.luvin.common.exception.UserNotFoundException;
 import com.luvin.diary.domain.DiaryRoom;
 import com.luvin.diary.dto.DiaryDto;
 import com.luvin.diary.dto.DiaryRoomDto;
+import com.luvin.diary.repository.DiaryCommentRepository;
 import com.luvin.diary.repository.DiaryRepository;
 import com.luvin.diary.repository.DiaryRoomRepository;
 import com.luvin.user.repository.UserRepository;
@@ -23,6 +24,7 @@ public class DiaryRoomService {
     private final DiaryRoomRepository diaryRoomRepository;
     private final UserRepository userRepository;
     private final DiaryRepository diaryRepository;
+    private final DiaryCommentRepository diaryCommentRepository;
 
     private DiaryRoom getRoom(Long roomId) {
         return diaryRoomRepository.findById(roomId)
@@ -74,7 +76,10 @@ public class DiaryRoomService {
         }
 
         // DB FK에 ON DELETE 설정이 없어서, 딸린 데이터를 먼저 정리해야 FK 오류가 나지 않는다.
-        diaryRepository.detachFromRoom(roomId);
+        // 일기는 항상 방 안에 있어야 하므로 방의 일기도 함께 지운다: 반응 → 댓글 → 일기 → 멤버 → 방
+        diaryRepository.deleteReactionsByRoomId(roomId);
+        diaryCommentRepository.deleteAllByRoomId(roomId);
+        diaryRepository.deleteAllByRoomId(roomId);
         diaryRoomRepository.deleteAllMembersByRoomId(roomId);
         diaryRoomRepository.deleteById(roomId);
     }

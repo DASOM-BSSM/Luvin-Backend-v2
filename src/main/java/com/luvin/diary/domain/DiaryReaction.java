@@ -24,11 +24,15 @@ public class DiaryReaction {
     @JoinColumn(name = "diary_id")
     private Diary diary;
 
+    /** 반응한 이모지 문자 그대로 (예: "❤", "😂"). Emoji.normalize()를 거친 값만 저장한다. */
+    @Column(name = "emoji", nullable = false, length = 32)
+    private String emoji;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
-    /** (diary_id, user_id) 복합 PK — 같은 사람이 같은 일기에 두 번 공감할 수 없다. */
+    /** (diary_id, user_id) 복합 PK — 한 사람은 한 일기에 반응을 1개만 남길 수 있다. */
     @Embeddable
     @Getter
     @EqualsAndHashCode

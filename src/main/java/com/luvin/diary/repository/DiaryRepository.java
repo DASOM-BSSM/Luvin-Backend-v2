@@ -14,62 +14,68 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
 
     List<Diary> findAllByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
-    /** 공유방 삭제 시 그 방에 올라간 일기는 지우지 않고 방 연결만 끊는다 (ERD: set null). */
-    @Modifying(clearAutomatically = true)
-    @Query("update Diary d set d.room = null where d.room.id = :roomId")
-    void detachFromRoom(@Param("roomId") Long roomId);
-
-    /** DiaryReaction은 레포지토리를 따로 두지 않으므로 일기 삭제 전 공감 정리를 여기서 한다. */
+    /** 일기 하나 삭제 전 반응 정리 (DB FK에 ON DELETE CASCADE가 없음). */
     @Modifying(clearAutomatically = true)
     @Query("delete from DiaryReaction r where r.diary.id = :diaryId")
     void deleteReactionsByDiaryId(@Param("diaryId") Long diaryId);
 
-    @Modifying
-    @Query(value = "insert into diary_reaction (diary_id, user_id, created_at) "
-            + "values (:diaryId, :userId, now()) on conflict do nothing",
-            nativeQuery = true)
-    int insertReactionIfAbsent(@Param("diaryId") Long diaryId, @Param("userId") Long userId);
-
-    /** @return 삭제됐으면 1, 원래 없었으면 0 */
+    /** 공유방 삭제 시: 그 방 일기들의 반응 → (댓글은 DiaryCommentRepository) → 일기 순서로 지운다. */
     @Modifying(clearAutomatically = true)
-    @Query("delete from DiaryReaction r where r.id.diaryId = :diaryId and r.id.userId = :userId")
-    int deleteReaction(@Param("diaryId") Long diaryId, @Param("userId") Long userId);
+    @Query("delete from DiaryReaction r where r.diary.id in (select d.id from Diary d where d.room.id = :roomId)")
+    void deleteReactionsByRoomId(@Param("roomId") Long roomId);
+
+    @Modifying(clearAutomatically = true)
+    @Query("delete from Diary d where d.room.id = :roomId")
+    void deleteAllByRoomId(@Param("roomId") Long roomId);
+
+    /**
+     * 같은 이모지로 이미 반응했으면 지운다 (= 같은 이모지를 다시 누르면 취소).
+     * @return 취소됐으면 1, 아니면 0
+     */
+    // clearAutomatically를 쓰지 않는다: 이미 불러온 Diary가 떨어져 나가면 뒤의 권한 확인에서 room을 못 읽는다.
+    @Modifying
+    @Query("delete from DiaryReaction r where r.id.diaryId = :diaryId and r.id.userId = :userId and r.emoji = :emoji")
+    int deleteReactionIfSame(@Param("diaryId") Long diaryId, @Param("userId") Long userId, @Param("emoji") String emoji);
+
+    /**
+     * 반응을 추가하거나 다른 이모지로 바꾼다. (diary_id, user_id) PK 충돌을 DB가 원자적으로 처리하므로
+     * 동시 요청에도 한 사람당 반응은 1개만 남는다.
+     */
+    @Modifying
+    @Query(value = "insert into diary_reaction (diary_id, user_id, emoji, created_at) "
+            + "values (:diaryId, :userId, :emoji, now()) "
+            + "on conflict (diary_id, user_id) do update set emoji = excluded.emoji, created_at = now()",
+            nativeQuery = true)
+    int upsertReaction(@Param("diaryId") Long diaryId, @Param("userId") Long userId, @Param("emoji") String emoji);
 
     @Query("select count(r) from DiaryReaction r where r.diary.id = :diaryId")
     long countReactions(@Param("diaryId") Long diaryId);
 
-    /**
-     * 공유방 일기 목록. 공감 수, 댓글 수, 내 공감 여부를 서브쿼리로 한 번에 가져온다 (N+1 방지).
-     * PRIVATE 일기는 작성자 본인 것만 포함한다. 최신순.
-     */
-    @Query("select new com.luvin.diary.dto.DiaryDto$FeedItem("
-            + "d.id, rm.id, d.userId, d.title, d.content, d.visibility, "
-            + "(case when d.userId = :me then true else false end), "
-            + "(select count(r) from DiaryReaction r where r.diary = d), "
-            + "(select count(c) from DiaryComment c where c.diary = d), "
-            + "(case when exists (select 1 from DiaryReaction r2 where r2.diary = d and r2.id.userId = :me) "
-            + "then true else false end), "
-            + "d.createdAt, d.updatedAt) "
-            + "from Diary d left join d.room rm "
+    /** 공유방 일기 목록. 반응 수, 댓글 수, 내 반응을 서브쿼리로 한 번에 가져온다 (N+1 방지). 최신순. */
+    @Query("select new com.luvin.diary.dto.DiaryDto$FeedItem(" + FEED_SELECT
+            + "from Diary d "
             + "where d.room.id = :roomId "
-            + "and (d.visibility <> com.luvin.diary.domain.DiaryVisibility.PRIVATE or d.userId = :me) "
             + "order by d.createdAt desc")
     List<DiaryDto.FeedItem> findRoomFeed(@Param("roomId") Long roomId, @Param("me") Long me);
 
     /**
-     * 커뮤니티 일기 목록. PUBLIC 일기만 최신순으로 가져온다.
-     * select 부분은 findRoomFeed와 같고, 개수 제한은 pageable로 한다 (JPQL에는 limit을 직접 못 씀).
+     * 내가 속한(방장이거나 멤버인) 모든 방의 일기 목록. 최신순.
+     * 개수 제한은 pageable로 한다 (JPQL에는 limit을 직접 못 씀).
      */
-    @Query("select new com.luvin.diary.dto.DiaryDto$FeedItem("
-            + "d.id, rm.id, d.userId, d.title, d.content, d.visibility, "
+    @Query("select new com.luvin.diary.dto.DiaryDto$FeedItem(" + FEED_SELECT
+            + "from Diary d "
+            + "where d.room.id in (select m.id.roomId from DiaryRoomMember m where m.id.userId = :me) "
+            + "or d.room.ownerId = :me "
+            + "order by d.createdAt desc")
+    List<DiaryDto.FeedItem> findMyRoomsFeed(@Param("me") Long me, Pageable pageable);
+
+    /** FeedItem 필드 순서와 정확히 같아야 한다. */
+    String FEED_SELECT = "d.id, d.room.id, d.userId, d.title, d.content, "
             + "(case when d.userId = :me then true else false end), "
             + "(select count(r) from DiaryReaction r where r.diary = d), "
             + "(select count(c) from DiaryComment c where c.diary = d), "
             + "(case when exists (select 1 from DiaryReaction r2 where r2.diary = d and r2.id.userId = :me) "
             + "then true else false end), "
-            + "d.createdAt, d.updatedAt) "
-            + "from Diary d left join d.room rm "
-            + "where d.visibility = com.luvin.diary.domain.DiaryVisibility.PUBLIC "
-            + "order by d.createdAt desc")
-    List<DiaryDto.FeedItem> findCommunityFeed(@Param("me") Long me, Pageable pageable);
+            + "(select r3.emoji from DiaryReaction r3 where r3.diary = d and r3.id.userId = :me), "
+            + "d.createdAt, d.updatedAt) ";
 }
