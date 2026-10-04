@@ -1,5 +1,7 @@
 package com.luvin.diary.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.luvin.common.response.ApiResponse;
 import com.luvin.common.security.SecurityUtils;
 import com.luvin.diary.dto.DiaryCommentDto;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Tag(name = "감정일기 댓글", description = "일기 댓글 작성·조회·수정·삭제")
 @RestController
 @RequestMapping("/api/diaries/{diaryId}/comments")
 @RequiredArgsConstructor
@@ -17,7 +20,7 @@ public class DiaryCommentController {
 
     private final DiaryCommentService diaryCommentService;
 
-    // 1. 댓글 작성
+    @Operation(summary = "댓글 작성", description = "일기를 볼 수 있는 사람만 가능 (403).")
     @PostMapping
     public ApiResponse<DiaryCommentDto.Response> createComment(
             @PathVariable Long diaryId,
@@ -26,14 +29,14 @@ public class DiaryCommentController {
         return ApiResponse.ok(diaryCommentService.createComment(memberId, diaryId, requestDto));
     }
 
-    // 2. 댓글 목록 조회
+    @Operation(summary = "댓글 목록", description = "일기를 볼 수 있는 사람만 가능 (403). 작성순.")
     @GetMapping
     public ApiResponse<List<DiaryCommentDto.Response>> getComments(@PathVariable Long diaryId) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryCommentService.getComments(memberId, diaryId));
     }
 
-    // 3. 댓글 수정
+    @Operation(summary = "댓글 수정", description = "댓글 작성자만 가능 (403).")
     @PutMapping("/{commentId}")
     public ApiResponse<DiaryCommentDto.Response> updateComment(
             @PathVariable Long diaryId,
@@ -43,7 +46,7 @@ public class DiaryCommentController {
         return ApiResponse.ok(diaryCommentService.updateComment(memberId, diaryId, commentId, requestDto));
     }
 
-    // 4. 댓글 삭제
+    @Operation(summary = "댓글 삭제", description = "댓글 작성자만 가능 (403).")
     @DeleteMapping("/{commentId}")
     public ApiResponse<Void> deleteComment(
             @PathVariable Long diaryId,
