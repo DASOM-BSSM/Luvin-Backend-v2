@@ -11,8 +11,9 @@ import java.util.List;
 
 public interface DiaryRoomRepository extends JpaRepository<DiaryRoom, Long> {
 
-    //내가 속한 공유방 목록 조회
-    @Query("select r from DiaryRoom r join DiaryRoomMember m on r.id = m.id.roomId where m.id.userId = :userId")
+    // 내가 속한 공유방 목록 조회. 최근에 참여한(방장은 만든) 방이 먼저 온다.
+    @Query("select r from DiaryRoom r join DiaryRoomMember m on r.id = m.id.roomId where m.id.userId = :userId "
+            + "order by m.joinedAt desc, r.id desc")
     List<DiaryRoom> findAllByMemberId(@Param("userId") Long userId);
 
     // 특정 공유방의 멤버 목록 조회
