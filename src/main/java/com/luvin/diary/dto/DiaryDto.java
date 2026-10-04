@@ -1,7 +1,6 @@
 package com.luvin.diary.dto;
 
 import com.luvin.diary.domain.Diary;
-import com.luvin.diary.domain.DiaryVisibility;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -21,18 +20,30 @@ public class DiaryDto {
         return time == null ? null : time.atZoneSameInstant(KST).toOffsetDateTime();
     }
 
-    /** 일기 작성/수정 공통 요청. */
-    public record Request(
+    /** 일기 작성 요청. 일기는 항상 공유방 안에서 쓴다. */
+    public record CreateRequest(
+            @NotNull(message = "공유방을 선택해주세요.")
+            Long roomId,
+
             @NotBlank(message = "제목을 입력해주세요.")
             @Size(max = 100, message = "제목은 100자 이하로 입력해주세요.")
             String title,
 
             @NotBlank(message = "내용을 입력해주세요.")
             @Size(max = 5000, message = "내용은 5000자 이하로 입력해주세요.")
-            String content,
+            String content
+    ) {
+    }
 
-            @NotNull(message = "공개범위를 선택해주세요.")
-            DiaryVisibility visibility
+    /** 일기 수정 요청. 방은 옮길 수 없다. */
+    public record UpdateRequest(
+            @NotBlank(message = "제목을 입력해주세요.")
+            @Size(max = 100, message = "제목은 100자 이하로 입력해주세요.")
+            String title,
+
+            @NotBlank(message = "내용을 입력해주세요.")
+            @Size(max = 5000, message = "내용은 5000자 이하로 입력해주세요.")
+            String content
     ) {
     }
 
@@ -42,7 +53,6 @@ public class DiaryDto {
             Long roomId,
             String title,
             String content,
-            DiaryVisibility visibility,
             boolean isMine,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
@@ -55,10 +65,9 @@ public class DiaryDto {
         public static Response of(Diary diary, Long currentUserId) {
             return new Response(
                     diary.getId(),
-                    diary.getRoom() != null ? diary.getRoom().getId() : null,
+                    diary.getRoom().getId(),
                     diary.getTitle(),
                     diary.getContent(),
-                    diary.getVisibility(),
                     diary.isWrittenBy(currentUserId),
                     diary.getCreatedAt(),
                     diary.getUpdatedAt()
@@ -66,26 +75,41 @@ public class DiaryDto {
         }
     }
 
-    /** 공감/공감취소 응답. */
+    /** 이모지 반응 요청. 이모지 문자 그대로 보낸다 (예: "❤️", "😂"). */
+    public record ReactionRequest(
+            @NotBlank(message = "이모지를 선택해주세요.")
+            String emoji
+    ) {
+    }
+
+    /**
+     * 이모지 반응 응답.
+     * emoji: 이번 요청 후 내 반응 (취소됐으면 null), liked: 반응했는지, likeCount: 모든 이모지를 합친 반응 수
+     */
     public record ReactionResponse(
             Long diaryId,
+            String emoji,
             boolean liked,
             long likeCount
     ) {
     }
 
-    /** 공유방·커뮤니티 일기 목록 항목. JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춰야 한다. */
+    /**
+     * 공유방·내 방들 피드 일기 목록 항목. emoji는 내 반응(없으면 null).
+     * authorNickname은 닉네임이 없으면 이름, authorBreadType은 빵 타입 id(예: "salt_bread", 설문 전이면 null). JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춰야 한다. */
     public record FeedItem(
             Long diaryId,
             Long roomId,
             Long authorId,
+            String authorNickname,
+            String authorBreadType,
             String title,
             String content,
-            DiaryVisibility visibility,
             boolean isMine,
             long likeCount,
             long commentCount,
             boolean liked,
+            String emoji,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt
     ) {
@@ -93,11 +117,5 @@ public class DiaryDto {
             createdAt = toKst(createdAt);
             updatedAt = toKst(updatedAt);
         }
-    }
-
-    public record VisibilityRequest(
-            @NotNull(message = "공개범위를 선택해주세요.")
-            DiaryVisibility visibility
-    ){
     }
 }
