@@ -94,11 +94,15 @@ public class DiaryDto {
     ) {
     }
 
-    /** 공유방·내 방들 피드 일기 목록 항목. emoji는 내 반응(없으면 null). JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춰야 한다. */
+    /**
+     * 공유방·내 방들 피드 일기 목록 항목. emoji는 내 반응(없으면 null).
+     * authorNickname은 닉네임이 없으면 이름, authorBreadType은 빵 타입 id(예: "salt_bread", 설문 전이면 null). JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춰야 한다. */
     public record FeedItem(
             Long diaryId,
             Long roomId,
             Long authorId,
+            String authorNickname,
+            String authorBreadType,
             String title,
             String content,
             boolean isMine,

@@ -53,7 +53,7 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
 
     /** 공유방 일기 목록. 반응 수, 댓글 수, 내 반응을 서브쿼리로 한 번에 가져온다 (N+1 방지). 최신순. */
     @Query("select new com.luvin.diary.dto.DiaryDto$FeedItem(" + FEED_SELECT
-            + "from Diary d "
+            + "from Diary d left join User u on u.id = d.userId "
             + "where d.room.id = :roomId "
             + "order by d.createdAt desc")
     List<DiaryDto.FeedItem> findRoomFeed(@Param("roomId") Long roomId, @Param("me") Long me);
@@ -63,14 +63,16 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
      * 개수 제한은 pageable로 한다 (JPQL에는 limit을 직접 못 씀).
      */
     @Query("select new com.luvin.diary.dto.DiaryDto$FeedItem(" + FEED_SELECT
-            + "from Diary d "
+            + "from Diary d left join User u on u.id = d.userId "
             + "where d.room.id in (select m.id.roomId from DiaryRoomMember m where m.id.userId = :me) "
             + "or d.room.ownerId = :me "
             + "order by d.createdAt desc")
     List<DiaryDto.FeedItem> findMyRoomsFeed(@Param("me") Long me, Pageable pageable);
 
     /** FeedItem 필드 순서와 정확히 같아야 한다. */
-    String FEED_SELECT = "d.id, d.room.id, d.userId, d.title, d.content, "
+    // 작성자 정보는 Diary-User 연관관계(FK)가 없어서 조건으로 조인한다(left join: 사용자가 없어도 일기는 나옴).
+    String FEED_SELECT = "d.id, d.room.id, d.userId, coalesce(u.nickname, u.name), u.personalityType, "
+            + "d.title, d.content, "
             + "(case when d.userId = :me then true else false end), "
             + "(select count(r) from DiaryReaction r where r.diary = d), "
             + "(select count(c) from DiaryComment c where c.diary = d), "
