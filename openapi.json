@@ -837,6 +837,36 @@
                 }
             }
         },
+        "/api/auth/apple": {
+            "post": {
+                "tags": [
+                    "auth-controller"
+                ],
+                "operationId": "appleLogin",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AppleLoginRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAuthLoginResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/analysis": {
             "get": {
                 "tags": [
@@ -2332,6 +2362,18 @@
                         "type": "boolean"
                     },
                     "accessToken": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AppleLoginRequest": {
+                "type": "object",
+                "properties": {
+                    "identityToken": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "fullName": {
                         "type": "string"
                     }
                 }

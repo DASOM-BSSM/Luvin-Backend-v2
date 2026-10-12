@@ -1,5 +1,6 @@
 package com.luvin.auth.controller;
 
+import com.luvin.auth.dto.AppleLoginRequest;
 import com.luvin.auth.dto.AuthLoginRequest;
 import com.luvin.auth.dto.AuthLoginResponse;
 import com.luvin.auth.service.AuthService;
@@ -54,6 +55,15 @@ public class AuthController {
     @PostMapping("/google")
     public ApiResponse<AuthLoginResponse> googleLogin(@Valid @RequestBody AuthLoginRequest request) {
         return ApiResponse.ok(authService.login(request));
+    }
+
+    /**
+     * 애플 로그인. 클라이언트(Expo)가 Sign in with Apple로 받은 identityToken을 그대로 보내면
+     * 서버가 애플 공개키로 직접 검증한다(애플은 구글과 달리 서버가 조회할 수 있는 tokeninfo API가 없다).
+     */
+    @PostMapping("/apple")
+    public ApiResponse<AuthLoginResponse> appleLogin(@Valid @RequestBody AppleLoginRequest request) {
+        return ApiResponse.ok(authService.loginWithApple(request));
     }
 
     /**

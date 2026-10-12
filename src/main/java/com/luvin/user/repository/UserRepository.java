@@ -11,6 +11,7 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
     Optional<User> findByGoogleId(String googleId);
+    Optional<User> findByAppleId(String appleId);
 
     /** 설문 제출 등 사용자별 동시 요청을 직렬화하기 위한 row lock. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

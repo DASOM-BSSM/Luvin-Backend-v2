@@ -1,0 +1,15 @@
+-- 애플 로그인 추가로 users.google_id가 더 이상 모든 사용자에게 존재하지 않는다
+-- (애플로 가입한 사용자는 google_id가 null, apple_id만 있다).
+--
+-- users는 Flyway가 아니라 Hibernate ddl-auto:update가 만드는 테이블이고, Flyway는 항상
+-- Hibernate보다 먼저 실행된다. 그래서 이 마이그레이션은 두 상황을 모두 통과해야 한다.
+--   1) 기존 DB(스테이징): users가 이미 있고 google_id가 NOT NULL -> 제약을 푼다.
+--   2) 빈 DB(CI): users가 아직 없다 -> IF EXISTS로 no-op이 되고, 이후 Hibernate가
+--      엔티티 정의(nullable)대로 테이블을 새로 만든다.
+-- IF EXISTS 없이 쓰면 2)에서 'relation "users" does not exist'로 CI가 깨진다.
+--
+-- apple_id 컬럼 자체는 여기서 만들지 않는다 — 기존 Hibernate 관리 테이블에 컬럼을 추가할 때는
+-- 엔티티 필드로 추가해 ddl-auto:update가 처리하게 하는 이 프로젝트의 기존 방식을 따른다.
+-- (Postgres의 UNIQUE는 NULL을 서로 다른 값으로 취급하므로 google_id/apple_id가 각각
+--  null인 행이 여러 개 있어도 유니크 제약에 걸리지 않는다.)
+ALTER TABLE IF EXISTS users ALTER COLUMN google_id DROP NOT NULL;
