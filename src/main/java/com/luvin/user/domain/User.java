@@ -20,8 +20,13 @@ public class User {
     @Column(name = "user_id")
     private Long id;
 
-    @Column(unique = true, nullable = false, length = 100)
+    /** 구글로 가입한 사용자만 값이 있다. 애플로 가입한 사용자는 null이다. */
+    @Column(unique = true, length = 100)
     private String googleId;
+
+    /** 애플로 가입/연동한 사용자만 값이 있다. 애플 identityToken의 sub claim(안정적인 고유 ID). */
+    @Column(name = "apple_id", unique = true, length = 100)
+    private String appleId;
 
     @Column(nullable = false, length = 50)
     private String name;
@@ -66,10 +71,11 @@ public class User {
     private LocalDateTime updatedAt;
 
     @Builder
-    public User(String googleId, String name, String email, String nickname, String gender,
+    public User(String googleId, String appleId, String name, String email, String nickname, String gender,
                 Integer age, String mbti, String datingStyle, String job, String bio,
                 String personalityType) {
         this.googleId = googleId;
+        this.appleId = appleId;
         this.name = name;
         this.email = email;
         this.nickname = nickname;
@@ -98,6 +104,16 @@ public class User {
         if (gender != null) this.gender = gender;
         if (job != null) this.job = job;
         if (bio != null) this.bio = bio;
+    }
+
+    /**
+     * 구글로 먼저 가입한 계정에 애플 로그인을 연동할 때 사용한다. 이미 다른 애플 계정이 연동돼
+     * 있으면 덮어쓰지 않는다(다른 사람의 애플 계정으로 기존 계정을 탈취하는 것을 막는다).
+     */
+    public void linkAppleId(String appleId) {
+        if (this.appleId == null) {
+            this.appleId = appleId;
+        }
     }
 
     public void updateOAuthProfile(String nickname) {

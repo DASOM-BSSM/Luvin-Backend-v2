@@ -16,7 +16,8 @@ import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties({JwtProperties.class, GoogleOAuthProperties.class, CorsProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, GoogleOAuthProperties.class, AppleOAuthProperties.class,
+        CorsProperties.class})
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
