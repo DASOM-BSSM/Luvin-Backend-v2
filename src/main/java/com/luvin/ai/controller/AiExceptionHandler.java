@@ -12,9 +12,11 @@ import com.luvin.ai.client.exception.AiServiceException;
 import com.luvin.ai.client.exception.AiUnclassifiedConflictException;
 import com.luvin.ai.client.exception.AiValidationException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
+import com.luvin.ai.dto.AiInsufficientTokensView;
 import com.luvin.ai.service.exception.AiCandidateInvalidException;
 import com.luvin.ai.service.exception.AiEpisodeProgressionException;
 import com.luvin.ai.service.exception.AiInputValidationException;
+import com.luvin.ai.service.exception.AiInsufficientTokensException;
 import com.luvin.ai.service.exception.AiReportNotReadyException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
 import com.luvin.ai.service.exception.AiRerollNotFoundException;
@@ -59,11 +61,22 @@ public class AiExceptionHandler {
             AiRevisionConflictException.class,
             AiSelectionConflictException.class,
             AiEpisodeProgressionException.class,
-            AiSeasonAlreadyExistsException.class,
             AiUnclassifiedConflictException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleConflict(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(AiSeasonAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSeasonInProgress(AiSeasonAlreadyExistsException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage(), "SEASON_IN_PROGRESS"));
+    }
+
+    @ExceptionHandler(AiInsufficientTokensException.class)
+    public ResponseEntity<ApiResponse<AiInsufficientTokensView>> handleInsufficientTokens(AiInsufficientTokensException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage(), "INSUFFICIENT_TOKENS",
+                        new AiInsufficientTokensView(e.getRequired(), e.getBalance())));
     }
 
     @ExceptionHandler({AiRerollLockedException.class, AiRerollNotAllowedException.class})

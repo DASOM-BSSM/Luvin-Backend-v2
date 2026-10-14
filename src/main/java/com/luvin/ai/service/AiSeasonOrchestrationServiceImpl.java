@@ -25,6 +25,7 @@ import com.luvin.ai.domain.AiRerollRequest;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonCharacter;
 import com.luvin.ai.domain.AiSeasonCreationInput;
+import com.luvin.ai.domain.AiSeasonStatus;
 import com.luvin.ai.domain.AiSelection;
 import com.luvin.ai.domain.AiSelectionSource;
 import com.luvin.ai.dto.AiCharacterProfileRequest;
@@ -50,7 +51,10 @@ import com.luvin.ai.service.exception.AiEpisodeProgressionException;
 import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
 import com.luvin.ai.service.exception.AiRerollNotFoundException;
+import com.luvin.ai.service.exception.AiSeasonAlreadyExistsException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
+import com.luvin.ai.dto.AiSeasonSummaryView;
+import com.luvin.ai.dto.StartNextSeasonRequest;
 import com.luvin.survey.domain.SurveyResultV2;
 import com.luvin.survey.service.exception.ProfileRequiredException;
 import com.luvin.survey.service.exception.SurveyResultNotFoundException;
@@ -132,7 +136,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
 
     @Override
     public AiSeasonStatusView createSeason(Long memberId, AiCharacterProfileRequest representative) {
-        AiSeason existing = seasonRepository.findByMemberId(memberId).orElse(null);
+        AiSeason existing = seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).orElse(null);
         if (existing != null) {
             // 멱등: 이미 시즌이 있으면 새로 만들지 않고 기존 상태를 그대로 반환한다.
             log.info("season already exists for member, returning existing status");
@@ -154,7 +158,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
 
     @Override
     public AiSeasonStatusView createSeasonFromSurvey(Long memberId, UUID surveyResultId) {
-        AiSeason existing = seasonRepository.findByMemberId(memberId).orElse(null);
+        AiSeason existing = seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).orElse(null);
         if (existing != null) {
             // 멱등: 기존 시즌이 있으면 재설문 결과로 바꾸지 않고 그대로 반환한다.
             return toStatusView(existing, stateWriter.findCharacters(existing.getId()));
@@ -202,6 +206,90 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         return toStatusView(season, stateWriter.findCharacters(season.getId()));
     }
 
+    @Override
+    public AiSeasonStatusView startNextSeason(Long memberId, StartNextSeasonRequest request) {
+        AiSeason current = stateWriter.findCurrentSeason(memberId)
+                .orElseThrow(AiSeasonNotFoundException::new);
+        if (current.getStatus() != AiSeasonStatus.COMPLETED) {
+            // 이미 COMPLETED가 아니면(아직 진행 중) 다음 시즌을 만들 수 없다.
+            throw new AiSeasonAlreadyExistsException();
+        }
+        int nextSeasonNumber = current.getSeasonNumber() + 1;
+
+        // 같은 다음 시즌 시도는 "다음 시즌 번호" 자체로 자연스럽게 같은 businessKey로 수렴한다
+        // (clientRequestId를 보내면 추가로 구분해 더 보수적으로 만든다).
+        String businessKey = "season:next:" + nextSeasonNumber
+                + (request.clientRequestId() != null ? ":" + request.clientRequestId() : "");
+        UUID idempotencyKey = idempotencyKeyService.resolveOrIssue(
+                memberId, AiIdempotencyActionType.SEASON_CREATE_NEXT, businessKey);
+
+        AiSeasonCreationInput creationInput = stateWriter.findNextCreationInput(memberId, nextSeasonNumber).orElse(null);
+        if (creationInput == null) {
+            User user = userRepository.findById(memberId)
+                    .orElseThrow(() -> new com.luvin.common.exception.UserNotFoundException(memberId));
+            UUID surveyResultId = request.surveyResultId() != null ? request.surveyResultId() : user.getLatestSurveyResultId();
+            if (surveyResultId == null) {
+                throw new SurveyResultNotFoundException();
+            }
+            if (request.surveyResultId() != null
+                    && (user.getLatestSurveyResultId() == null || !user.getLatestSurveyResultId().equals(surveyResultId))) {
+                throw new SurveyResultStaleException();
+            }
+            SurveyResultV2 surveyResult = surveyResultV2Repository
+                    .findByIdAndSubmission_MemberId(surveyResultId, memberId)
+                    .orElseThrow(SurveyResultNotFoundException::new);
+            if (user.getGender() == null) {
+                throw new ProfileRequiredException("시즌을 생성하려면 먼저 gender를 설정해야 합니다.");
+            }
+
+            AiTraitsRequest traits = coreScoresToTraits(surveyResult.getCoreScoresJson());
+            AiCharacterProfileRequest representative = new AiCharacterProfileRequest(
+                    user.getGender().toLowerCase(), traits);
+            inputValidator.validateCharacterProfile(representative);
+            CharacterProfileDto clientProfile = toClientProfile(representative);
+            String profileJson = writeProfileJson(clientProfile);
+
+            // 토큰/무료횟수 차감은 여기서 하지 않는다 — AI 호출이 실패하면 아무것도 못 받고 차감만
+            // 당하는 상황을 막기 위해, 실제 시즌이 만들어지는 persistNextSeason에서만 차감한다.
+            try {
+                creationInput = stateWriter.persistPendingNextCreationInput(
+                        memberId, nextSeasonNumber, surveyResultId, profileJson, sha256Hex(profileJson));
+            } catch (org.springframework.dao.DataIntegrityViolationException raceLoser) {
+                // 동시 요청 중 진 쪽: (member_id, season_number) 유니크 제약 위반 — 이긴 쪽이 먼저
+                // 저장한 걸 그대로 재사용한다(AiIdempotencyKeyService와 동일한 패턴).
+                creationInput = stateWriter.findNextCreationInput(memberId, nextSeasonNumber).orElseThrow(() -> raceLoser);
+            }
+        }
+
+        CharacterProfileDto clientProfile = readProfileJson(creationInput.getProfileJson());
+        String ownerSubject = ownerSubjectProvider.resolve(memberId);
+        CreateSeasonRequestDto seasonRequest = CreateSeasonRequestDto.of(clientProfile);
+        SeasonResponseDto response = aiServiceClient.createSeason(
+                ownerSubject, creationInput.getIdempotencyKey(), seasonRequest);
+
+        AiSeason season;
+        try {
+            season = stateWriter.persistNextSeason(
+                    memberId, nextSeasonNumber, response, creationInput.getSurveyResult().getId());
+        } catch (org.springframework.dao.DataIntegrityViolationException raceLoser) {
+            // 동시 요청 중 진 쪽: 이긴 쪽이 이미 이 seasonNumber로 시즌을 만들었다 — 토큰은 이긴 쪽에서만
+            // 차감됐으므로(이 catch에 걸렸다는 건 INSERT 자체가 실패했다는 뜻이라 consumeOneSeasonCredit까지
+            // 가지 않았다) 그 시즌을 그대로 반환한다.
+            season = stateWriter.findCurrentSeason(memberId).orElseThrow(() -> raceLoser);
+        }
+        stateWriter.markCreationInputSucceeded(creationInput.getId());
+        return toStatusView(season, stateWriter.findCharacters(season.getId()));
+    }
+
+    @Override
+    public List<AiSeasonSummaryView> listSeasons(Long memberId) {
+        return stateWriter.findAllSeasons(memberId).stream()
+                .map(season -> new AiSeasonSummaryView(
+                        season.getSeasonId(), season.getSeasonNumber(), season.getStatus().name(),
+                        season.getCurrentEpisode(), season.getCreatedAt(), season.getCompletedAt()))
+                .collect(Collectors.toList());
+    }
+
     // ---------------------------------------------------------------- 상태 조회/복구
 
     @Override
@@ -222,8 +310,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
 
         AiEpisodeProgress existing = episodeProgressRepository
                 .findBySeason_IdAndEpisodeNumber(season.getId(), episodeNumber).orElse(null);
-        if (existing != null && existing.isGenerationAccepted()) {
-            // 이미 접수됨: 중복 generation 방지 (요구사항 4절).
+        boolean isRetryAfterFailure = existing != null && existing.getJobStatus() == AiJobStatus.FAILED;
+        if (existing != null && existing.isGenerationAccepted() && !isRetryAfterFailure) {
+            // 이미 접수됨(FAILED가 아님): 중복 generation 방지 (요구사항 4절).
             return toProgressView(existing);
         }
 
@@ -231,7 +320,12 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         SeasonResponseDto latest = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
         int revision = latest.revision();
 
-        String businessKey = "season:" + season.getSeasonId() + ":episode:" + episodeNumber + ":generation";
+        // FAILED 이후 재시도는 이전 실패 job과 같은 idempotency key를 재사용하면 AI 쪽에서 그 FAILED
+        // 응답을 그대로 재생(replay)할 위험이 있어, 이전 jobId를 섞어 새 key를 받는다. 동시에 두 번
+        // 재시도 버튼을 눌러도 existing.getJobId()가 같으므로 같은 key로 수렴한다(안전).
+        String businessKey = isRetryAfterFailure
+                ? "season:" + season.getSeasonId() + ":episode:" + episodeNumber + ":generation:retry-after:" + existing.getJobId()
+                : "season:" + season.getSeasonId() + ":episode:" + episodeNumber + ":generation";
         UUID idempotencyKey = idempotencyKeyService.resolveOrIssue(
                 memberId, AiIdempotencyActionType.EPISODE_GENERATION, businessKey);
 
@@ -451,7 +545,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     // ---------------------------------------------------------------- 내부 헬퍼
 
     private AiSeason getOwnedSeasonOrThrow(Long memberId) {
-        return seasonRepository.findByMemberId(memberId)
+        return seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId)
                 .orElseThrow(AiSeasonNotFoundException::new);
     }
 
@@ -552,7 +646,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                 .collect(Collectors.toList());
         return new AiSeasonStatusView(
                 season.getSeasonId(), season.getRevision(), season.getCurrentEpisode(),
-                season.getStatus().name(), characterViews, season.getSurveyResultId());
+                season.getStatus().name(), characterViews, season.getSurveyResultId(), season.getSeasonNumber());
     }
 
     private AiEpisodeProgressView toProgressView(AiEpisodeProgress progress) {

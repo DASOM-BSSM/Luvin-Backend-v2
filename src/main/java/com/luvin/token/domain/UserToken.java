@@ -41,6 +41,11 @@ public class UserToken {
         this.tokenBalance += amount;
     }
 
+    /** 무료 시즌 잔여 횟수를 1 소진한다. 0일 때는 호출하지 않는다(호출부 책임 — 토큰 차감으로 넘어가야 한다). */
+    public void consumeFreeSimulation() {
+        this.freeSimulationCount -= 1;
+    }
+
     public Long getId() { return id; }
     public Long getMemberId() { return memberId; }
     public int getTokenBalance() { return tokenBalance; }

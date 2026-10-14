@@ -20,12 +20,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * 설문 결과 기반 시즌 생성의 입력 snapshot. member당 1개(unique)만 존재하며, 원격 AI 호출 전에
- * 먼저 저장해 idempotency key와 profile을 고정한다 — 사용자가 호출 직후 재설문해도 retry payload가
- * 바뀌지 않게 하기 위함이다 (BACKEND_CHANGES.md 9절).
+ * 설문 결과 기반 시즌 생성의 입력 snapshot. member의 시즌 번호(seasonNumber)별로 1개(unique)만
+ * 존재하며, 원격 AI 호출 전에 먼저 저장해 idempotency key와 profile을 고정한다 — 사용자가 호출
+ * 직후 재설문해도 retry payload가 바뀌지 않게 하기 위함이다 (BACKEND_CHANGES.md 9절).
  */
 @Entity
-@Table(name = "ai_season_creation_inputs")
+@Table(name = "ai_season_creation_inputs",
+        uniqueConstraints = @jakarta.persistence.UniqueConstraint(columnNames = {"member_id", "season_number"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class AiSeasonCreationInput {
@@ -35,8 +36,12 @@ public class AiSeasonCreationInput {
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "member_id", nullable = false, unique = true)
+    @Column(name = "member_id", nullable = false)
     private Long memberId;
+
+    /** 이 생성 입력이 어느 시즌(1부터) 생성을 위한 것인지. */
+    @Column(name = "season_number", nullable = false)
+    private Integer seasonNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "survey_result_id", nullable = false)
@@ -62,9 +67,10 @@ public class AiSeasonCreationInput {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public AiSeasonCreationInput(Long memberId, SurveyResultV2 surveyResult, String profileJson,
+    public AiSeasonCreationInput(Long memberId, Integer seasonNumber, SurveyResultV2 surveyResult, String profileJson,
                                   String requestHash, UUID idempotencyKey) {
         this.memberId = memberId;
+        this.seasonNumber = seasonNumber;
         this.surveyResult = surveyResult;
         this.profileJson = profileJson;
         this.requestHash = requestHash;

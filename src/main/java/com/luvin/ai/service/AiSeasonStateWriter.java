@@ -17,9 +17,15 @@ import com.luvin.ai.repository.AiSeasonCharacterRepository;
 import com.luvin.ai.repository.AiSeasonCreationInputRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.ai.repository.AiSelectionRepository;
+import com.luvin.ai.service.exception.AiInsufficientTokensException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
 import com.luvin.survey.domain.SurveyResultV2;
 import com.luvin.survey.repository.SurveyResultV2Repository;
+import com.luvin.token.domain.TokenHistory;
+import com.luvin.token.domain.TokenHistoryType;
+import com.luvin.token.domain.UserToken;
+import com.luvin.token.repository.TokenHistoryRepository;
+import com.luvin.token.repository.UserTokenRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,33 +56,78 @@ public class AiSeasonStateWriter {
     private final AiRerollRequestRepository rerollRequestRepository;
     private final AiSeasonCreationInputRepository seasonCreationInputRepository;
     private final SurveyResultV2Repository surveyResultV2Repository;
+    private final UserTokenRepository userTokenRepository;
+    private final TokenHistoryRepository tokenHistoryRepository;
 
+    private static final int FIRST_SEASON_NUMBER = 1;
+
+    /** 레거시 원시-traits 경로(내부 테스트 fixture 용) — 무료 횟수/토큰을 소비하지 않는다. */
     @Transactional
     public AiSeason persistNewSeason(Long memberId, SeasonResponseDto response) {
-        return persistNewSeason(memberId, response, null);
-    }
-
-    @Transactional
-    public AiSeason persistNewSeasonFromSurvey(Long memberId, SeasonResponseDto response, UUID surveyResultId) {
-        return persistNewSeason(memberId, response, surveyResultId);
-    }
-
-    private AiSeason persistNewSeason(Long memberId, SeasonResponseDto response, UUID surveyResultId) {
-        AiSeason raceExisting = seasonRepository.findByMemberId(memberId).orElse(null);
+        AiSeason raceExisting = seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).orElse(null);
         if (raceExisting != null) {
             return raceExisting;
         }
-
         AiSeason season = seasonRepository.save(new AiSeason(
-                memberId, response.seasonId(), response.revision(), response.currentEpisode(), surveyResultId));
+                memberId, FIRST_SEASON_NUMBER, response.seasonId(), response.revision(), response.currentEpisode(), null));
+        saveCharacters(season, response);
+        return season;
+    }
 
+    /** 설문 기반 첫 시즌 생성. 신규 유저는 무료 횟수(1)로 시작하므로 항상 무료로 소진된다. */
+    @Transactional
+    public AiSeason persistNewSeasonFromSurvey(Long memberId, SeasonResponseDto response, UUID surveyResultId) {
+        AiSeason raceExisting = seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).orElse(null);
+        if (raceExisting != null) {
+            return raceExisting;
+        }
+        AiSeason season = seasonRepository.save(new AiSeason(
+                memberId, FIRST_SEASON_NUMBER, response.seasonId(), response.revision(), response.currentEpisode(),
+                surveyResultId));
+        consumeOneSeasonCredit(memberId);
+        saveCharacters(season, response);
+        return season;
+    }
+
+    /**
+     * 2번째 이후 시즌 생성. 무료 횟수가 남아있으면 그걸, 없으면 토큰 1개를 시즌 생성과 같은 트랜잭션에서
+     * 차감한다 — 토큰 차감만 실패하거나 시즌만 생성되는 경우가 없다.
+     */
+    @Transactional
+    public AiSeason persistNextSeason(Long memberId, int seasonNumber, SeasonResponseDto response, UUID surveyResultId) {
+        AiSeason raceExisting = seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).orElse(null);
+        if (raceExisting != null && raceExisting.getSeasonNumber() >= seasonNumber) {
+            // 이미 이 번호(또는 더 최신) 시즌이 만들어져 있다 — 재시도/경쟁에서 진 쪽이거나 중복 요청.
+            return raceExisting;
+        }
+        AiSeason season = seasonRepository.save(new AiSeason(
+                memberId, seasonNumber, response.seasonId(), response.revision(), response.currentEpisode(),
+                surveyResultId));
+        consumeOneSeasonCredit(memberId);
+        saveCharacters(season, response);
+        return season;
+    }
+
+    private void saveCharacters(AiSeason season, SeasonResponseDto response) {
         response.characters().forEach(c -> seasonCharacterRepository.save(new AiSeasonCharacter(
                 season,
                 c.id(),
                 AiCharacterRole.fromWire(c.role(), null),
                 c.gender())));
+    }
 
-        return season;
+    private void consumeOneSeasonCredit(Long memberId) {
+        UserToken userToken = userTokenRepository.findByMemberId(memberId)
+                .orElseGet(() -> userTokenRepository.save(new UserToken(memberId, 0, 1)));
+        if (userToken.getFreeSimulationCount() > 0) {
+            userToken.consumeFreeSimulation();
+            return;
+        }
+        if (userToken.getTokenBalance() < 1) {
+            throw new AiInsufficientTokensException(1, userToken.getTokenBalance());
+        }
+        userToken.use(1);
+        tokenHistoryRepository.save(new TokenHistory(memberId, TokenHistoryType.USE, -1, "러빈지옥 시즌 시작"));
     }
 
     /**
@@ -87,11 +138,23 @@ public class AiSeasonStateWriter {
     @Transactional
     public AiSeasonCreationInput persistPendingCreationInput(Long memberId, UUID surveyResultId,
                                                                String profileJson, String requestHash) {
-        return seasonCreationInputRepository.findByMemberId(memberId)
+        return seasonCreationInputRepository.findByMemberIdAndSeasonNumber(memberId, FIRST_SEASON_NUMBER)
                 .orElseGet(() -> {
                     SurveyResultV2 surveyResult = surveyResultV2Repository.getReferenceById(surveyResultId);
                     return seasonCreationInputRepository.save(new AiSeasonCreationInput(
-                            memberId, surveyResult, profileJson, requestHash, UUID.randomUUID()));
+                            memberId, FIRST_SEASON_NUMBER, surveyResult, profileJson, requestHash, UUID.randomUUID()));
+                });
+    }
+
+    /** persistPendingCreationInput과 같은 패턴을 2번째 이후 시즌(seasonNumber)에 대해 적용한다. */
+    @Transactional
+    public AiSeasonCreationInput persistPendingNextCreationInput(Long memberId, int seasonNumber, UUID surveyResultId,
+                                                                   String profileJson, String requestHash) {
+        return seasonCreationInputRepository.findByMemberIdAndSeasonNumber(memberId, seasonNumber)
+                .orElseGet(() -> {
+                    SurveyResultV2 surveyResult = surveyResultV2Repository.getReferenceById(surveyResultId);
+                    return seasonCreationInputRepository.save(new AiSeasonCreationInput(
+                            memberId, seasonNumber, surveyResult, profileJson, requestHash, UUID.randomUUID()));
                 });
     }
 
@@ -102,7 +165,22 @@ public class AiSeasonStateWriter {
 
     @Transactional(readOnly = true)
     public Optional<AiSeasonCreationInput> findCreationInput(Long memberId) {
-        return seasonCreationInputRepository.findByMemberId(memberId);
+        return seasonCreationInputRepository.findByMemberIdAndSeasonNumber(memberId, FIRST_SEASON_NUMBER);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<AiSeasonCreationInput> findNextCreationInput(Long memberId, int seasonNumber) {
+        return seasonCreationInputRepository.findByMemberIdAndSeasonNumber(memberId, seasonNumber);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<AiSeason> findCurrentSeason(Long memberId) {
+        return seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AiSeason> findAllSeasons(Long memberId) {
+        return seasonRepository.findAllByMemberIdOrderBySeasonNumberAsc(memberId);
     }
 
     @Transactional
@@ -114,10 +192,17 @@ public class AiSeasonStateWriter {
 
     @Transactional
     public AiEpisodeProgress persistGenerationAccepted(Long seasonPk, int episodeNumber, UUID jobId) {
-        AiEpisodeProgress progress = episodeProgressRepository
-                .findBySeason_IdAndEpisodeNumber(seasonPk, episodeNumber)
-                .orElseGet(() -> new AiEpisodeProgress(seasonRepository.getReferenceById(seasonPk), episodeNumber, jobId));
-        return episodeProgressRepository.save(progress);
+        AiEpisodeProgress existing = episodeProgressRepository
+                .findBySeason_IdAndEpisodeNumber(seasonPk, episodeNumber).orElse(null);
+        if (existing == null) {
+            return episodeProgressRepository.save(
+                    new AiEpisodeProgress(seasonRepository.getReferenceById(seasonPk), episodeNumber, jobId));
+        }
+        // 기존 row가 있다면 이전 job이 FAILED였다가 재요청으로 새 job을 받은 경우다(그 외에는
+        // requestGeneration의 isGenerationAccepted 가드에서 이미 걸러진다) — 상태를 새 job 기준으로
+        // 리셋한다. orElseGet만 쓰면 새 jobId가 조용히 버려지고 기존 FAILED row가 그대로 남는 버그가 있었다.
+        existing.resetForRetry(jobId);
+        return episodeProgressRepository.save(existing);
     }
 
     @Transactional

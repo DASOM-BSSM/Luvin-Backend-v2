@@ -22,7 +22,9 @@ import java.util.stream.Collectors;
 public class TokenServiceImpl implements TokenService {
 
     private static final int DEFAULT_INITIAL_TOKEN_BALANCE = 0;
-    private static final int DEFAULT_INITIAL_FREE_SIMULATION_COUNT = 0;
+    // 첫 시즌은 무료라서 신규 유저는 1부터 시작한다 — 러빈지옥 첫 시즌 생성 시 1->0으로 소진된다
+    // (com.luvin.ai.service.AiSeasonStateWriter의 시즌 생성 트랜잭션에서 차감).
+    private static final int DEFAULT_INITIAL_FREE_SIMULATION_COUNT = 1;
 
     private final UserTokenRepository userTokenRepository;
     private final TokenHistoryRepository tokenHistoryRepository;

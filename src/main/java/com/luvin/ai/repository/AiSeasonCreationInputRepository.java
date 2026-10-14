@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface AiSeasonCreationInputRepository extends JpaRepository<AiSeasonCreationInput, Long> {
-    Optional<AiSeasonCreationInput> findByMemberId(Long memberId);
+    Optional<AiSeasonCreationInput> findByMemberIdAndSeasonNumber(Long memberId, Integer seasonNumber);
 }
