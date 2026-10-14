@@ -5,11 +5,19 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface AiSeasonRepository extends JpaRepository<AiSeason, Long> {
-    Optional<AiSeason> findByMemberId(Long memberId);
+    /**
+     * 그 사용자의 "현재 시즌"(seasonNumber가 가장 큰 행). memberId당 여러 시즌 행이 있을 수 있으므로
+     * 과거에 쓰던 findByMemberId(단일 Optional)는 더 이상 쓰지 않는다 — 2개 이상이면 예외가 난다.
+     */
+    Optional<AiSeason> findFirstByMemberIdOrderBySeasonNumberDesc(Long memberId);
+
+    /** GET /api/ai/seasons 목록 응답용. 오름차순(1부터)으로 전부 반환한다. */
+    List<AiSeason> findAllByMemberIdOrderBySeasonNumberAsc(Long memberId);
 
     Optional<AiSeason> findBySeasonId(UUID seasonId);
 

@@ -32,4 +32,9 @@ public class ApiResponse<T> {
     public static ApiResponse<Void> error(String message, String code) {
         return new ApiResponse<>(false, null, message, code);
     }
+
+    /** data까지 함께 내려야 하는 오류용(e.g. INSUFFICIENT_TOKENS의 required/balance). */
+    public static <T> ApiResponse<T> error(String message, String code, T data) {
+        return new ApiResponse<>(false, data, message, code);
+    }
 }

@@ -6,8 +6,11 @@ import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
+import com.luvin.ai.dto.AiSeasonSummaryView;
 import com.luvin.ai.dto.AiSelectionView;
+import com.luvin.ai.dto.StartNextSeasonRequest;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -24,6 +27,16 @@ public interface AiSeasonOrchestrationService {
      * 반환하고, 요청한 surveyResultId가 본인의 최신 결과가 아니면 409(SURVEY_RESULT_STALE)를 던진다.
      */
     AiSeasonStatusView createSeasonFromSurvey(Long memberId, java.util.UUID surveyResultId);
+
+    /**
+     * 현재 시즌이 COMPLETED일 때만 다음 시즌을 생성한다. 무료 횟수가 남아있으면 그걸, 없으면 토큰
+     * 1개를 시즌 생성과 같은 트랜잭션에서 차감한다. 아직 진행 중인 시즌이 있으면 409(SEASON_IN_PROGRESS),
+     * 토큰/무료횟수가 부족하면 409(INSUFFICIENT_TOKENS)를 던진다.
+     */
+    AiSeasonStatusView startNextSeason(Long memberId, StartNextSeasonRequest request);
+
+    /** 이 사용자의 모든 시즌을 seasonNumber 오름차순으로 반환한다(지난 시즌 포함). */
+    List<AiSeasonSummaryView> listSeasons(Long memberId);
 
     /** 재시작/새로고침 후 최신 시즌 상태 복구. AI GET season으로 revision/currentEpisode를 동기화한다. */
     AiSeasonStatusView getStatus(Long memberId);

@@ -6,6 +6,7 @@ package com.luvin.ai.domain;
  */
 public enum AiIdempotencyActionType {
     SEASON_CREATE,
+    SEASON_CREATE_NEXT,
     EPISODE_GENERATION,
     EPISODE_SELECTION,
     EPISODE_REROLL
