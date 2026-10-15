@@ -3380,8 +3380,43 @@
                         "type": "string",
                         "format": "uuid"
                     },
+                    "speakerId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "speakerRole": {
+                        "type": "string",
+                        "enum": [
+                            "representative",
+                            "candidate"
+                        ]
+                    },
                     "text": {
                         "type": "string"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "observedBehavior": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiReportTraitView": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "evidenceMessageIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
                     }
                 }
             },
@@ -3403,6 +3438,18 @@
                     },
                     "renderMode": {
                         "type": "string"
+                    },
+                    "representativeStrengths": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AiReportTraitView"
+                        }
+                    },
+                    "representativeWeaknesses": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AiReportTraitView"
+                        }
                     }
                 }
             },

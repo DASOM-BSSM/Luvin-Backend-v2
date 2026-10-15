@@ -1,5 +1,6 @@
 package com.luvin.ai.domain;
 
+import com.fasterxml.jackson.annotation.JsonValue;
 import com.luvin.ai.client.exception.AiContractViolationException;
 
 /**
@@ -9,6 +10,12 @@ import com.luvin.ai.client.exception.AiContractViolationException;
 public enum AiCharacterRole {
     REPRESENTATIVE,
     CANDIDATE;
+
+    /** 앱 응답에 AI wire 그대로 소문자("representative"/"candidate")로 노출한다. */
+    @JsonValue
+    public String wireValue() {
+        return name().toLowerCase();
+    }
 
     public static AiCharacterRole fromWire(String wireValue, String rawBody) {
         if (wireValue == null) {
