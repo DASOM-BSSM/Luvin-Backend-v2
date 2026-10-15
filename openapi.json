@@ -2996,6 +2996,9 @@
                         "type": "integer",
                         "format": "int64"
                     },
+                    "code": {
+                        "type": "string"
+                    },
                     "title": {
                         "type": "string"
                     },
@@ -3022,6 +3025,9 @@
                     "gameId": {
                         "type": "integer",
                         "format": "int64"
+                    },
+                    "code": {
+                        "type": "string"
                     },
                     "title": {
                         "type": "string"
