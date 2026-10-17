@@ -1918,6 +1918,37 @@
                     }
                 }
             }
+        },
+        "/api/episodes/{episodeId}/ai-situations/reason": {
+            "get": {
+                "tags": [
+                    "vote-reason-controller"
+                ],
+                "operationId": "getVoteReason",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VoteReasonResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -3564,6 +3595,24 @@
                     },
                     "code": {
                         "type": "string"
+                    }
+                }
+            },
+            "VoteReasonResponse": {
+                "type": "object",
+                "properties": {
+                    "episodeId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "basedOn": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 }
             }
