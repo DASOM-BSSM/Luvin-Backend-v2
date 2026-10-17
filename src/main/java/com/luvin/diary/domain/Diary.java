@@ -24,9 +24,9 @@ public class Diary {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    /** 공유방에 올린 일기만 값이 있다. 일기 1개는 공유방 최대 1개에 속한다. */
+    /** 일기는 항상 공유방 하나 안에서 쓴다. 볼 수 있는 사람은 그 방의 방장·멤버다. */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "room_id")
+    @JoinColumn(name = "room_id", nullable = false)
     private DiaryRoom room;
 
     @Column(name = "title", nullable = false, columnDefinition = "text")
@@ -34,10 +34,6 @@ public class Diary {
 
     @Column(name = "content", nullable = false, columnDefinition = "text")
     private String content;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "visibility", nullable = false, length = 20)
-    private DiaryVisibility visibility;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -47,18 +43,16 @@ public class Diary {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
-    public Diary(Long userId, DiaryRoom room, String title, String content, DiaryVisibility visibility) {
+    public Diary(Long userId, DiaryRoom room, String title, String content) {
         this.userId = userId;
         this.room = room;
         this.title = title;
         this.content = content;
-        this.visibility = visibility;
     }
 
-    public void update(String title, String content, DiaryVisibility visibility) {
+    public void update(String title, String content) {
         this.title = title;
         this.content = content;
-        this.visibility = visibility;
     }
 
     public boolean isWrittenBy(Long userId) {
@@ -66,23 +60,13 @@ public class Diary {
     }
 
     /**
-     * 공개범위 기준으로 이 사용자가 일기를 볼 수 있는지 판단한다. 공감, 댓글, 상세 조회에서 같이 쓴다.
+     * 이 사용자가 일기를 볼 수 있는지 판단한다. 반응, 댓글, 상세 조회에서 같이 쓴다.
+     * 작성자이거나, 일기가 속한 방의 방장·멤버면 볼 수 있다.
      *
      * 방 멤버 여부는 엔티티가 직접 조회할 수 없어서 호출하는 쪽(서비스)이 넘긴다.
-     * ROOM 일기일 때만 실제로 호출되므로, 멤버 조회 쿼리도 그때만 나간다.
+     * 작성자·방장이 아닐 때만 실제로 호출되므로, 멤버 조회 쿼리도 그때만 나간다.
      */
     public boolean canBeViewedBy(Long userId, BooleanSupplier isRoomMember) {
-        if (isWrittenBy(userId)) {
-            return true;
-        }
-        return switch (visibility) {
-            case PUBLIC -> true;
-            case ROOM -> room != null && isRoomMember.getAsBoolean();
-            case PRIVATE -> false;
-        };
-    }
-
-    public void changeVisibility(DiaryVisibility visibility) {
-        this.visibility = visibility;
+        return isWrittenBy(userId) || room.isOwnedBy(userId) || isRoomMember.getAsBoolean();
     }
 }
