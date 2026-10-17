@@ -1,0 +1,14 @@
+{
+  "checked_at": "2026-09-26T12:03:29+09:00",
+  "frontend": {
+    "repository": "https://github.com/DASOM-BSSM/Luvin-Frontend-v2",
+    "branch": "dev",
+    "sha": "0d4a65ce224e4076fd1dd6f3dfb15798fea0c7f9"
+  },
+  "backend": {
+    "repository": "https://github.com/DASOM-BSSM/Luvin-Backend-v2",
+    "branch": "master",
+    "sha": "9c6d5c5f84e37fae5b168ab60346ff6a9a534693"
+  },
+  "analysis_method": "source and checked-in OpenAPI review; no runtime or deployed DB access"
+}

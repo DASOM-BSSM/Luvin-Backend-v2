@@ -6,8 +6,11 @@ import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
+import com.luvin.ai.dto.AiSeasonSummaryView;
 import com.luvin.ai.dto.AiSelectionView;
+import com.luvin.ai.dto.StartNextSeasonRequest;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -18,6 +21,22 @@ public interface AiSeasonOrchestrationService {
 
     /** 이미 시즌이 있으면 그 상태를 그대로 반환한다 (멱등). */
     AiSeasonStatusView createSeason(Long memberId, AiCharacterProfileRequest representative);
+
+    /**
+     * 서버가 저장한 설문 v2 결과(gender + 13개 core 점수)로 시즌을 생성한다. 기존 시즌이 있으면 그대로
+     * 반환하고, 요청한 surveyResultId가 본인의 최신 결과가 아니면 409(SURVEY_RESULT_STALE)를 던진다.
+     */
+    AiSeasonStatusView createSeasonFromSurvey(Long memberId, java.util.UUID surveyResultId);
+
+    /**
+     * 현재 시즌이 COMPLETED일 때만 다음 시즌을 생성한다. 무료 횟수가 남아있으면 그걸, 없으면 토큰
+     * 1개를 시즌 생성과 같은 트랜잭션에서 차감한다. 아직 진행 중인 시즌이 있으면 409(SEASON_IN_PROGRESS),
+     * 토큰/무료횟수가 부족하면 409(INSUFFICIENT_TOKENS)를 던진다.
+     */
+    AiSeasonStatusView startNextSeason(Long memberId, StartNextSeasonRequest request);
+
+    /** 이 사용자의 모든 시즌을 seasonNumber 오름차순으로 반환한다(지난 시즌 포함). */
+    List<AiSeasonSummaryView> listSeasons(Long memberId);
 
     /** 재시작/새로고침 후 최신 시즌 상태 복구. AI GET season으로 revision/currentEpisode를 동기화한다. */
     AiSeasonStatusView getStatus(Long memberId);
@@ -40,6 +59,12 @@ public interface AiSeasonOrchestrationService {
 
     /** 2·4화 1:1 상대 변경. 다음 화 generation이 이미 접수됐으면 거부한다. */
     AiRerollView requestReroll(Long memberId, int episodeNumber, UUID requestedPartnerId);
+
+    /**
+     * 해당 회차의 가장 최근 reroll 요청 상태를 조회한다(폴링용). POST 응답 이후 완료 여부를 확인할
+     * 별도 수단이 없던 문제를 해결한다. 한 번도 reroll을 요청한 적이 없으면 404.
+     */
+    AiRerollView getRerollStatus(Long memberId, int episodeNumber);
 
     /** episodeNumber 화 완성 메시지 pagination 조회. version_id를 고정해서 조회한다. */
     AiEpisodeMessagesView getEpisodeMessages(Long memberId, int episodeNumber, Integer afterSequence, Integer limit);

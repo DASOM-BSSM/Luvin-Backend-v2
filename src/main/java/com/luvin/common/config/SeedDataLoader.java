@@ -10,6 +10,8 @@ import com.luvin.survey.domain.SurveyQuestion;
 import com.luvin.survey.repository.SurveyOptionRepository;
 import com.luvin.survey.repository.SurveyQuestionRepository;
 import com.luvin.survey.repository.SurveyRepository;
+import com.luvin.minigame.domain.Minigame;
+import com.luvin.minigame.repository.MinigameRepository;
 import com.luvin.simulation.domain.EpisodeGame;
 import com.luvin.simulation.domain.SimulationCharacter;
 import com.luvin.simulation.repository.EpisodeGameRepository;
@@ -33,6 +35,7 @@ public class SeedDataLoader implements ApplicationRunner {
     private final DailyQuestionOptionRepository dailyQuestionOptionRepository;
     private final SimulationCharacterRepository simulationCharacterRepository;
     private final EpisodeGameRepository episodeGameRepository;
+    private final MinigameRepository minigameRepository;
 
     @Override
     @Transactional
@@ -52,6 +55,19 @@ public class SeedDataLoader implements ApplicationRunner {
         if (episodeGameRepository.count() == 0) {
             seedEpisodeGames();
         }
+
+        if (minigameRepository.count() == 0) {
+            seedMinigames();
+        }
+    }
+
+    /**
+     * title은 프론트와 합의된 값 그대로 둔다 — 임의로 다듬지 않는다. code는 title과 달리 바뀌지
+     * 않는 식별 키로, 앱이 title 문자열 비교 대신 이걸로 게임을 찾을 수 있게 추가했다.
+     */
+    private void seedMinigames() {
+        minigameRepository.save(new Minigame("dinosaur_bread_game", "공룡빵게임", "공룡빵과 함께하는 미니게임", null, 1));
+        minigameRepository.save(new Minigame("bread_crossing_friends", "빵건너친구들", "빵 친구들과 함께 건너는 미니게임", null, 1));
     }
 
     /**

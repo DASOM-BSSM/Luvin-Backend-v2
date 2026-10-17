@@ -123,6 +123,27 @@ public class AiEpisodeProgress {
         this.updatedAt = LocalDateTime.now();
     }
 
+    /**
+     * 이전 job이 FAILED였을 때 재요청을 "새 job"으로 다시 접수한다. 기존 row를 재사용하되(유니크
+     * 제약이 season_id+episode_number라 새 row를 또 만들 수 없다), job 관련 상태는 전부 초기화한다.
+     */
+    public void resetForRetry(UUID newJobId) {
+        this.jobId = newJobId;
+        this.jobStatus = AiJobStatus.QUEUED;
+        this.errorCode = null;
+        this.versionId = null;
+        this.lastSeenSequence = 0;
+        this.topicId = null;
+        this.topicTitle = null;
+        this.topicCategory = null;
+        this.topicConfigVersion = null;
+        LocalDateTime now = LocalDateTime.now();
+        this.requestedAt = now;
+        this.updatedAt = now;
+        this.nextPollAt = now;
+        this.pollAttempts = 0;
+    }
+
     public void updateTopic(String topicId, String topicTitle, String topicCategory, String topicConfigVersion) {
         this.topicId = topicId;
         this.topicTitle = topicTitle;

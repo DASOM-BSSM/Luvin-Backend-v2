@@ -9,13 +9,17 @@ import com.luvin.ai.client.exception.AiRevisionConflictException;
 import com.luvin.ai.client.exception.AiSelectionConflictException;
 import com.luvin.ai.client.exception.AiServerException;
 import com.luvin.ai.client.exception.AiServiceException;
+import com.luvin.ai.client.exception.AiUnclassifiedConflictException;
 import com.luvin.ai.client.exception.AiValidationException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
+import com.luvin.ai.dto.AiInsufficientTokensView;
 import com.luvin.ai.service.exception.AiCandidateInvalidException;
 import com.luvin.ai.service.exception.AiEpisodeProgressionException;
 import com.luvin.ai.service.exception.AiInputValidationException;
+import com.luvin.ai.service.exception.AiInsufficientTokensException;
 import com.luvin.ai.service.exception.AiReportNotReadyException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
+import com.luvin.ai.service.exception.AiRerollNotFoundException;
 import com.luvin.ai.service.exception.AiSeasonAlreadyExistsException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
 import com.luvin.common.response.ApiResponse;
@@ -42,6 +46,11 @@ public class AiExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
     }
 
+    @ExceptionHandler(AiRerollNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRerollNotFound(AiRerollNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
+    }
+
     @ExceptionHandler(AiNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleAiNotFound(AiNotFoundException e) {
         // 다른 사용자 자원의 존재 여부를 노출하지 않기 위해 일반적인 메시지만 반환한다 (요구사항 6, 7절).
@@ -52,10 +61,22 @@ public class AiExceptionHandler {
             AiRevisionConflictException.class,
             AiSelectionConflictException.class,
             AiEpisodeProgressionException.class,
-            AiSeasonAlreadyExistsException.class
+            AiUnclassifiedConflictException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleConflict(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(AiSeasonAlreadyExistsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSeasonInProgress(AiSeasonAlreadyExistsException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage(), "SEASON_IN_PROGRESS"));
+    }
+
+    @ExceptionHandler(AiInsufficientTokensException.class)
+    public ResponseEntity<ApiResponse<AiInsufficientTokensView>> handleInsufficientTokens(AiInsufficientTokensException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage(), "INSUFFICIENT_TOKENS",
+                        new AiInsufficientTokensView(e.getRequired(), e.getBalance())));
     }
 
     @ExceptionHandler({AiRerollLockedException.class, AiRerollNotAllowedException.class})

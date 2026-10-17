@@ -3,8 +3,10 @@ package com.luvin.simulation.controller;
 import com.luvin.common.security.SecurityUtils;
 import com.luvin.simulation.dto.EpisodeCreateRequest;
 import com.luvin.simulation.dto.EpisodeResponse;
+import com.luvin.simulation.dto.LikeMessageResponse;
 import com.luvin.simulation.dto.ParticipantResponse;
 import com.luvin.simulation.service.EpisodeService;
+import com.luvin.simulation.service.MessageLikeService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -14,9 +16,11 @@ import java.util.List;
 public class EpisodeController {
 
     private final EpisodeService episodeService;
+    private final MessageLikeService messageLikeService;
 
-    public EpisodeController(EpisodeService episodeService) {
+    public EpisodeController(EpisodeService episodeService, MessageLikeService messageLikeService) {
         this.episodeService = episodeService;
+        this.messageLikeService = messageLikeService;
     }
 
     @GetMapping
@@ -37,5 +41,10 @@ public class EpisodeController {
     @GetMapping("/{episodeId}/participants")
     public List<ParticipantResponse> getParticipants(@PathVariable Long episodeId) {
         return episodeService.getParticipants(SecurityUtils.getCurrentUserId(), episodeId);
+    }
+
+    @GetMapping("/likes")
+    public List<LikeMessageResponse> getLikedMessages() {
+        return messageLikeService.getLikedMessages(SecurityUtils.getCurrentUserId());
     }
 }

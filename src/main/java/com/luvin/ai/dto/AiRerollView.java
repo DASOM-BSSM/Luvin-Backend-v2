@@ -4,6 +4,7 @@ import java.util.UUID;
 
 public record AiRerollView(
         UUID jobId,
-        String jobStatus
+        String jobStatus,
+        String errorCode
 ) {
 }

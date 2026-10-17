@@ -8,13 +8,14 @@ import com.luvin.ai.client.dto.GenerationRequestDto;
 import com.luvin.ai.client.dto.JobResponseDto;
 import com.luvin.ai.client.dto.MessageResponseDto;
 import com.luvin.ai.client.dto.ReportResponseDto;
+import com.luvin.ai.client.dto.ReportTraitResponseDto;
 import com.luvin.ai.client.dto.RerollRequestDto;
 import com.luvin.ai.client.dto.SeasonResponseDto;
 import com.luvin.ai.client.dto.SelectionRequestDto;
 import com.luvin.ai.client.dto.SelectionResponseDto;
 import com.luvin.ai.client.dto.TraitsDto;
-import com.luvin.ai.client.exception.AiContractViolationException;
 import com.luvin.ai.client.exception.AiRevisionConflictException;
+import com.luvin.ai.client.exception.AiUnclassifiedConflictException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
 import com.luvin.ai.domain.AiCharacterRole;
 import com.luvin.ai.domain.AiEpisodeProgress;
@@ -24,13 +25,19 @@ import com.luvin.ai.domain.AiJobStatus;
 import com.luvin.ai.domain.AiRerollRequest;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonCharacter;
+import com.luvin.ai.domain.AiSeasonCreationInput;
+import com.luvin.ai.domain.AiSeasonStatus;
 import com.luvin.ai.domain.AiSelection;
 import com.luvin.ai.domain.AiSelectionSource;
 import com.luvin.ai.dto.AiCharacterProfileRequest;
 import com.luvin.ai.dto.AiCharacterView;
+import com.luvin.ai.dto.AiTraitsRequest;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
+import com.luvin.ai.dto.AiHighlightView;
+import com.luvin.ai.dto.AiReportTraitView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiMessageView;
+import com.luvin.ai.dto.AiSceneKind;
 import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
@@ -45,11 +52,27 @@ import com.luvin.ai.service.exception.AiCandidateInvalidException;
 import com.luvin.ai.service.exception.AiEpisodeProgressionException;
 import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
+import com.luvin.ai.service.exception.AiRerollNotFoundException;
+import com.luvin.ai.service.exception.AiSeasonAlreadyExistsException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
+import com.luvin.ai.dto.AiSeasonSummaryView;
+import com.luvin.ai.dto.StartNextSeasonRequest;
+import com.luvin.survey.domain.SurveyResultV2;
+import com.luvin.survey.service.exception.ProfileRequiredException;
+import com.luvin.survey.service.exception.SurveyResultNotFoundException;
+import com.luvin.survey.service.exception.SurveyResultStaleException;
+import com.luvin.user.domain.User;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -71,7 +94,6 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     private static final int EPISODE_3 = 3;
     private static final Set<Integer> REROLLABLE_EPISODES = Set.of(2, 4);
     private static final int FINAL_EPISODE = 5;
-    private static final Set<String> VALID_SCENE_KINDS = Set.of("group", "candidates_only", "one_to_one");
 
     private final AiServiceClient aiServiceClient;
     private final AiInputValidator inputValidator;
@@ -82,6 +104,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     private final AiSeasonCharacterRepository seasonCharacterRepository;
     private final AiEpisodeProgressRepository episodeProgressRepository;
     private final AiSelectionRepository selectionRepository;
+    private final AiTraitsWireAdapter traitsWireAdapter;
+    private final com.luvin.user.repository.UserRepository userRepository;
+    private final com.luvin.survey.repository.SurveyResultV2Repository surveyResultV2Repository;
 
     public AiSeasonOrchestrationServiceImpl(AiServiceClient aiServiceClient,
                                              AiInputValidator inputValidator,
@@ -91,7 +116,10 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                                              AiSeasonRepository seasonRepository,
                                              AiSeasonCharacterRepository seasonCharacterRepository,
                                              AiEpisodeProgressRepository episodeProgressRepository,
-                                             AiSelectionRepository selectionRepository) {
+                                             AiSelectionRepository selectionRepository,
+                                             AiTraitsWireAdapter traitsWireAdapter,
+                                             com.luvin.user.repository.UserRepository userRepository,
+                                             com.luvin.survey.repository.SurveyResultV2Repository surveyResultV2Repository) {
         this.aiServiceClient = aiServiceClient;
         this.inputValidator = inputValidator;
         this.ownerSubjectProvider = ownerSubjectProvider;
@@ -101,13 +129,16 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         this.seasonCharacterRepository = seasonCharacterRepository;
         this.episodeProgressRepository = episodeProgressRepository;
         this.selectionRepository = selectionRepository;
+        this.traitsWireAdapter = traitsWireAdapter;
+        this.userRepository = userRepository;
+        this.surveyResultV2Repository = surveyResultV2Repository;
     }
 
     // ---------------------------------------------------------------- 시즌 생성
 
     @Override
     public AiSeasonStatusView createSeason(Long memberId, AiCharacterProfileRequest representative) {
-        AiSeason existing = seasonRepository.findByMemberId(memberId).orElse(null);
+        AiSeason existing = seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).orElse(null);
         if (existing != null) {
             // 멱등: 이미 시즌이 있으면 새로 만들지 않고 기존 상태를 그대로 반환한다.
             log.info("season already exists for member, returning existing status");
@@ -125,6 +156,140 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
 
         AiSeason season = stateWriter.persistNewSeason(memberId, response);
         return toStatusView(season, stateWriter.findCharacters(season.getId()));
+    }
+
+    @Override
+    public AiSeasonStatusView createSeasonFromSurvey(Long memberId, UUID surveyResultId) {
+        AiSeason existing = seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).orElse(null);
+        if (existing != null) {
+            // 멱등: 기존 시즌이 있으면 재설문 결과로 바꾸지 않고 그대로 반환한다.
+            return toStatusView(existing, stateWriter.findCharacters(existing.getId()));
+        }
+
+        AiSeasonCreationInput creationInput = stateWriter.findCreationInput(memberId).orElse(null);
+        if (creationInput == null) {
+            User user = userRepository.findById(memberId)
+                    .orElseThrow(() -> new com.luvin.common.exception.UserNotFoundException(memberId));
+            // 요청한 surveyResultId가 본인의 "현재 최신" 결과가 아니면, 서버가 임의로 최신으로
+            // 보정하지 않고 409로 재조회를 요구한다 (요구사항: 서버가 몰래 최신판으로 채점하지 않는다).
+            if (user.getLatestSurveyResultId() == null || !user.getLatestSurveyResultId().equals(surveyResultId)) {
+                throw new SurveyResultStaleException();
+            }
+            SurveyResultV2 surveyResult = surveyResultV2Repository
+                    .findByIdAndSubmission_MemberId(surveyResultId, memberId)
+                    .orElseThrow(SurveyResultNotFoundException::new);
+            if (user.getGender() == null) {
+                throw new ProfileRequiredException("시즌을 생성하려면 먼저 gender를 설정해야 합니다.");
+            }
+
+            AiTraitsRequest traits = coreScoresToTraits(surveyResult.getCoreScoresJson());
+            // User.gender는 이 프로젝트 관례상 대문자("MALE"/"FEMALE")로 저장되지만, AI 계약의
+            // gender는 소문자(male|female)다 — 여기서만 변환하고 기본 성별을 추측하지는 않는다.
+            AiCharacterProfileRequest representative = new AiCharacterProfileRequest(
+                    user.getGender().toLowerCase(), traits);
+            inputValidator.validateCharacterProfile(representative);
+            CharacterProfileDto clientProfile = toClientProfile(representative);
+            String profileJson = writeProfileJson(clientProfile);
+
+            // 원격 호출 "이전에" 커밋 — 사용자가 직후 재설문해도 이 snapshot과 idempotency key는 바뀌지 않는다.
+            creationInput = stateWriter.persistPendingCreationInput(
+                    memberId, surveyResultId, profileJson, sha256Hex(profileJson));
+        }
+
+        CharacterProfileDto clientProfile = readProfileJson(creationInput.getProfileJson());
+        String ownerSubject = ownerSubjectProvider.resolve(memberId);
+        CreateSeasonRequestDto request = CreateSeasonRequestDto.of(clientProfile);
+        SeasonResponseDto response = aiServiceClient.createSeason(
+                ownerSubject, creationInput.getIdempotencyKey(), request);
+
+        AiSeason season = stateWriter.persistNewSeasonFromSurvey(
+                memberId, response, creationInput.getSurveyResult().getId());
+        stateWriter.markCreationInputSucceeded(creationInput.getId());
+        return toStatusView(season, stateWriter.findCharacters(season.getId()));
+    }
+
+    @Override
+    public AiSeasonStatusView startNextSeason(Long memberId, StartNextSeasonRequest request) {
+        AiSeason current = stateWriter.findCurrentSeason(memberId)
+                .orElseThrow(AiSeasonNotFoundException::new);
+        if (current.getStatus() != AiSeasonStatus.COMPLETED) {
+            // 이미 COMPLETED가 아니면(아직 진행 중) 다음 시즌을 만들 수 없다.
+            throw new AiSeasonAlreadyExistsException();
+        }
+        int nextSeasonNumber = current.getSeasonNumber() + 1;
+
+        // 같은 다음 시즌 시도는 "다음 시즌 번호" 자체로 자연스럽게 같은 businessKey로 수렴한다
+        // (clientRequestId를 보내면 추가로 구분해 더 보수적으로 만든다).
+        String businessKey = "season:next:" + nextSeasonNumber
+                + (request.clientRequestId() != null ? ":" + request.clientRequestId() : "");
+        UUID idempotencyKey = idempotencyKeyService.resolveOrIssue(
+                memberId, AiIdempotencyActionType.SEASON_CREATE_NEXT, businessKey);
+
+        AiSeasonCreationInput creationInput = stateWriter.findNextCreationInput(memberId, nextSeasonNumber).orElse(null);
+        if (creationInput == null) {
+            User user = userRepository.findById(memberId)
+                    .orElseThrow(() -> new com.luvin.common.exception.UserNotFoundException(memberId));
+            UUID surveyResultId = request.surveyResultId() != null ? request.surveyResultId() : user.getLatestSurveyResultId();
+            if (surveyResultId == null) {
+                throw new SurveyResultNotFoundException();
+            }
+            if (request.surveyResultId() != null
+                    && (user.getLatestSurveyResultId() == null || !user.getLatestSurveyResultId().equals(surveyResultId))) {
+                throw new SurveyResultStaleException();
+            }
+            SurveyResultV2 surveyResult = surveyResultV2Repository
+                    .findByIdAndSubmission_MemberId(surveyResultId, memberId)
+                    .orElseThrow(SurveyResultNotFoundException::new);
+            if (user.getGender() == null) {
+                throw new ProfileRequiredException("시즌을 생성하려면 먼저 gender를 설정해야 합니다.");
+            }
+
+            AiTraitsRequest traits = coreScoresToTraits(surveyResult.getCoreScoresJson());
+            AiCharacterProfileRequest representative = new AiCharacterProfileRequest(
+                    user.getGender().toLowerCase(), traits);
+            inputValidator.validateCharacterProfile(representative);
+            CharacterProfileDto clientProfile = toClientProfile(representative);
+            String profileJson = writeProfileJson(clientProfile);
+
+            // 토큰/무료횟수 차감은 여기서 하지 않는다 — AI 호출이 실패하면 아무것도 못 받고 차감만
+            // 당하는 상황을 막기 위해, 실제 시즌이 만들어지는 persistNextSeason에서만 차감한다.
+            try {
+                creationInput = stateWriter.persistPendingNextCreationInput(
+                        memberId, nextSeasonNumber, surveyResultId, profileJson, sha256Hex(profileJson));
+            } catch (org.springframework.dao.DataIntegrityViolationException raceLoser) {
+                // 동시 요청 중 진 쪽: (member_id, season_number) 유니크 제약 위반 — 이긴 쪽이 먼저
+                // 저장한 걸 그대로 재사용한다(AiIdempotencyKeyService와 동일한 패턴).
+                creationInput = stateWriter.findNextCreationInput(memberId, nextSeasonNumber).orElseThrow(() -> raceLoser);
+            }
+        }
+
+        CharacterProfileDto clientProfile = readProfileJson(creationInput.getProfileJson());
+        String ownerSubject = ownerSubjectProvider.resolve(memberId);
+        CreateSeasonRequestDto seasonRequest = CreateSeasonRequestDto.of(clientProfile);
+        SeasonResponseDto response = aiServiceClient.createSeason(
+                ownerSubject, creationInput.getIdempotencyKey(), seasonRequest);
+
+        AiSeason season;
+        try {
+            season = stateWriter.persistNextSeason(
+                    memberId, nextSeasonNumber, response, creationInput.getSurveyResult().getId());
+        } catch (org.springframework.dao.DataIntegrityViolationException raceLoser) {
+            // 동시 요청 중 진 쪽: 이긴 쪽이 이미 이 seasonNumber로 시즌을 만들었다 — 토큰은 이긴 쪽에서만
+            // 차감됐으므로(이 catch에 걸렸다는 건 INSERT 자체가 실패했다는 뜻이라 consumeOneSeasonCredit까지
+            // 가지 않았다) 그 시즌을 그대로 반환한다.
+            season = stateWriter.findCurrentSeason(memberId).orElseThrow(() -> raceLoser);
+        }
+        stateWriter.markCreationInputSucceeded(creationInput.getId());
+        return toStatusView(season, stateWriter.findCharacters(season.getId()));
+    }
+
+    @Override
+    public List<AiSeasonSummaryView> listSeasons(Long memberId) {
+        return stateWriter.findAllSeasons(memberId).stream()
+                .map(season -> new AiSeasonSummaryView(
+                        season.getSeasonId(), season.getSeasonNumber(), season.getStatus().name(),
+                        season.getCurrentEpisode(), season.getCreatedAt(), season.getCompletedAt()))
+                .collect(Collectors.toList());
     }
 
     // ---------------------------------------------------------------- 상태 조회/복구
@@ -147,8 +312,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
 
         AiEpisodeProgress existing = episodeProgressRepository
                 .findBySeason_IdAndEpisodeNumber(season.getId(), episodeNumber).orElse(null);
-        if (existing != null && existing.isGenerationAccepted()) {
-            // 이미 접수됨: 중복 generation 방지 (요구사항 4절).
+        boolean isRetryAfterFailure = existing != null && existing.getJobStatus() == AiJobStatus.FAILED;
+        if (existing != null && existing.isGenerationAccepted() && !isRetryAfterFailure) {
+            // 이미 접수됨(FAILED가 아님): 중복 generation 방지 (요구사항 4절).
             return toProgressView(existing);
         }
 
@@ -156,7 +322,12 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         SeasonResponseDto latest = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
         int revision = latest.revision();
 
-        String businessKey = "season:" + season.getSeasonId() + ":episode:" + episodeNumber + ":generation";
+        // FAILED 이후 재시도는 이전 실패 job과 같은 idempotency key를 재사용하면 AI 쪽에서 그 FAILED
+        // 응답을 그대로 재생(replay)할 위험이 있어, 이전 jobId를 섞어 새 key를 받는다. 동시에 두 번
+        // 재시도 버튼을 눌러도 existing.getJobId()가 같으므로 같은 key로 수렴한다(안전).
+        String businessKey = isRetryAfterFailure
+                ? "season:" + season.getSeasonId() + ":episode:" + episodeNumber + ":generation:retry-after:" + existing.getJobId()
+                : "season:" + season.getSeasonId() + ":episode:" + episodeNumber + ":generation";
         UUID idempotencyKey = idempotencyKeyService.resolveOrIssue(
                 memberId, AiIdempotencyActionType.EPISODE_GENERATION, businessKey);
 
@@ -164,8 +335,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         try {
             jobResponse = aiServiceClient.requestGeneration(
                     ownerSubject, idempotencyKey, season.getSeasonId(), episodeNumber, new GenerationRequestDto(revision));
-        } catch (AiRevisionConflictException conflict) {
+        } catch (AiRevisionConflictException | AiUnclassifiedConflictException conflict) {
             // 진행 순서상 애매함이 없는 동작이므로, 최신 revision으로 한 번만 자동 재판단한다 (요구사항 6절).
+            // AI가 409에 error_code 없이 응답하는 경우도 있어(AiUnclassifiedConflictException) 함께 재시도한다.
             SeasonResponseDto refreshed = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
             jobResponse = aiServiceClient.requestGeneration(ownerSubject, idempotencyKey, season.getSeasonId(),
                     episodeNumber, new GenerationRequestDto(refreshed.revision()));
@@ -252,7 +424,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
             String ownerSubject, UUID idempotencyKey, AiSeason season, int episodeNumber, SelectionRequestDto request) {
         try {
             return aiServiceClient.submitSelection(ownerSubject, idempotencyKey, season.getSeasonId(), episodeNumber, request);
-        } catch (AiRevisionConflictException conflict) {
+        } catch (AiRevisionConflictException | AiUnclassifiedConflictException conflict) {
             SeasonResponseDto refreshed = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
             SelectionRequestDto retried = new SelectionRequestDto(
                     refreshed.revision(), request.sourceEventId(), request.source(),
@@ -296,7 +468,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         JobResponseDto jobResponse;
         try {
             jobResponse = aiServiceClient.requestReroll(ownerSubject, idempotencyKey, season.getSeasonId(), episodeNumber, request);
-        } catch (AiRevisionConflictException conflict) {
+        } catch (AiRevisionConflictException | AiUnclassifiedConflictException conflict) {
             SeasonResponseDto refreshed = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
             RerollRequestDto retried = new RerollRequestDto(refreshed.revision(), expectedVersionId, requestedPartnerId);
             jobResponse = aiServiceClient.requestReroll(ownerSubject, idempotencyKey, season.getSeasonId(), episodeNumber, retried);
@@ -304,7 +476,19 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
 
         AiRerollRequest saved = stateWriter.persistRerollAccepted(
                 season.getId(), episodeNumber, expectedVersionId, requestedPartnerId, idempotencyKey, jobResponse.jobId());
-        return new AiRerollView(saved.getJobId(), saved.getJobStatus().name());
+        return toRerollView(saved);
+    }
+
+    @Override
+    public AiRerollView getRerollStatus(Long memberId, int episodeNumber) {
+        AiSeason season = getOwnedSeasonOrThrow(memberId);
+        AiRerollRequest reroll = stateWriter.findLatestReroll(season.getId(), episodeNumber)
+                .orElseThrow(() -> new AiRerollNotFoundException(episodeNumber));
+        return toRerollView(reroll);
+    }
+
+    private AiRerollView toRerollView(AiRerollRequest reroll) {
+        return new AiRerollView(reroll.getJobId(), reroll.getJobStatus().name(), reroll.getErrorCode());
     }
 
     // ---------------------------------------------------------------- 메시지 조회
@@ -354,14 +538,31 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
 
         stateWriter.markSeasonCompleted(season.getId());
 
-        return new AiReportView(response.finalPartnerId(), response.narrative(),
-                response.highlights(), response.renderMode());
+        List<AiHighlightView> highlights = response.highlights().stream()
+                .map(h -> new AiHighlightView(
+                        h.messageId(), h.speakerId(), AiCharacterRole.fromWire(h.speakerRole(), null),
+                        h.text(), h.reason(), h.observedBehavior()))
+                .collect(Collectors.toList());
+        return new AiReportView(response.finalPartnerId(), response.narrative(), highlights, response.renderMode(),
+                toTraitViews(response.representativeStrengths()), toTraitViews(response.representativeWeaknesses()));
+    }
+
+    /** 구버전 리포트(강점/약점 키가 아예 없음)는 null로 오므로 빈 배열로 처리한다. */
+    private List<AiReportTraitView> toTraitViews(List<ReportTraitResponseDto> traits) {
+        if (traits == null) {
+            return List.of();
+        }
+        return traits.stream()
+                .map(t -> new AiReportTraitView(
+                        t.title(), t.description(),
+                        t.evidenceMessageIds() != null ? t.evidenceMessageIds() : List.of()))
+                .collect(Collectors.toList());
     }
 
     // ---------------------------------------------------------------- 내부 헬퍼
 
     private AiSeason getOwnedSeasonOrThrow(Long memberId) {
-        return seasonRepository.findByMemberId(memberId)
+        return seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId)
                 .orElseThrow(AiSeasonNotFoundException::new);
     }
 
@@ -396,6 +597,54 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         }
     }
 
+    private static final ObjectMapper PROFILE_JSON_MAPPER = new ObjectMapper();
+
+    /** survey_results.core_scores(snake_case, {"score":..,"evidence_weight":..,...} 형태)에서 score만 뽑는다. */
+    private AiTraitsRequest coreScoresToTraits(String coreScoresJson) {
+        try {
+            JsonNode root = PROFILE_JSON_MAPPER.readTree(coreScoresJson);
+            return new AiTraitsRequest(
+                    scoreOf(root, "affection_expression"), scoreOf(root, "relationship_anxiety"),
+                    scoreOf(root, "relationship_avoidance"), scoreOf(root, "emotional_attunement"),
+                    scoreOf(root, "relationship_initiative"), scoreOf(root, "practical_priority"),
+                    scoreOf(root, "reassurance_need"), scoreOf(root, "jealousy_reactivity"),
+                    scoreOf(root, "relationship_energy_dependence"), scoreOf(root, "emotional_suppression"),
+                    scoreOf(root, "conflict_confrontation"), scoreOf(root, "relationship_pace"),
+                    scoreOf(root, "interest_expression_frequency"));
+        } catch (Exception e) {
+            throw new IllegalStateException("저장된 core_scores를 파싱할 수 없습니다.", e);
+        }
+    }
+
+    private BigDecimal scoreOf(JsonNode root, String dimensionKey) {
+        return root.get(dimensionKey).get("score").decimalValue();
+    }
+
+    private String writeProfileJson(CharacterProfileDto profile) {
+        try {
+            return PROFILE_JSON_MAPPER.writeValueAsString(profile);
+        } catch (Exception e) {
+            throw new IllegalStateException("시즌 생성 입력을 JSON으로 직렬화할 수 없습니다.", e);
+        }
+    }
+
+    private CharacterProfileDto readProfileJson(String json) {
+        try {
+            return PROFILE_JSON_MAPPER.readValue(json, CharacterProfileDto.class);
+        } catch (Exception e) {
+            throw new IllegalStateException("저장된 시즌 생성 입력을 파싱할 수 없습니다.", e);
+        }
+    }
+
+    private String sha256Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 알고리즘을 사용할 수 없습니다.", e);
+        }
+    }
+
     private CharacterProfileDto toClientProfile(AiCharacterProfileRequest r) {
         var t = r.traits();
         TraitsDto traits = new TraitsDto(
@@ -404,7 +653,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                 t.reassuranceNeed(), t.jealousyReactivity(), t.relationshipEnergyDependence(),
                 t.emotionalSuppression(), t.conflictConfrontation(), t.relationshipPace(),
                 t.interestExpressionFrequency());
-        return new CharacterProfileDto(r.gender(), traits);
+        return new CharacterProfileDto(r.gender(), traitsWireAdapter.forWire(traits));
     }
 
     private AiSeasonStatusView toStatusView(AiSeason season, List<AiSeasonCharacter> characters) {
@@ -414,7 +663,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                 .collect(Collectors.toList());
         return new AiSeasonStatusView(
                 season.getSeasonId(), season.getRevision(), season.getCurrentEpisode(),
-                season.getStatus().name(), characterViews);
+                season.getStatus().name(), characterViews, season.getSurveyResultId(), season.getSeasonNumber());
     }
 
     private AiEpisodeProgressView toProgressView(AiEpisodeProgress progress) {
@@ -439,11 +688,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     }
 
     private AiMessageView toMessageView(MessageResponseDto m, UUID representativeId) {
-        // scene_kind는 group|candidates_only|one_to_one만 허용한다 (요구사항 5.6). 방어적으로 검증한다.
-        String sceneKind = m.sceneKind();
-        if (sceneKind == null || !VALID_SCENE_KINDS.contains(sceneKind)) {
-            throw new AiContractViolationException("알 수 없는 scene_kind: " + sceneKind, null);
-        }
+        // scene_kind는 group|candidates_only|one_to_one만 허용한다 (요구사항 5.6).
+        // fromWire()가 알 수 없는 값이면 AiContractViolationException을 던진다.
+        AiSceneKind sceneKind = AiSceneKind.fromWire(m.sceneKind());
         // speaker_id가 representative ID와 같을 때만 사용자 대변 AI 발화로 표시한다 (요구사항 5.1).
         boolean fromRepresentative = representativeId != null && representativeId.equals(m.speakerId());
         return new AiMessageView(m.messageId(), m.sequence(), sceneKind, m.speakerId(), fromRepresentative, m.text());

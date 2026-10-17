@@ -2,6 +2,8 @@ package com.luvin.user.dto;
 
 import com.luvin.user.domain.User;
 
+import java.util.UUID;
+
 public class UserProfileResponse {
 
     private final Long memberId;
@@ -13,10 +15,11 @@ public class UserProfileResponse {
     private final String bio;
     private final String personalityType;
     private final boolean surveyCompleted;
+    private final UUID latestSurveyResultId;
 
     public UserProfileResponse(Long memberId, String name, String nickname, String gender,
                                Integer age, String job, String bio,
-                               String personalityType, boolean surveyCompleted) {
+                               String personalityType, boolean surveyCompleted, UUID latestSurveyResultId) {
         this.memberId = memberId;
         this.name = name;
         this.nickname = nickname;
@@ -26,13 +29,15 @@ public class UserProfileResponse {
         this.bio = bio;
         this.personalityType = personalityType;
         this.surveyCompleted = surveyCompleted;
+        this.latestSurveyResultId = latestSurveyResultId;
     }
 
     public static UserProfileResponse from(User user, boolean surveyCompleted) {
         return new UserProfileResponse(
                 user.getId(), user.getName(), user.getNickname(),
                 user.getGender(), user.getAge(), user.getJob(), user.getBio(),
-                user.getPersonalityType(), surveyCompleted);
+                surveyCompleted ? user.getPersonalityType() : null,
+                surveyCompleted, user.getLatestSurveyResultId());
     }
 
     public Long getMemberId() { return memberId; }
@@ -44,4 +49,5 @@ public class UserProfileResponse {
     public String getBio() { return bio; }
     public String getPersonalityType() { return personalityType; }
     public boolean isSurveyCompleted() { return surveyCompleted; }
+    public UUID getLatestSurveyResultId() { return latestSurveyResultId; }
 }

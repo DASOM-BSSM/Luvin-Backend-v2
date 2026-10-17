@@ -57,6 +57,24 @@
                         }
                     }
                 }
+            },
+            "delete": {
+                "tags": [
+                    "user-controller"
+                ],
+                "operationId": "deleteMyAccount",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/api/tokens/use": {
@@ -89,12 +107,42 @@
                 }
             }
         },
+        "/api/surveys/v2/submissions": {
+            "post": {
+                "tags": [
+                    "survey-v-2-controller"
+                ],
+                "operationId": "submit",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SurveyV2SubmitRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseSurveyResultResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/surveys/submit": {
             "post": {
                 "tags": [
                     "survey-controller"
                 ],
-                "operationId": "submit",
+                "operationId": "submit_1",
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -318,6 +366,46 @@
                     },
                     "required": true
                 },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/matches/{matchId}/conversations/{messageId}/like": {
+            "post": {
+                "tags": [
+                    "match-controller"
+                ],
+                "operationId": "likeMessage",
+                "parameters": [
+                    {
+                        "name": "matchId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "messageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -749,6 +837,36 @@
                 }
             }
         },
+        "/api/auth/apple": {
+            "post": {
+                "tags": [
+                    "auth-controller"
+                ],
+                "operationId": "appleLogin",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AppleLoginRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAuthLoginResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/analysis": {
             "get": {
                 "tags": [
@@ -818,6 +936,24 @@
             }
         },
         "/api/ai/seasons": {
+            "get": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "listSeasons",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseListAiSeasonSummaryView"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "post": {
                 "tags": [
                     "ai-season-controller"
@@ -828,6 +964,65 @@
                         "application/json": {
                             "schema": {
                                 "$ref": "#/components/schemas/CreateSeasonHttpRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiSeasonStatusView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/next": {
+            "post": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "startNextSeason",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StartNextSeasonRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiSeasonStatusView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/from-survey": {
+            "post": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "createSeasonFromSurvey",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateSeasonFromSurveyRequest"
                             }
                         }
                     },
@@ -889,6 +1084,35 @@
             }
         },
         "/api/ai/seasons/episodes/{number}/rerolls": {
+            "get": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "getRerollStatus",
+                "parameters": [
+                    {
+                        "name": "number",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiRerollView"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "post": {
                 "tags": [
                     "ai-season-controller"
@@ -1084,6 +1308,77 @@
                             "*/*": {
                                 "schema": {
                                     "$ref": "#/components/schemas/SurveyOptionResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/surveys/v2/submissions/{clientSubmissionId}": {
+            "get": {
+                "tags": [
+                    "survey-v-2-controller"
+                ],
+                "operationId": "getSubmission",
+                "parameters": [
+                    {
+                        "name": "clientSubmissionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseSurveyResultResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/surveys/v2/results/me": {
+            "get": {
+                "tags": [
+                    "survey-v-2-controller"
+                ],
+                "operationId": "getMyResult",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseSurveyResultResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/surveys/v2/definition": {
+            "get": {
+                "tags": [
+                    "survey-v-2-controller"
+                ],
+                "operationId": "getDefinition",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseSurveyDefinitionResponse"
                                 }
                             }
                         }
@@ -1361,6 +1656,29 @@
                 }
             }
         },
+        "/api/episodes/likes": {
+            "get": {
+                "tags": [
+                    "episode-controller"
+                ],
+                "operationId": "getLikedMessages",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/LikeMessageResponse"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/daily_questions/today": {
             "get": {
                 "tags": [
@@ -1600,6 +1918,37 @@
                     }
                 }
             }
+        },
+        "/api/episodes/{episodeId}/ai-situations/reason": {
+            "get": {
+                "tags": [
+                    "vote-reason-controller"
+                ],
+                "operationId": "getVoteReason",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VoteReasonResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -1667,12 +2016,119 @@
                 "type": "object",
                 "properties": {
                     "questionId": {
-                        "type": "integer",
-                        "format": "int64"
+                        "type": "string",
+                        "minLength": 1
                     },
-                    "optionId": {
-                        "type": "integer",
-                        "format": "int64"
+                    "answerId": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            },
+            "SurveyV2SubmitRequest": {
+                "type": "object",
+                "properties": {
+                    "definitionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "surveyVersion": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "clientSubmissionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "answers": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AnswerItem"
+                        },
+                        "maxItems": 20,
+                        "minItems": 20
+                    }
+                },
+                "required": [
+                    "answers",
+                    "clientSubmissionId",
+                    "definitionId"
+                ]
+            },
+            "ApiResponseSurveyResultResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/SurveyResultResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "SurveyResultResponse": {
+                "type": "object",
+                "properties": {
+                    "resultId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "clientSubmissionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "definitionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "surveyVersion": {
+                        "type": "string"
+                    },
+                    "scoringVersion": {
+                        "type": "string"
+                    },
+                    "classificationVersion": {
+                        "type": "string"
+                    },
+                    "primaryType": {
+                        "type": "string"
+                    },
+                    "primaryLabel": {
+                        "type": "string"
+                    },
+                    "secondaryType": {
+                        "type": "string"
+                    },
+                    "mixed": {
+                        "type": "boolean"
+                    },
+                    "poorFit": {
+                        "type": "boolean"
+                    },
+                    "tie": {
+                        "type": "boolean"
+                    },
+                    "displayName": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "type": "string"
+                    },
+                    "reasonTexts": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "completedAt": {
+                        "type": "string",
+                        "format": "date-time"
                     }
                 }
             },
@@ -1938,6 +2394,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -1961,6 +2420,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -1978,6 +2440,18 @@
                         "type": "boolean"
                     },
                     "accessToken": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AppleLoginRequest": {
+                "type": "object",
+                "properties": {
+                    "identityToken": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "fullName": {
                         "type": "string"
                     }
                 }
@@ -2006,6 +2480,9 @@
                         "$ref": "#/components/schemas/AnalysisSummaryResponse"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }
@@ -2041,6 +2518,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -2059,56 +2539,43 @@
                 "type": "object",
                 "properties": {
                     "affectionExpression": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "relationshipAnxiety": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "relationshipAvoidance": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "emotionalAttunement": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "relationshipInitiative": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "practicalPriority": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "reassuranceNeed": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "jealousyReactivity": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "relationshipEnergyDependence": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "emotionalSuppression": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "conflictConfrontation": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "relationshipPace": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     },
                     "interestExpressionFrequency": {
-                        "type": "integer",
-                        "format": "int32"
+                        "type": "number"
                     }
                 }
             },
@@ -2161,6 +2628,14 @@
                         "items": {
                             "$ref": "#/components/schemas/AiCharacterView"
                         }
+                    },
+                    "sourceSurveyResultId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "seasonNumber": {
+                        "type": "integer",
+                        "format": "int32"
                     }
                 }
             },
@@ -2175,8 +2650,35 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
+            },
+            "StartNextSeasonRequest": {
+                "type": "object",
+                "properties": {
+                    "surveyResultId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "clientRequestId": {
+                        "type": "string"
+                    }
+                }
+            },
+            "CreateSeasonFromSurveyRequest": {
+                "type": "object",
+                "properties": {
+                    "surveyResultId": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "required": [
+                    "surveyResultId"
+                ]
             },
             "MarkSeenHttpRequest": {
                 "type": "object",
@@ -2209,6 +2711,9 @@
                     },
                     "jobStatus": {
                         "type": "string"
+                    },
+                    "errorCode": {
+                        "type": "string"
                     }
                 }
             },
@@ -2222,6 +2727,9 @@
                         "$ref": "#/components/schemas/AiRerollView"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }
@@ -2259,6 +2767,9 @@
                         "$ref": "#/components/schemas/AiEpisodeProgressView"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }
@@ -2302,6 +2813,9 @@
                         "$ref": "#/components/schemas/AiSelectionView"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }
@@ -2349,6 +2863,10 @@
                     },
                     "surveyCompleted": {
                         "type": "boolean"
+                    },
+                    "latestSurveyResultId": {
+                        "type": "string",
+                        "format": "uuid"
                     }
                 }
             },
@@ -2433,12 +2951,84 @@
                     }
                 }
             },
+            "ApiResponseSurveyDefinitionResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/SurveyDefinitionResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "QuestionItem": {
+                "type": "object",
+                "properties": {
+                    "questionId": {
+                        "type": "string"
+                    },
+                    "order": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "text": {
+                        "type": "string"
+                    },
+                    "answers": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AnswerItem"
+                        }
+                    }
+                }
+            },
+            "SurveyDefinitionResponse": {
+                "type": "object",
+                "properties": {
+                    "definitionId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "surveyVersion": {
+                        "type": "string"
+                    },
+                    "scoringVersion": {
+                        "type": "string"
+                    },
+                    "classificationVersion": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "questionCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "questions": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/QuestionItem"
+                        }
+                    }
+                }
+            },
             "MinigameListItemResponse": {
                 "type": "object",
                 "properties": {
                     "gameId": {
                         "type": "integer",
                         "format": "int64"
+                    },
+                    "code": {
+                        "type": "string"
                     },
                     "title": {
                         "type": "string"
@@ -2467,6 +3057,9 @@
                         "type": "integer",
                         "format": "int64"
                     },
+                    "code": {
+                        "type": "string"
+                    },
                     "title": {
                         "type": "string"
                     },
@@ -2485,6 +3078,10 @@
             "ConversationMessageResponse": {
                 "type": "object",
                 "properties": {
+                    "messageId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
                     "sequence": {
                         "type": "integer",
                         "format": "int32"
@@ -2548,6 +3145,22 @@
                         "type": "string"
                     },
                     "gender": {
+                        "type": "string"
+                    }
+                }
+            },
+            "LikeMessageResponse": {
+                "type": "object",
+                "properties": {
+                    "episodeNumber": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "messageId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "text": {
                         "type": "string"
                     }
                 }
@@ -2668,6 +3281,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -2705,6 +3321,9 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -2737,6 +3356,104 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiSeasonSummaryView": {
+                "type": "object",
+                "properties": {
+                    "seasonId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "seasonNumber": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "currentEpisode": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "completedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "ApiResponseListAiSeasonSummaryView": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AiSeasonSummaryView"
+                        }
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiHighlightView": {
+                "type": "object",
+                "properties": {
+                    "messageId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "speakerId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "speakerRole": {
+                        "type": "string",
+                        "enum": [
+                            "representative",
+                            "candidate"
+                        ]
+                    },
+                    "text": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "observedBehavior": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiReportTraitView": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "evidenceMessageIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
                     }
                 }
             },
@@ -2753,14 +3470,23 @@
                     "highlights": {
                         "type": "array",
                         "items": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/components/schemas/AiHighlightView"
                         }
                     },
                     "renderMode": {
                         "type": "string"
+                    },
+                    "representativeStrengths": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AiReportTraitView"
+                        }
+                    },
+                    "representativeWeaknesses": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AiReportTraitView"
+                        }
                     }
                 }
             },
@@ -2774,6 +3500,9 @@
                         "$ref": "#/components/schemas/AiReportView"
                     },
                     "message": {
+                        "type": "string"
+                    },
+                    "code": {
                         "type": "string"
                     }
                 }
@@ -2819,7 +3548,12 @@
                         "format": "int32"
                     },
                     "sceneKind": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "group",
+                            "candidates_only",
+                            "one_to_one"
+                        ]
                     },
                     "speakerId": {
                         "type": "string",
@@ -2858,6 +3592,27 @@
                     },
                     "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "VoteReasonResponse": {
+                "type": "object",
+                "properties": {
+                    "episodeId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "basedOn": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 }
             }

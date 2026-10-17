@@ -12,6 +12,9 @@ import java.util.UUID;
 public interface AiRerollRequestRepository extends JpaRepository<AiRerollRequest, Long> {
     Optional<AiRerollRequest> findByIdempotencyKey(UUID idempotencyKey);
 
+    Optional<AiRerollRequest> findFirstBySeason_IdAndEpisodeNumberOrderByCreatedAtDesc(
+            Long seasonId, Integer episodeNumber);
+
     List<AiRerollRequest> findAllByJobStatusIn(List<AiJobStatus> statuses);
 
     List<AiRerollRequest> findAllByJobStatusInAndNextPollAtLessThanEqual(

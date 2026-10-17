@@ -40,7 +40,7 @@ public class RebakeServiceImpl implements RebakeService {
         }
         return messages.stream()
                 .map(m -> new ConversationMessageResponse(
-                        m.getSequence(), m.getSpeaker().getParticipantId(), m.getSpeaker().getName(), m.getContent()))
+                        m.getMessageId(), m.getSequence(), m.getSpeaker().getParticipantId(), m.getSpeaker().getName(), m.getContent()))
                 .collect(Collectors.toList());
     }
 
