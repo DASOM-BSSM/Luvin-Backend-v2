@@ -1,5 +1,6 @@
 package com.luvin.diary.domain;
 
+import com.luvin.user.domain.User;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
@@ -24,6 +25,11 @@ public class DiaryRoomMember {
     @JoinColumn(name = "room_id")
     private DiaryRoom room;
 
+    @MapsId("userId")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User member;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 20)
     private DiaryRoomMemberRole role;
@@ -31,6 +37,13 @@ public class DiaryRoomMember {
     @CreationTimestamp
     @Column(name = "joined_at", nullable = false, updatable = false)
     private OffsetDateTime joinedAt;
+
+    public DiaryRoomMember(DiaryRoom room, User member, DiaryRoomMemberRole role) {
+        this.id = new Pk(room.getId(), member.getId());
+        this.room = room;
+        this.member = member;
+        this.role = role != null ? role : DiaryRoomMemberRole.MEMBER;
+    }
 
     /** (room_id, user_id) 복합 PK — 같은 사람이 같은 방에 두 번 들어갈 수 없다. */
     @Embeddable
@@ -44,5 +57,10 @@ public class DiaryRoomMember {
 
         @Column(name = "user_id")
         private Long userId;
+
+        public Pk(Long roomId, Long userId) {
+            this.roomId = roomId;
+            this.userId = userId;
+        }
     }
 }

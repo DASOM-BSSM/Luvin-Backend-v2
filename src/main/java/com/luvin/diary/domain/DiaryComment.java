@@ -37,4 +37,14 @@ public class DiaryComment {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    public DiaryComment(Long userId, String content, Diary diary) {
+        this.userId = userId;
+        this.content = content;
+        this.diary = diary;
+    }
+
+    public void update(String content) {
+        this.content = content;
+    }
 }
