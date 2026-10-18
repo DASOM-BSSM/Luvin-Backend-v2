@@ -8,6 +8,7 @@ import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
 import com.luvin.ai.dto.AiSeasonSummaryView;
 import com.luvin.ai.dto.AiSelectionView;
+import com.luvin.ai.dto.PartnerLetterView;
 import com.luvin.ai.dto.StartNextSeasonRequest;
 
 import java.util.List;
@@ -74,4 +75,13 @@ public interface AiSeasonOrchestrationService {
 
     /** 5화 완료 후에만 호출 가능한 최종 리포트 조회. */
     AiReportView getReport(Long memberId);
+
+    /**
+     * 안 읽은 "SECRET LOVE" 쪽지를 조회한다(최신 1개만, 여러 개 쌓여도 그중 최신). 없으면 null.
+     * 쪽지는 getReport() 호출로 시즌이 COMPLETED될 때 함께 생성된다.
+     */
+    PartnerLetterView getUnreadLetter(Long memberId);
+
+    /** 쪽지를 읽음 처리한다. 본인 소유가 아니거나 존재하지 않으면 404(PARTNER_LETTER_NOT_FOUND). */
+    void markLetterRead(Long memberId, Long letterId);
 }

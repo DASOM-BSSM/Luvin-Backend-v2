@@ -11,14 +11,17 @@ import com.luvin.ai.domain.AiSeasonCharacter;
 import com.luvin.ai.domain.AiSeasonCreationInput;
 import com.luvin.ai.domain.AiSelection;
 import com.luvin.ai.domain.AiSelectionSource;
+import com.luvin.ai.domain.PartnerLetter;
 import com.luvin.ai.repository.AiEpisodeProgressRepository;
 import com.luvin.ai.repository.AiRerollRequestRepository;
 import com.luvin.ai.repository.AiSeasonCharacterRepository;
 import com.luvin.ai.repository.AiSeasonCreationInputRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.ai.repository.AiSelectionRepository;
+import com.luvin.ai.repository.PartnerLetterRepository;
 import com.luvin.ai.service.exception.AiInsufficientTokensException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
+import com.luvin.ai.service.exception.PartnerLetterNotFoundException;
 import com.luvin.survey.domain.SurveyResultV2;
 import com.luvin.survey.repository.SurveyResultV2Repository;
 import com.luvin.token.domain.TokenHistory;
@@ -58,6 +61,7 @@ public class AiSeasonStateWriter {
     private final SurveyResultV2Repository surveyResultV2Repository;
     private final UserTokenRepository userTokenRepository;
     private final TokenHistoryRepository tokenHistoryRepository;
+    private final PartnerLetterRepository partnerLetterRepository;
 
     private static final int FIRST_SEASON_NUMBER = 1;
 
@@ -256,5 +260,30 @@ public class AiSeasonStateWriter {
 
     private AiSeason getSeasonOrThrow(Long seasonPk) {
         return seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
+    }
+
+    /**
+     * EP5 리포트 조회 시 함께 호출된다. 시즌당 1개만 만든다(season_id unique) — 이미 있으면 그대로
+     * 둔다, 리포트를 여러 번 다시 조회해도 쪽지 문구가 바뀌지 않아야 하기 때문이다.
+     */
+    @Transactional
+    public void persistPartnerLetterIfAbsent(Long seasonPk, Long memberId, UUID partnerId, String message) {
+        if (partnerLetterRepository.findBySeason_Id(seasonPk).isPresent()) {
+            return;
+        }
+        partnerLetterRepository.save(new PartnerLetter(
+                memberId, seasonRepository.getReferenceById(seasonPk), partnerId, message));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<PartnerLetter> findUnreadLetter(Long memberId) {
+        return partnerLetterRepository.findUnreadOrderByCreatedAtDesc(memberId).stream().findFirst();
+    }
+
+    @Transactional
+    public void markLetterRead(Long letterId, Long memberId) {
+        PartnerLetter letter = partnerLetterRepository.findByIdAndMemberId(letterId, memberId)
+                .orElseThrow(PartnerLetterNotFoundException::new);
+        letter.markRead();
     }
 }

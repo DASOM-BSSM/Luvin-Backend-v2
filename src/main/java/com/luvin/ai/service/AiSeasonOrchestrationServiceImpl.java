@@ -35,6 +35,7 @@ import com.luvin.ai.dto.AiTraitsRequest;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiHighlightView;
 import com.luvin.ai.dto.AiReportTraitView;
+import com.luvin.ai.dto.PartnerLetterView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiMessageView;
 import com.luvin.ai.dto.AiSceneKind;
@@ -537,6 +538,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         ReportResponseDto response = aiServiceClient.getReport(ownerSubject, season.getSeasonId());
 
         stateWriter.markSeasonCompleted(season.getId());
+        // "SECRET LOVE" 쪽지: 새 AI 엔드포인트 없이, 이미 AI가 생성한 narrative를 그대로 쪽지
+        // 문구로 저장한다 — 시즌당 1회만 생성되고, 리포트를 다시 조회해도 문구가 바뀌지 않는다.
+        stateWriter.persistPartnerLetterIfAbsent(season.getId(), memberId, response.finalPartnerId(), response.narrative());
 
         List<AiHighlightView> highlights = response.highlights().stream()
                 .map(h -> new AiHighlightView(
@@ -545,6 +549,20 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                 .collect(Collectors.toList());
         return new AiReportView(response.finalPartnerId(), response.narrative(), highlights, response.renderMode(),
                 toTraitViews(response.representativeStrengths()), toTraitViews(response.representativeWeaknesses()));
+    }
+
+    @Override
+    public PartnerLetterView getUnreadLetter(Long memberId) {
+        return stateWriter.findUnreadLetter(memberId)
+                .map(letter -> new PartnerLetterView(
+                        letter.getId(), letter.getSeason().getSeasonId(), letter.getPartnerId(),
+                        null, null, letter.getMessage(), letter.getCreatedAt()))
+                .orElse(null);
+    }
+
+    @Override
+    public void markLetterRead(Long memberId, Long letterId) {
+        stateWriter.markLetterRead(letterId, memberId);
     }
 
     /** 구버전 리포트(강점/약점 키가 아예 없음)는 null로 오므로 빈 배열로 처리한다. */

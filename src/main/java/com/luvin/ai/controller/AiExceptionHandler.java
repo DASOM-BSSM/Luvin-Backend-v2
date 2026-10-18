@@ -22,6 +22,7 @@ import com.luvin.ai.service.exception.AiRerollNotAllowedException;
 import com.luvin.ai.service.exception.AiRerollNotFoundException;
 import com.luvin.ai.service.exception.AiSeasonAlreadyExistsException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
+import com.luvin.ai.service.exception.PartnerLetterNotFoundException;
 import com.luvin.common.response.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +50,12 @@ public class AiExceptionHandler {
     @ExceptionHandler(AiRerollNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleRerollNotFound(AiRerollNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
+    }
+
+    @ExceptionHandler(PartnerLetterNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePartnerLetterNotFound(PartnerLetterNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(e.getMessage(), "PARTNER_LETTER_NOT_FOUND"));
     }
 
     @ExceptionHandler(AiNotFoundException.class)
