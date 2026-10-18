@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 모바일 앱은 AI 서비스를 직접 호출하지 않고 항상 이 컨트롤러를 경유한다 (요구사항 1절).
@@ -113,20 +114,28 @@ public class AiSeasonController {
         return ApiResponse.ok(orchestrationService.requestReroll(memberId, episodeNumber, request.partnerId()));
     }
 
-    /** reroll 완료 여부 폴링용. 같은 회차로 reroll을 요청한 적이 없으면 404. */
+    /**
+     * reroll 완료 여부 폴링용. 같은 회차로 reroll을 요청한 적이 없으면 404.
+     * season_id를 생략하면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다.
+     */
     @GetMapping("/episodes/{number}/rerolls")
-    public ApiResponse<AiRerollView> getRerollStatus(@PathVariable("number") int episodeNumber) {
+    public ApiResponse<AiRerollView> getRerollStatus(
+            @PathVariable("number") int episodeNumber,
+            @RequestParam(value = "season_id", required = false) UUID seasonId) {
         Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(orchestrationService.getRerollStatus(memberId, episodeNumber));
+        return ApiResponse.ok(orchestrationService.getRerollStatus(memberId, seasonId, episodeNumber));
     }
 
+    /** season_id를 생략하면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다. */
     @GetMapping("/episodes/{number}")
     public ApiResponse<AiEpisodeMessagesView> getEpisodeMessages(
             @PathVariable("number") int episodeNumber,
+            @RequestParam(value = "season_id", required = false) UUID seasonId,
             @RequestParam(value = "after_sequence", required = false) Integer afterSequence,
             @RequestParam(value = "limit", required = false) Integer limit) {
         Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(orchestrationService.getEpisodeMessages(memberId, episodeNumber, afterSequence, limit));
+        return ApiResponse.ok(
+                orchestrationService.getEpisodeMessages(memberId, seasonId, episodeNumber, afterSequence, limit));
     }
 
     @PostMapping("/episodes/{number}/seen")
@@ -137,10 +146,12 @@ public class AiSeasonController {
         return ApiResponse.okMessage("진행도가 저장되었습니다.");
     }
 
+    /** season_id를 생략하면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다. */
     @GetMapping("/report")
-    public ApiResponse<AiReportView> getReport() {
+    public ApiResponse<AiReportView> getReport(
+            @RequestParam(value = "season_id", required = false) UUID seasonId) {
         Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(orchestrationService.getReport(memberId));
+        return ApiResponse.ok(orchestrationService.getReport(memberId, seasonId));
     }
 
     /**

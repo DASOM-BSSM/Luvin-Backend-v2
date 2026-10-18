@@ -21,6 +21,7 @@ import com.luvin.ai.service.exception.AiReportNotReadyException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
 import com.luvin.ai.service.exception.AiRerollNotFoundException;
 import com.luvin.ai.service.exception.AiSeasonAlreadyExistsException;
+import com.luvin.ai.service.exception.AiSeasonCompletedException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
 import com.luvin.ai.service.exception.PartnerLetterNotFoundException;
 import com.luvin.common.response.ApiResponse;
@@ -77,6 +78,11 @@ public class AiExceptionHandler {
     @ExceptionHandler(AiSeasonAlreadyExistsException.class)
     public ResponseEntity<ApiResponse<Void>> handleSeasonInProgress(AiSeasonAlreadyExistsException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage(), "SEASON_IN_PROGRESS"));
+    }
+
+    @ExceptionHandler(AiSeasonCompletedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSeasonCompleted(AiSeasonCompletedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage(), "SEASON_COMPLETED"));
     }
 
     @ExceptionHandler(AiInsufficientTokensException.class)

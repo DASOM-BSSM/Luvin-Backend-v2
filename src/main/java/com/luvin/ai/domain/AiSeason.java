@@ -99,7 +99,14 @@ public class AiSeason {
         this.updatedAt = LocalDateTime.now();
     }
 
+    /**
+     * 지난 시즌의 report를 다시 조회해도(seasonId 지정 조회) completedAt이 매번 "지금"으로
+     * 덮어써지지 않도록 이미 COMPLETED면 아무것도 하지 않는다.
+     */
     public void complete() {
+        if (this.status == AiSeasonStatus.COMPLETED) {
+            return;
+        }
         this.status = AiSeasonStatus.COMPLETED;
         LocalDateTime now = LocalDateTime.now();
         this.updatedAt = now;

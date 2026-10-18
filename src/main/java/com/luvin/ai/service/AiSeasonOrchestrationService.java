@@ -44,37 +44,54 @@ public interface AiSeasonOrchestrationService {
 
     /**
      * episodeNumber 화 generation을 접수한다. 이미 접수된 job이 있으면 새로 요청하지 않고 기존 진행 상태를
-     * 반환한다 (중복 generation 방지, 요구사항 4절).
+     * 반환한다 (중복 generation 방지, 요구사항 4절). 완료된(지난) 시즌에는 요청할 수 없다(409 SEASON_COMPLETED).
      */
     AiEpisodeProgressView requestGeneration(Long memberId, int episodeNumber);
 
-    /** 1화 사용자 선택. partnerId는 현재 시즌의 candidate 중 하나여야 한다. */
+    /**
+     * 1화 사용자 선택. partnerId는 현재 시즌의 candidate 중 하나여야 한다.
+     * 완료된(지난) 시즌에는 요청할 수 없다(409 SEASON_COMPLETED).
+     */
     AiSelectionView submitEpisode1Selection(Long memberId, UUID partnerId);
 
     /**
      * 3화 미니게임 결과. 성공 여부와 성공 대상은 이 메서드를 호출하기 전에 Spring이 이미 서버 측에서
      * 판정을 마친 상태여야 한다 (요구사항 5.4) — 이 메서드는 그 판정 결과를 신뢰하고 그대로 AI에 전달한다.
-     * 실패면 verifiedPartnerId는 null이어야 한다.
+     * 실패면 verifiedPartnerId는 null이어야 한다. 완료된(지난) 시즌에는 요청할 수 없다(409 SEASON_COMPLETED).
      */
     AiSelectionView submitEpisode3MinigameResult(Long memberId, boolean success, UUID verifiedPartnerId);
 
-    /** 2·4화 1:1 상대 변경. 다음 화 generation이 이미 접수됐으면 거부한다. */
+    /**
+     * 2·4화 1:1 상대 변경. 다음 화 generation이 이미 접수됐으면 거부한다. 완료된(지난) 시즌에는
+     * 요청할 수 없다(409 SEASON_COMPLETED).
+     */
     AiRerollView requestReroll(Long memberId, int episodeNumber, UUID requestedPartnerId);
 
     /**
      * 해당 회차의 가장 최근 reroll 요청 상태를 조회한다(폴링용). POST 응답 이후 완료 여부를 확인할
      * 별도 수단이 없던 문제를 해결한다. 한 번도 reroll을 요청한 적이 없으면 404.
+     * seasonId가 null이면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다.
      */
-    AiRerollView getRerollStatus(Long memberId, int episodeNumber);
+    AiRerollView getRerollStatus(Long memberId, UUID seasonId, int episodeNumber);
 
-    /** episodeNumber 화 완성 메시지 pagination 조회. version_id를 고정해서 조회한다. */
-    AiEpisodeMessagesView getEpisodeMessages(Long memberId, int episodeNumber, Integer afterSequence, Integer limit);
+    /**
+     * episodeNumber 화 완성 메시지 pagination 조회. version_id를 고정해서 조회한다.
+     * seasonId가 null이면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다.
+     */
+    AiEpisodeMessagesView getEpisodeMessages(
+            Long memberId, UUID seasonId, int episodeNumber, Integer afterSequence, Integer limit);
 
-    /** 앱이 실제로 표시한 마지막 sequence를 저장한다. 조회 자체는 진행도를 바꾸지 않는다 (요구사항 5.6). */
+    /**
+     * 앱이 실제로 표시한 마지막 sequence를 저장한다. 조회 자체는 진행도를 바꾸지 않는다 (요구사항 5.6).
+     * 완료된(지난) 시즌에는 요청할 수 없다(409 SEASON_COMPLETED).
+     */
     void markMessagesSeen(Long memberId, int episodeNumber, int sequence);
 
-    /** 5화 완료 후에만 호출 가능한 최종 리포트 조회. */
-    AiReportView getReport(Long memberId);
+    /**
+     * 5화 완료 후에만 호출 가능한 최종 리포트 조회. seasonId가 null이면 현재(최신) 시즌, 지정하면
+     * 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다.
+     */
+    AiReportView getReport(Long memberId, UUID seasonId);
 
     /**
      * 안 읽은 "SECRET LOVE" 쪽지를 조회한다(최신 1개만, 여러 개 쌓여도 그중 최신). AI 쪽 생성 job이
