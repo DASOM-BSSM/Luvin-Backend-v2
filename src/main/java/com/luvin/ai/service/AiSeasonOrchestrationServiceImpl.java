@@ -60,6 +60,7 @@ import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
 import com.luvin.ai.service.exception.AiRerollNotFoundException;
 import com.luvin.ai.service.exception.AiSeasonAlreadyExistsException;
+import com.luvin.ai.service.exception.AiSeasonCompletedException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
 import com.luvin.ai.dto.AiSeasonSummaryView;
 import com.luvin.ai.dto.StartNextSeasonRequest;
@@ -314,6 +315,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     public AiEpisodeProgressView requestGeneration(Long memberId, int episodeNumber) {
         validateEpisodeNumber(episodeNumber);
         AiSeason season = getOwnedSeasonOrThrow(memberId);
+        assertNotCompleted(season);
         String ownerSubject = ownerSubjectProvider.resolve(memberId);
 
         AiEpisodeProgress existing = episodeProgressRepository
@@ -359,6 +361,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     @Override
     public AiSelectionView submitEpisode1Selection(Long memberId, UUID partnerId) {
         AiSeason season = getOwnedSeasonOrThrow(memberId);
+        assertNotCompleted(season);
         ensureEpisodeGenerationSucceeded(season, EPISODE_1);
 
         AiSelection existing = selectionRepository
@@ -389,6 +392,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     @Override
     public AiSelectionView submitEpisode3MinigameResult(Long memberId, boolean success, UUID verifiedPartnerId) {
         AiSeason season = getOwnedSeasonOrThrow(memberId);
+        assertNotCompleted(season);
         ensureEpisodeGenerationSucceeded(season, EPISODE_3);
 
         if (success && verifiedPartnerId == null) {
@@ -447,6 +451,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
             throw new AiRerollNotAllowedException("reroll은 2화, 4화에만 제공됩니다.");
         }
         AiSeason season = getOwnedSeasonOrThrow(memberId);
+        assertNotCompleted(season);
         AiEpisodeProgress progress = getEpisodeProgressOrThrow(season, episodeNumber);
         if (progress.getJobStatus() != AiJobStatus.SUCCEEDED || progress.getVersionId() == null) {
             throw new AiEpisodeProgressionException(episodeNumber + "화가 아직 완료되지 않아 reroll할 수 없습니다.");
@@ -486,8 +491,8 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     }
 
     @Override
-    public AiRerollView getRerollStatus(Long memberId, int episodeNumber) {
-        AiSeason season = getOwnedSeasonOrThrow(memberId);
+    public AiRerollView getRerollStatus(Long memberId, UUID seasonId, int episodeNumber) {
+        AiSeason season = getOwnedSeasonOrThrow(memberId, seasonId);
         AiRerollRequest reroll = stateWriter.findLatestReroll(season.getId(), episodeNumber)
                 .orElseThrow(() -> new AiRerollNotFoundException(episodeNumber));
         return toRerollView(reroll);
@@ -500,8 +505,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     // ---------------------------------------------------------------- 메시지 조회
 
     @Override
-    public AiEpisodeMessagesView getEpisodeMessages(Long memberId, int episodeNumber, Integer afterSequence, Integer limit) {
-        AiSeason season = getOwnedSeasonOrThrow(memberId);
+    public AiEpisodeMessagesView getEpisodeMessages(
+            Long memberId, UUID seasonId, int episodeNumber, Integer afterSequence, Integer limit) {
+        AiSeason season = getOwnedSeasonOrThrow(memberId, seasonId);
         AiEpisodeProgress progress = getEpisodeProgressOrThrow(season, episodeNumber);
         if (progress.getJobStatus() != AiJobStatus.SUCCEEDED || progress.getVersionId() == null) {
             throw new AiEpisodeProgressionException(episodeNumber + "화 generation이 아직 완료되지 않았습니다.");
@@ -529,14 +535,15 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     @Override
     public void markMessagesSeen(Long memberId, int episodeNumber, int sequence) {
         AiSeason season = getOwnedSeasonOrThrow(memberId);
+        assertNotCompleted(season);
         stateWriter.markMessagesSeen(season.getId(), episodeNumber, sequence);
     }
 
     // ---------------------------------------------------------------- 리포트
 
     @Override
-    public AiReportView getReport(Long memberId) {
-        AiSeason season = getOwnedSeasonOrThrow(memberId);
+    public AiReportView getReport(Long memberId, UUID seasonId) {
+        AiSeason season = getOwnedSeasonOrThrow(memberId, seasonId);
         ensureEpisodeGenerationSucceeded(season, FINAL_EPISODE);
 
         String ownerSubject = ownerSubjectProvider.resolve(memberId);
@@ -640,6 +647,25 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     private AiSeason getOwnedSeasonOrThrow(Long memberId) {
         return seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId)
                 .orElseThrow(AiSeasonNotFoundException::new);
+    }
+
+    /**
+     * seasonId가 null이면 현재(최신) 시즌, 지정되면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다.
+     * 다른 사용자의 seasonId로 조회해도 존재 여부를 노출하지 않도록 findByMemberIdAndSeasonId로
+     * 소유권까지 함께 확인한다 — 못 찾으면 405/403이 아니라 일반 404(AiSeasonNotFoundException)로 응답한다.
+     */
+    private AiSeason getOwnedSeasonOrThrow(Long memberId, UUID seasonId) {
+        if (seasonId == null) {
+            return getOwnedSeasonOrThrow(memberId);
+        }
+        return seasonRepository.findByMemberIdAndSeasonId(memberId, seasonId)
+                .orElseThrow(AiSeasonNotFoundException::new);
+    }
+
+    private void assertNotCompleted(AiSeason season) {
+        if (season.getStatus() == AiSeasonStatus.COMPLETED) {
+            throw new AiSeasonCompletedException();
+        }
     }
 
     private AiEpisodeProgress getEpisodeProgressOrThrow(AiSeason season, int episodeNumber) {
