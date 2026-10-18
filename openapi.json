@@ -2763,6 +2763,47 @@
                     }
                 }
             }
+        },
+        "/api/episodes/{episodeId}/feedback": {
+            "post": {
+                "tags": [
+                    "feedback-controller"
+                ],
+                "operationId": "saveFeedback",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/FeedbackRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FeedbackResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -4819,6 +4860,47 @@
                         "format": "int64"
                     },
                     "userId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "FeedbackRequest": {
+                "type": "object",
+                "required": [
+                    "messageId",
+                    "feedbackType",
+                    "content"
+                ],
+                "properties": {
+                    "messageId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "feedbackType": {
+                        "type": "string",
+                        "enum": [
+                            "AGREE",
+                            "DISAGREE"
+                        ]
+                    },
+                    "content": {
+                        "type": "string",
+                        "maxLength": 1000
+                    }
+                }
+            },
+            "FeedbackResponse": {
+                "type": "object",
+                "properties": {
+                    "feedbackId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "messageId": {
                         "type": "integer",
                         "format": "int64"
                     },
