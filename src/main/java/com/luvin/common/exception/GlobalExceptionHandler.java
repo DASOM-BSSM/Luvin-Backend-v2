@@ -64,6 +64,7 @@ public class GlobalExceptionHandler {
             RebakeNotFoundException.class,
             ReportNotFoundException.class,
             MessageNotFoundException.class,
+            NoteNotFoundException.class,
             VoteReasonNotFoundException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleNotFound(RuntimeException e) {

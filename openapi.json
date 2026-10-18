@@ -1919,6 +1919,37 @@
                 }
             }
         },
+        "/api/episodes/{episodeId}/note": {
+            "get": {
+                "tags": [
+                    "note-controller"
+                ],
+                "operationId": "getNote",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NoteResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/episodes/{episodeId}/ai-situations/reason": {
             "get": {
                 "tags": [
@@ -3594,6 +3625,18 @@
                         "type": "string"
                     },
                     "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "NoteResponse": {
+                "type": "object",
+                "properties": {
+                    "noteId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "content": {
                         "type": "string"
                     }
                 }
