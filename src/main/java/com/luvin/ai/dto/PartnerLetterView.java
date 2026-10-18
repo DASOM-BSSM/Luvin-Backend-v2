@@ -14,6 +14,7 @@ public record PartnerLetterView(
         String partnerName,
         String partnerBreadType,
         String message,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String renderMode
 ) {
 }

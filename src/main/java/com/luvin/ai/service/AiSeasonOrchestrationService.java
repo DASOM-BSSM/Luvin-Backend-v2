@@ -77,11 +77,19 @@ public interface AiSeasonOrchestrationService {
     AiReportView getReport(Long memberId);
 
     /**
-     * 안 읽은 "SECRET LOVE" 쪽지를 조회한다(최신 1개만, 여러 개 쌓여도 그중 최신). 없으면 null.
-     * 쪽지는 getReport() 호출로 시즌이 COMPLETED될 때 함께 생성된다.
+     * 안 읽은 "SECRET LOVE" 쪽지를 조회한다(최신 1개만, 여러 개 쌓여도 그중 최신). AI 쪽 생성 job이
+     * 아직 SUCCEEDED되지 않았으면 null(쪽지로 보여줄 내용이 없다).
      */
     PartnerLetterView getUnreadLetter(Long memberId);
 
     /** 쪽지를 읽음 처리한다. 본인 소유가 아니거나 존재하지 않으면 404(PARTNER_LETTER_NOT_FOUND). */
     void markLetterRead(Long memberId, Long letterId);
+
+    /**
+     * EP5 generation이 SUCCEEDED되는 즉시(AiJobPollingScheduler가 호출) "SECRET LOVE" 쪽지 생성을
+     * AI 서비스에 접수한다. 멱등: 이미 접수/완료됐으면 아무것도 하지 않고, FAILED 이후 재시도도
+     * 같은 메서드로 처리한다(로컬 3회 한도 도달 시 더 이상 시도하지 않음). 실패해도 EP5 성공 처리
+     * 자체에는 영향이 없도록 호출부에서 best-effort로 다룬다.
+     */
+    void ensureLetterGenerationStarted(Long seasonPk);
 }

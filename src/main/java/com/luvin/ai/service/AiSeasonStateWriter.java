@@ -30,7 +30,9 @@ import com.luvin.token.domain.UserToken;
 import com.luvin.token.repository.TokenHistoryRepository;
 import com.luvin.token.repository.UserTokenRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -263,16 +265,35 @@ public class AiSeasonStateWriter {
     }
 
     /**
-     * EP5 리포트 조회 시 함께 호출된다. 시즌당 1개만 만든다(season_id unique) — 이미 있으면 그대로
-     * 둔다, 리포트를 여러 번 다시 조회해도 쪽지 문구가 바뀌지 않아야 하기 때문이다.
+     * EP5 generation 성공 직후(즉시 트리거) 또는 실패 재시도 sweep에서 호출된다. 시즌당 1개 row만
+     * 만든다(season_id unique) — 이미 있으면 그대로 반환한다. 두 경로가 거의 동시에 처음 호출되는
+     * 경쟁 상황을 대비해 REQUIRES_NEW로 격리하고, saveAndFlush로 유니크 제약 위반을 즉시 이 짧은
+     * 트랜잭션 안에서만 터지게 한 뒤(격리하지 않으면 Postgres가 트랜잭션을 abort 상태로 만들어
+     * 이어지는 조회까지 실패한다 — AiIdempotencyKeyService.issueNew()와 동일한 이유), 진 쪽은 이긴
+     * 쪽이 만든 row를 그대로 재사용한다.
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public PartnerLetter ensureLetterRow(Long seasonPk, Long memberId) {
+        return partnerLetterRepository.findBySeason_Id(seasonPk).orElseGet(() -> {
+            try {
+                return partnerLetterRepository.saveAndFlush(
+                        new PartnerLetter(memberId, seasonRepository.getReferenceById(seasonPk)));
+            } catch (DataIntegrityViolationException raceLoser) {
+                return partnerLetterRepository.findBySeason_Id(seasonPk).orElseThrow(() -> raceLoser);
+            }
+        });
+    }
+
     @Transactional
-    public void persistPartnerLetterIfAbsent(Long seasonPk, Long memberId, UUID partnerId, String message) {
-        if (partnerLetterRepository.findBySeason_Id(seasonPk).isPresent()) {
-            return;
-        }
-        partnerLetterRepository.save(new PartnerLetter(
-                memberId, seasonRepository.getReferenceById(seasonPk), partnerId, message));
+    public void persistLetterJobAccepted(Long letterPk, UUID jobId) {
+        partnerLetterRepository.findById(letterPk).ifPresent(letter -> letter.markJobAccepted(jobId));
+    }
+
+    /** POST /letter가 409 LETTER_ALREADY_EXISTS를 반환했을 때, GET /letter로 받아온 결과를 그대로 반영한다. */
+    @Transactional
+    public void markLetterSucceeded(Long letterPk, UUID partnerId, String message, String renderMode) {
+        partnerLetterRepository.findById(letterPk)
+                .ifPresent(letter -> letter.markSucceeded(partnerId, message, renderMode));
     }
 
     @Transactional(readOnly = true)

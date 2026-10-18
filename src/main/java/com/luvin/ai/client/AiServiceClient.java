@@ -5,6 +5,8 @@ import com.luvin.ai.client.dto.CreateSeasonRequestDto;
 import com.luvin.ai.client.dto.EpisodeResponseDto;
 import com.luvin.ai.client.dto.GenerationRequestDto;
 import com.luvin.ai.client.dto.JobResponseDto;
+import com.luvin.ai.client.dto.LetterRequestDto;
+import com.luvin.ai.client.dto.LetterResponseDto;
 import com.luvin.ai.client.dto.ReportResponseDto;
 import com.luvin.ai.client.dto.RerollRequestDto;
 import com.luvin.ai.client.dto.SeasonResponseDto;
@@ -12,6 +14,7 @@ import com.luvin.ai.client.dto.SelectionRequestDto;
 import com.luvin.ai.client.dto.SelectionResponseDto;
 import com.luvin.ai.client.exception.AiAuthConfigException;
 import com.luvin.ai.client.exception.AiContractViolationException;
+import com.luvin.ai.client.exception.AiLetterAlreadyExistsException;
 import com.luvin.ai.client.exception.AiNotFoundException;
 import com.luvin.ai.client.exception.AiRateLimitException;
 import com.luvin.ai.client.exception.AiRerollLockedException;
@@ -132,6 +135,24 @@ public class AiServiceClient {
                 .exchange((req, resp) -> handle(resp, "GET .../report", ReportResponseDto.class)));
     }
 
+    /** "SECRET LOVE" 쪽지 생성을 접수한다(202/job). 응답의 result_version_id는 쪽지 job에서는 항상 null이다. */
+    public JobResponseDto requestLetter(String ownerSubject, UUID idempotencyKey, UUID seasonId, LetterRequestDto request) {
+        return withNetworkErrorTranslation("POST .../letter", () -> restClient.post()
+                .uri("/v1/seasons/{seasonId}/letter", seasonId)
+                .headers(h -> applyHeaders(h, ownerSubject, idempotencyKey))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .exchange((req, resp) -> handle(resp, "POST .../letter", JobResponseDto.class)));
+    }
+
+    /** 생성된 쪽지 본문을 조회한다. 아직 생성되지 않았으면 404(LETTER_NOT_READY)로 응답한다. */
+    public LetterResponseDto getLetter(String ownerSubject, UUID seasonId) {
+        return withNetworkErrorTranslation("GET .../letter", () -> restClient.get()
+                .uri("/v1/seasons/{seasonId}/letter", seasonId)
+                .headers(h -> applyHeaders(h, ownerSubject, null))
+                .exchange((req, resp) -> handle(resp, "GET .../letter", LetterResponseDto.class)));
+    }
+
     /**
      * 연결 실패/timeout(ResourceAccessException)은 job 실패가 아니라 재시도 가능한 서버 오류로 취급한다
      * (요구사항 5.3, 6절).
@@ -213,6 +234,11 @@ public class AiServiceClient {
             case "REVISION_CONFLICT" -> new AiRevisionConflictException(message, errorCode, rawBody);
             case "REROLL_LOCKED" -> new AiRerollLockedException(message, rawBody);
             case "VERSION_SUPERSEDED" -> new AiVersionSupersededException(message, rawBody);
+            // 오류가 아니라 "이미 정상 생성됨" — 호출부가 GET /letter로 받아와 성공 처리하도록 구분한다.
+            case "LETTER_ALREADY_EXISTS" -> new AiLetterAlreadyExistsException(message, rawBody);
+            // REPORT_REQUIRED/JOB_IN_PROGRESS/LETTER_ATTEMPTS_EXHAUSTED/IDEMPOTENCY_CONFLICT 등
+            // 쪽지 전용 코드는 전부 getAiErrorCode()로 코드를 보존한 채 아래 기본 분기로 흘려보낸다 —
+            // 전부 "이번엔 접수 못 함, 다음 스케줄러 tick에 재시도"로 동일하게 처리되기 때문이다.
             default -> new AiSelectionConflictException(message, errorCode, rawBody);
         };
     }

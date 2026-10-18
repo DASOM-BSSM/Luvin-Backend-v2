@@ -6,6 +6,8 @@ import com.luvin.ai.client.dto.CreateSeasonRequestDto;
 import com.luvin.ai.client.dto.EpisodeResponseDto;
 import com.luvin.ai.client.dto.GenerationRequestDto;
 import com.luvin.ai.client.dto.JobResponseDto;
+import com.luvin.ai.client.dto.LetterRequestDto;
+import com.luvin.ai.client.dto.LetterResponseDto;
 import com.luvin.ai.client.dto.MessageResponseDto;
 import com.luvin.ai.client.dto.ReportResponseDto;
 import com.luvin.ai.client.dto.ReportTraitResponseDto;
@@ -14,7 +16,9 @@ import com.luvin.ai.client.dto.SeasonResponseDto;
 import com.luvin.ai.client.dto.SelectionRequestDto;
 import com.luvin.ai.client.dto.SelectionResponseDto;
 import com.luvin.ai.client.dto.TraitsDto;
+import com.luvin.ai.client.exception.AiLetterAlreadyExistsException;
 import com.luvin.ai.client.exception.AiRevisionConflictException;
+import com.luvin.ai.client.exception.AiServiceException;
 import com.luvin.ai.client.exception.AiUnclassifiedConflictException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
 import com.luvin.ai.domain.AiCharacterRole;
@@ -29,6 +33,7 @@ import com.luvin.ai.domain.AiSeasonCreationInput;
 import com.luvin.ai.domain.AiSeasonStatus;
 import com.luvin.ai.domain.AiSelection;
 import com.luvin.ai.domain.AiSelectionSource;
+import com.luvin.ai.domain.PartnerLetter;
 import com.luvin.ai.dto.AiCharacterProfileRequest;
 import com.luvin.ai.dto.AiCharacterView;
 import com.luvin.ai.dto.AiTraitsRequest;
@@ -538,9 +543,10 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         ReportResponseDto response = aiServiceClient.getReport(ownerSubject, season.getSeasonId());
 
         stateWriter.markSeasonCompleted(season.getId());
-        // "SECRET LOVE" 쪽지: 새 AI 엔드포인트 없이, 이미 AI가 생성한 narrative를 그대로 쪽지
-        // 문구로 저장한다 — 시즌당 1회만 생성되고, 리포트를 다시 조회해도 문구가 바뀌지 않는다.
-        stateWriter.persistPartnerLetterIfAbsent(season.getId(), memberId, response.finalPartnerId(), response.narrative());
+        // "SECRET LOVE" 쪽지는 더 이상 여기서 narrative를 복사해 즉시 조립하지 않는다 — AI 서비스가
+        // POST/GET /v1/seasons/{id}/letter로 비동기 생성하며, EP5 generation이 SUCCEEDED되는 순간
+        // AiJobPollingScheduler가 ensureLetterGenerationStarted()를 이미 호출해 생성을 시작해 둔다
+        // (도착 안내가 뜨기 전에 미리 시작해야 "쪽지를 펼치고 있어요..."가 짧게 보인다).
 
         List<AiHighlightView> highlights = response.highlights().stream()
                 .map(h -> new AiHighlightView(
@@ -556,13 +562,65 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         return stateWriter.findUnreadLetter(memberId)
                 .map(letter -> new PartnerLetterView(
                         letter.getId(), letter.getSeason().getSeasonId(), letter.getPartnerId(),
-                        null, null, letter.getMessage(), letter.getCreatedAt()))
+                        null, null, letter.getMessage(), letter.getCreatedAt(), letter.getRenderMode()))
                 .orElse(null);
     }
 
     @Override
     public void markLetterRead(Long memberId, Long letterId) {
         stateWriter.markLetterRead(letterId, memberId);
+    }
+
+    @Override
+    public void ensureLetterGenerationStarted(Long seasonPk) {
+        AiSeason season = seasonRepository.findById(seasonPk).orElse(null);
+        if (season == null) {
+            return;
+        }
+        Long memberId = season.getMemberId();
+        PartnerLetter letter = stateWriter.ensureLetterRow(seasonPk, memberId);
+
+        if (letter.getJobStatus() != null
+                && (letter.getJobStatus().isPending() || letter.getJobStatus() == AiJobStatus.SUCCEEDED)) {
+            return; // 이미 접수됐거나 완료됨 — 중복 요청 방지.
+        }
+        if (letter.getJobStatus() == AiJobStatus.FAILED && letter.hasReachedMaxAttempts()) {
+            return; // 로컬 3회 한도 도달 — AI 쪽 LETTER_ATTEMPTS_EXHAUSTED와 별개로 더 시도하지 않는다.
+        }
+
+        String ownerSubject = ownerSubjectProvider.resolve(memberId);
+        SeasonResponseDto latest = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
+
+        String businessKey = letter.getJobId() == null
+                ? "season:" + season.getSeasonId() + ":letter"
+                : "season:" + season.getSeasonId() + ":letter:retry-after:" + letter.getJobId();
+        UUID idempotencyKey = idempotencyKeyService.resolveOrIssue(
+                memberId, AiIdempotencyActionType.PARTNER_LETTER_GENERATION, businessKey);
+
+        // 요구사항에 따라 partner_bread_type/representative_dough_type/partner_speech_style은
+        // 현재 Spring에 출처가 없어 항상 null로 보낸다.
+        LetterRequestDto request = new LetterRequestDto(latest.revision(), null, null, null);
+        JobResponseDto jobResponse;
+        try {
+            jobResponse = aiServiceClient.requestLetter(ownerSubject, idempotencyKey, season.getSeasonId(), request);
+        } catch (AiLetterAlreadyExistsException alreadyExists) {
+            // 오류가 아니다 — 이미 정상 생성된 상태이므로 그대로 받아와 성공 처리한다.
+            LetterResponseDto existing = aiServiceClient.getLetter(ownerSubject, season.getSeasonId());
+            stateWriter.markLetterSucceeded(letter.getId(), existing.finalPartnerId(), existing.body(), existing.renderMode());
+            return;
+        } catch (AiRevisionConflictException | AiUnclassifiedConflictException conflict) {
+            SeasonResponseDto refreshed = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
+            LetterRequestDto retried = new LetterRequestDto(refreshed.revision(), null, null, null);
+            jobResponse = aiServiceClient.requestLetter(ownerSubject, idempotencyKey, season.getSeasonId(), retried);
+        } catch (AiServiceException other) {
+            // REPORT_REQUIRED/JOB_IN_PROGRESS/LETTER_ATTEMPTS_EXHAUSTED 등 — 이번엔 접수하지 못했다.
+            // 다음 스케줄러 sweep에서 다시 시도한다(이미 FAILED였다면 상태를 그대로 둔다).
+            log.warn("letter generation request rejected, will retry on next scheduler sweep: seasonId={}, code={}",
+                    season.getSeasonId(), other.getAiErrorCode());
+            return;
+        }
+
+        stateWriter.persistLetterJobAccepted(letter.getId(), jobResponse.jobId());
     }
 
     /** 구버전 리포트(강점/약점 키가 아예 없음)는 null로 오므로 빈 배열로 처리한다. */
