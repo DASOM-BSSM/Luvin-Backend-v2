@@ -1,6 +1,7 @@
 package com.luvin.ai.service;
 
 import com.luvin.ai.dto.AiCharacterProfileRequest;
+import com.luvin.ai.dto.AiEpisodeFeedbackView;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiReportView;
@@ -101,6 +102,15 @@ public interface AiSeasonOrchestrationService {
 
     /** 쪽지를 읽음 처리한다. 본인 소유가 아니거나 존재하지 않으면 404(PARTNER_LETTER_NOT_FOUND). */
     void markLetterRead(Long memberId, Long letterId);
+
+    /**
+     * "나의 빵에게" — 2화/4화 1:1 대화 중 본인 AI 분신(representative)이 한 말 한 줄을 골라 피드백을
+     * 남긴다. messageId는 해당 회차의 실제 one_to_one 메시지이고 speaker가 representative여야
+     * 한다(그렇지 않으면 400). 회차당 1회만 가능하다(두 번째 시도는 409 FEEDBACK_ALREADY_SUBMITTED).
+     * seasonId가 null이면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 대상으로 한다.
+     */
+    AiEpisodeFeedbackView submitEpisodeFeedback(
+            Long memberId, UUID seasonId, int episodeNumber, UUID messageId, String content);
 
     /**
      * EP5 generation이 SUCCEEDED되는 즉시(AiJobPollingScheduler가 호출) "SECRET LOVE" 쪽지 생성을

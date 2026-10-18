@@ -15,6 +15,7 @@ import com.luvin.ai.client.exception.AiVersionSupersededException;
 import com.luvin.ai.dto.AiInsufficientTokensView;
 import com.luvin.ai.service.exception.AiCandidateInvalidException;
 import com.luvin.ai.service.exception.AiEpisodeProgressionException;
+import com.luvin.ai.service.exception.AiFeedbackAlreadySubmittedException;
 import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiInsufficientTokensException;
 import com.luvin.ai.service.exception.AiReportNotReadyException;
@@ -83,6 +84,12 @@ public class AiExceptionHandler {
     @ExceptionHandler(AiSeasonCompletedException.class)
     public ResponseEntity<ApiResponse<Void>> handleSeasonCompleted(AiSeasonCompletedException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage(), "SEASON_COMPLETED"));
+    }
+
+    @ExceptionHandler(AiFeedbackAlreadySubmittedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleFeedbackAlreadySubmitted(AiFeedbackAlreadySubmittedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage(), "FEEDBACK_ALREADY_SUBMITTED"));
     }
 
     @ExceptionHandler(AiInsufficientTokensException.class)

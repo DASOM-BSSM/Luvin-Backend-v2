@@ -22,6 +22,7 @@ import com.luvin.ai.client.exception.AiServiceException;
 import com.luvin.ai.client.exception.AiUnclassifiedConflictException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
 import com.luvin.ai.domain.AiCharacterRole;
+import com.luvin.ai.domain.AiEpisodeFeedback;
 import com.luvin.ai.domain.AiEpisodeProgress;
 import com.luvin.ai.domain.AiGameResult;
 import com.luvin.ai.domain.AiIdempotencyActionType;
@@ -36,6 +37,7 @@ import com.luvin.ai.domain.AiSelectionSource;
 import com.luvin.ai.domain.PartnerLetter;
 import com.luvin.ai.dto.AiCharacterProfileRequest;
 import com.luvin.ai.dto.AiCharacterView;
+import com.luvin.ai.dto.AiEpisodeFeedbackView;
 import com.luvin.ai.dto.AiTraitsRequest;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiHighlightView;
@@ -56,6 +58,7 @@ import com.luvin.ai.repository.AiSelectionRepository;
 import com.luvin.ai.security.OwnerSubjectProvider;
 import com.luvin.ai.service.exception.AiCandidateInvalidException;
 import com.luvin.ai.service.exception.AiEpisodeProgressionException;
+import com.luvin.ai.service.exception.AiFeedbackAlreadySubmittedException;
 import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
 import com.luvin.ai.service.exception.AiRerollNotFoundException;
@@ -100,6 +103,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     private static final int EPISODE_1 = 1;
     private static final int EPISODE_3 = 3;
     private static final Set<Integer> REROLLABLE_EPISODES = Set.of(2, 4);
+    /** "나의 빵에게" 피드백이 가능한 1:1 대화 회차. REROLLABLE_EPISODES와 지금은 값이 같지만
+     * 서로 다른 개념이라 별도 상수로 둔다. */
+    private static final Set<Integer> FEEDBACK_EPISODES = Set.of(2, 4);
     private static final int FINAL_EPISODE = 5;
 
     private final AiServiceClient aiServiceClient;
@@ -529,7 +535,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         }
 
         UUID representativeId = resolveRepresentativeId(season);
-        return toMessagesView(episodeNumber, response, representativeId);
+        AiEpisodeFeedbackView feedbackView = stateWriter.findFeedback(season.getId(), episodeNumber)
+                .map(this::toFeedbackView).orElse(null);
+        return toMessagesView(episodeNumber, response, representativeId, feedbackView);
     }
 
     @Override
@@ -576,6 +584,62 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     @Override
     public void markLetterRead(Long memberId, Long letterId) {
         stateWriter.markLetterRead(letterId, memberId);
+    }
+
+    // ---------------------------------------------------------------- "나의 빵에게" 피드백
+
+    @Override
+    public AiEpisodeFeedbackView submitEpisodeFeedback(
+            Long memberId, UUID seasonId, int episodeNumber, UUID messageId, String content) {
+        if (!FEEDBACK_EPISODES.contains(episodeNumber)) {
+            throw new AiInputValidationException("피드백은 2화, 4화의 1:1 대화에서만 가능합니다.");
+        }
+        AiSeason season = getOwnedSeasonOrThrow(memberId, seasonId);
+        AiEpisodeProgress progress = getEpisodeProgressOrThrow(season, episodeNumber);
+        if (progress.getJobStatus() != AiJobStatus.SUCCEEDED || progress.getVersionId() == null) {
+            throw new AiEpisodeProgressionException(episodeNumber + "화가 아직 완료되지 않았습니다.");
+        }
+        // 실제 메시지 조회(AI 서비스 왕복) 전에 먼저 막아 불필요한 호출을 줄인다.
+        if (stateWriter.findFeedback(season.getId(), episodeNumber).isPresent()) {
+            throw new AiFeedbackAlreadySubmittedException();
+        }
+
+        String ownerSubject = ownerSubjectProvider.resolve(memberId);
+        UUID representativeId = resolveRepresentativeId(season);
+        assertFeedbackEligibleMessage(ownerSubject, season, progress, episodeNumber, messageId, representativeId);
+
+        AiEpisodeFeedback saved = stateWriter.persistEpisodeFeedback(season.getId(), episodeNumber, messageId, content);
+        return toFeedbackView(saved);
+    }
+
+    /**
+     * messageId가 이 회차의 실제 one_to_one 메시지이고, speaker가 representative(본인 AI 분신)인지
+     * 확인한다. AI 시즌 대화는 Spring에 로컬 복사본이 없어, 필요하면 여러 페이지를 넘겨가며
+     * AI 서비스에서 직접 찾는다.
+     */
+    private void assertFeedbackEligibleMessage(String ownerSubject, AiSeason season, AiEpisodeProgress progress,
+                                                int episodeNumber, UUID messageId, UUID representativeId) {
+        Integer afterSequence = null;
+        while (true) {
+            EpisodeResponseDto response = aiServiceClient.getEpisode(
+                    ownerSubject, season.getSeasonId(), episodeNumber, progress.getVersionId(), afterSequence, 100);
+            MessageResponseDto found = response.messages().stream()
+                    .filter(m -> messageId.equals(m.messageId()))
+                    .findFirst().orElse(null);
+            if (found != null) {
+                if (AiSceneKind.fromWire(found.sceneKind()) != AiSceneKind.ONE_TO_ONE) {
+                    throw new AiInputValidationException("1:1 대화 메시지에만 피드백할 수 있습니다.");
+                }
+                if (representativeId == null || !representativeId.equals(found.speakerId())) {
+                    throw new AiInputValidationException("본인 AI 분신이 한 말에만 피드백할 수 있습니다.");
+                }
+                return;
+            }
+            if (!Boolean.TRUE.equals(response.hasMore())) {
+                throw new AiInputValidationException("messageId가 이 회차의 대화에 없습니다.");
+            }
+            afterSequence = response.nextAfterSequence();
+        }
     }
 
     @Override
@@ -779,14 +843,19 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         return new AiSelectionView(selection.getAiSelectionId(), selection.getPartnerId(), selection.getRevisionAfter());
     }
 
-    private AiEpisodeMessagesView toMessagesView(int episodeNumber, EpisodeResponseDto response, UUID representativeId) {
+    private AiEpisodeMessagesView toMessagesView(int episodeNumber, EpisodeResponseDto response,
+                                                  UUID representativeId, AiEpisodeFeedbackView feedback) {
         List<AiMessageView> messages = response.messages().stream()
                 .map(m -> toMessageView(m, representativeId))
                 .collect(Collectors.toList());
         AiTopicView topic = response.topic() == null ? null
                 : new AiTopicView(response.topic().id(), response.topic().title(), response.topic().category());
-        return new AiEpisodeMessagesView(
-                episodeNumber, response.versionId(), topic, messages, response.hasMore(), response.nextAfterSequence());
+        return new AiEpisodeMessagesView(episodeNumber, response.versionId(), topic, messages,
+                response.hasMore(), response.nextAfterSequence(), feedback);
+    }
+
+    private AiEpisodeFeedbackView toFeedbackView(AiEpisodeFeedback feedback) {
+        return new AiEpisodeFeedbackView(feedback.getMessageId(), feedback.getContent(), feedback.getCreatedAt());
     }
 
     private AiMessageView toMessageView(MessageResponseDto m, UUID representativeId) {
