@@ -29,6 +29,12 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(e.getMessage()));
     }
 
+    @ExceptionHandler(DiaryRoomOwnerCannotLeaveException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOwnerCannotLeave(DiaryRoomOwnerCannotLeaveException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(e.getMessage()));
+    }
+
     @ExceptionHandler({InvalidGoogleTokenException.class, InvalidAppleTokenException.class, UnauthenticatedException.class})
     public ResponseEntity<ApiResponse<Void>> handleUnauthenticated(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
@@ -51,12 +57,14 @@ public class GlobalExceptionHandler {
             DailyQuestionOptionNotFoundException.class,
             EpisodeNotFoundException.class,
             DiaryNotFoundException.class,
+            DiaryRoomNotFoundException.class,
             ParticipantNotFoundException.class,
             GameNotFoundException.class,
             MatchNotFoundException.class,
             RebakeNotFoundException.class,
             ReportNotFoundException.class,
             MessageNotFoundException.class,
+            NoteNotFoundException.class,
             VoteReasonNotFoundException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleNotFound(RuntimeException e) {

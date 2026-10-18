@@ -10,6 +10,20 @@
             "description": "Generated server url"
         }
     ],
+    "tags": [
+        {
+            "name": "\uac10\uc815\uc77c\uae30",
+            "description": "\uc77c\uae30 \uc791\uc131\u00b7\uc870\ud68c\u00b7\uc218\uc815\u00b7\uc0ad\uc81c, \uc774\ubaa8\uc9c0 \ubc18\uc751, \ub0b4 \ubc29\ub4e4 \ud53c\ub4dc"
+        },
+        {
+            "name": "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29",
+            "description": "\uacf5\uc720\ubc29 \uc0dd\uc131\u00b7\uc870\ud68c\u00b7\uc218\uc815\u00b7\uc0ad\uc81c, \uba64\ubc84 \uad00\ub9ac(\ucd08\ub300 \ubc29\uc2dd), \ubc29 \uc77c\uae30 \uc870\ud68c"
+        },
+        {
+            "name": "\uac10\uc815\uc77c\uae30 \ub313\uae00",
+            "description": "\uc77c\uae30 \ub313\uae00 \uc791\uc131\u00b7\uc870\ud68c\u00b7\uc218\uc815\u00b7\uc0ad\uc81c"
+        }
+    ],
     "paths": {
         "/api/users/me": {
             "get": {
@@ -70,6 +84,277 @@
                             "*/*": {
                                 "schema": {
                                     "$ref": "#/components/schemas/MessageResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diary-rooms/{roomId}": {
+            "put": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
+                ],
+                "summary": "\uacf5\uc720\ubc29 \uc218\uc815",
+                "description": "\ubc29\uc7a5\ub9cc \uac00\ub2a5 (403).",
+                "operationId": "updateRoom",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Request"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
+                ],
+                "summary": "\uacf5\uc720\ubc29 \uc0ad\uc81c",
+                "description": "\ubc29\uc7a5\ub9cc \uac00\ub2a5. \ubc29\uc758 \uc77c\uae30\u00b7\ubc18\uc751\u00b7\ub313\uae00\u00b7\uba64\ubc84\ub3c4 \ud568\uaed8 \uc0ad\uc81c.",
+                "operationId": "deleteRoom",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseVoid"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diaries/{diaryId}": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30"
+                ],
+                "summary": "\uc77c\uae30 \uc0c1\uc138",
+                "description": "\uc791\uc131\uc790 \ub610\ub294 \uc77c\uae30\uac00 \uc18d\ud55c \ubc29\uc758 \ubc29\uc7a5\u00b7\uba64\ubc84\ub9cc \uc870\ud68c \uac00\ub2a5 (\uc544\ub2c8\uba74 403).",
+                "operationId": "getDiary",
+                "parameters": [
+                    {
+                        "name": "diaryId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30"
+                ],
+                "summary": "\uc77c\uae30 \uc218\uc815",
+                "description": "\uc791\uc131\uc790\ub9cc \uac00\ub2a5. \uc81c\ubaa9\u00b7\ub0b4\uc6a9\ub9cc \uc218\uc815 (\ubc29\uc740 \uc62e\uae38 \uc218 \uc5c6\uc74c).",
+                "operationId": "updateDiary",
+                "parameters": [
+                    {
+                        "name": "diaryId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30"
+                ],
+                "summary": "\uc77c\uae30 \uc0ad\uc81c",
+                "description": "\uc791\uc131\uc790\ub9cc \uac00\ub2a5. \ub2ec\ub9b0 \ubc18\uc751\u00b7\ub313\uae00\ub3c4 \ud568\uaed8 \uc0ad\uc81c.",
+                "operationId": "deleteDiary",
+                "parameters": [
+                    {
+                        "name": "diaryId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseVoid"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diaries/{diaryId}/comments/{commentId}": {
+            "put": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \ub313\uae00"
+                ],
+                "summary": "\ub313\uae00 \uc218\uc815",
+                "description": "\ub313\uae00 \uc791\uc131\uc790\ub9cc \uac00\ub2a5 (403).",
+                "operationId": "updateComment",
+                "parameters": [
+                    {
+                        "name": "diaryId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "commentId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Request"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \ub313\uae00"
+                ],
+                "summary": "\ub313\uae00 \uc0ad\uc81c",
+                "description": "\ub313\uae00 \uc791\uc131\uc790\ub9cc \uac00\ub2a5 (403).",
+                "operationId": "deleteComment",
+                "parameters": [
+                    {
+                        "name": "diaryId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "commentId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseVoid"
                                 }
                             }
                         }
@@ -746,6 +1031,323 @@
                 }
             }
         },
+        "/api/diary-rooms": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
+                ],
+                "summary": "\ub0b4 \uacf5\uc720\ubc29 \ubaa9\ub85d",
+                "description": "\ub0b4\uac00 \ubc29\uc7a5\uc774\uac70\ub098 \uba64\ubc84\uc778 \ubc29. \ucd5c\uadfc \ucc38\uc5ec\ud55c \ubc29\uc774 \uba3c\uc800.",
+                "operationId": "getMyRooms",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseListResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
+                ],
+                "summary": "\uacf5\uc720\ubc29 \uc0dd\uc131",
+                "description": "\ub9cc\ub4e0 \uc0ac\ub78c\uc774 \ubc29\uc7a5(OWNER)\uc73c\ub85c \uc790\ub3d9 \ub4f1\ub85d.",
+                "operationId": "createRoom",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Request"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diary-rooms/{roomId}/members": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
+                ],
+                "summary": "\uba64\ubc84 \ubaa9\ub85d",
+                "description": "\ubc29\uc7a5\u00b7\uba64\ubc84\ub9cc \uc870\ud68c \uac00\ub2a5 (403).",
+                "operationId": "getRoomMembers",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseListMemberResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
+                ],
+                "summary": "\uba64\ubc84 \ucd94\uac00(\ucd08\ub300)",
+                "description": "\ubc29\uc7a5\ub9cc \uac00\ub2a5 (403). \uc5c6\ub294 \uc0ac\uc6a9\uc790 404. \uc774\ubbf8 \uba64\ubc84\uc5ec\ub3c4 200.",
+                "operationId": "addMember",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddMemberRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseMembershipResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diaries": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30"
+                ],
+                "summary": "\ub0b4 \uc77c\uae30 \ubaa9\ub85d",
+                "description": "\ub0b4\uac00 \uc4f4 \uc77c\uae30\ub9cc \ucd5c\uc2e0\uc21c. size \ucd5c\ub300 50.",
+                "operationId": "getAllDiaries",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "size",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseListResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30"
+                ],
+                "summary": "\uc77c\uae30 \uc791\uc131",
+                "description": "\uc77c\uae30\ub294 \ud56d\uc0c1 \uacf5\uc720\ubc29 \uc548\uc5d0\uc11c \uc4f4\ub2e4. \uadf8 \ubc29\uc758 \ubc29\uc7a5\u00b7\uba64\ubc84\ub9cc \uc791\uc131 \uac00\ub2a5 (\uc544\ub2c8\uba74 403, \uc5c6\ub294 \ubc29 404).",
+                "operationId": "createDiary",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diaries/{diaryId}/like": {
+            "post": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30"
+                ],
+                "summary": "\uc774\ubaa8\uc9c0 \ubc18\uc751 \ud1a0\uae00",
+                "description": "\uc774\ubaa8\uc9c0 \ubb38\uc790 \uadf8\ub300\ub85c \uc804\uc1a1. \uac19\uc740 \uc774\ubaa8\uc9c0 \ub2e4\uc2dc \ub204\ub974\uba74 \ucde8\uc18c, \ub2e4\ub978 \uc774\ubaa8\uc9c0\uba74 \uad50\uccb4. \ud55c \uc0ac\ub78c\ub2f9 \uc77c\uae30 \ud558\ub098\uc5d0 \ubc18\uc751 1\uac1c. \uc774\ubaa8\uc9c0 1\uac1c\uac00 \uc544\ub2c8\uba74 400.",
+                "operationId": "toggleReaction",
+                "parameters": [
+                    {
+                        "name": "diaryId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReactionRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseReactionResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diaries/{diaryId}/comments": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \ub313\uae00"
+                ],
+                "summary": "\ub313\uae00 \ubaa9\ub85d",
+                "description": "\uc77c\uae30\ub97c \ubcfc \uc218 \uc788\ub294 \uc0ac\ub78c\ub9cc \uac00\ub2a5 (403). \uc791\uc131\uc21c.",
+                "operationId": "getComments",
+                "parameters": [
+                    {
+                        "name": "diaryId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseListResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \ub313\uae00"
+                ],
+                "summary": "\ub313\uae00 \uc791\uc131",
+                "description": "\uc77c\uae30\ub97c \ubcfc \uc218 \uc788\ub294 \uc0ac\ub78c\ub9cc \uac00\ub2a5 (403).",
+                "operationId": "createComment",
+                "parameters": [
+                    {
+                        "name": "diaryId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/Request"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/daily_questions/{questionId}/answer": {
             "post": {
                 "tags": [
@@ -1005,6 +1607,37 @@
                             "*/*": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiResponseAiSeasonStatusView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/letters/{letterId}/read": {
+            "post": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "markLetterRead",
+                "parameters": [
+                    {
+                        "name": "letterId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseVoid"
                                 }
                             }
                         }
@@ -1622,6 +2255,37 @@
                 }
             }
         },
+        "/api/episodes/{episodeId}/note": {
+            "get": {
+                "tags": [
+                    "note-controller"
+                ],
+                "operationId": "getNote",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/NoteResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/episodes/{episodeId}/matches": {
             "get": {
                 "tags": [
@@ -1656,6 +2320,37 @@
                 }
             }
         },
+        "/api/episodes/{episodeId}/ai-situations/reason": {
+            "get": {
+                "tags": [
+                    "vote-reason-controller"
+                ],
+                "operationId": "getVoteReason",
+                "parameters": [
+                    {
+                        "name": "episodeId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VoteReasonResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/episodes/likes": {
             "get": {
                 "tags": [
@@ -1672,6 +2367,61 @@
                                     "items": {
                                         "$ref": "#/components/schemas/LikeMessageResponse"
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diary-rooms/{roomId}/diaries": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
+                ],
+                "summary": "\uacf5\uc720\ubc29 \uc77c\uae30 \uc870\ud68c",
+                "description": "\ubc29\uc7a5\u00b7\uba64\ubc84\ub9cc \uc870\ud68c \uac00\ub2a5 (403). \ucd5c\uc2e0\uc21c. \uc791\uc131\uc790 \ub2c9\ub124\uc784\u00b7\ube75 \ud0c0\uc785, \ubc18\uc751 \uc218, \ub313\uae00 \uc218, \ub0b4 \ubc18\uc751 \ud3ec\ud568.",
+                "operationId": "getRoomDiaries",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseListFeedItem"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diaries/community": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30"
+                ],
+                "summary": "\ub0b4 \ubc29\ub4e4 \ud53c\ub4dc",
+                "description": "\ub0b4\uac00 \ubc29\uc7a5\uc774\uac70\ub098 \uba64\ubc84\uc778 \ubaa8\ub4e0 \uacf5\uc720\ubc29\uc758 \uc77c\uae30\ub97c \ucd5c\uc2e0\uc21c\uc73c\ub85c \ucd5c\ub300 50\uac1c.",
+                "operationId": "getMyRoomsFeed",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseListFeedItem"
                                 }
                             }
                         }
@@ -1870,6 +2620,26 @@
                 }
             }
         },
+        "/api/ai/seasons/letters/unread": {
+            "get": {
+                "tags": [
+                    "ai-season-controller"
+                ],
+                "operationId": "getUnreadLetter",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponsePartnerLetterView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/ai/seasons/episodes/{number}": {
             "get": {
                 "tags": [
@@ -1919,6 +2689,81 @@
                 }
             }
         },
+        "/api/diary-rooms/{roomId}/members/me": {
+            "delete": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
+                ],
+                "summary": "\uacf5\uc720\ubc29 \ub098\uac00\uae30",
+                "description": "\ubc29\uc7a5\uc740 \ub098\uac08 \uc218 \uc5c6\uc74c (400). \uc774\ubbf8 \ub098\uac04 \uc0c1\ud0dc\uc5ec\ub3c4 200.",
+                "operationId": "leave",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseMembershipResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diary-rooms/{roomId}/members/kick": {
+            "delete": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
+                ],
+                "summary": "\uba64\ubc84 \uac15\ud1f4",
+                "description": "\ubc29\uc7a5\ub9cc \uac00\ub2a5 (403). \ubc29\uc7a5 \uc790\uc2e0\uc740 \uac15\ud1f4 \ubd88\uac00 (400). \uba64\ubc84\uac00 \uc544\ub2cc id\uc5ec\ub3c4 200.",
+                "operationId": "kickMember",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "userId",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseKickResponse"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/episodes/{episodeId}/feedback": {
             "post": {
                 "tags": [
@@ -1959,37 +2804,6 @@
                     }
                 }
             }
-        },
-        "/api/episodes/{episodeId}/ai-situations/reason": {
-            "get": {
-                "tags": [
-                    "vote-reason-controller"
-                ],
-                "operationId": "getVoteReason",
-                "parameters": [
-                    {
-                        "name": "episodeId",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer",
-                            "format": "int64"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "*/*": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/VoteReasonResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
         }
     },
     "components": {
@@ -2016,6 +2830,66 @@
                 "properties": {
                     "message": {
                         "type": "string"
+                    }
+                }
+            },
+            "Request": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "description": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/Response"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "Response": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "ownerId": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "UpdateRequest": {
+                "type": "object",
+                "properties": {
+                    "title": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "minLength": 0
+                    },
+                    "content": {
+                        "type": "string",
+                        "maxLength": 5000,
+                        "minLength": 0
                     }
                 }
             },
@@ -2412,6 +3286,122 @@
                 "properties": {
                     "success": {
                         "type": "boolean"
+                    }
+                }
+            },
+            "AddMemberRequest": {
+                "type": "object",
+                "properties": {
+                    "userId": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "required": [
+                    "userId"
+                ]
+            },
+            "ApiResponseMembershipResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/MembershipResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "MembershipResponse": {
+                "type": "object",
+                "properties": {
+                    "roomId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "userId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "isMember": {
+                        "type": "boolean"
+                    },
+                    "memberCount": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "CreateRequest": {
+                "type": "object",
+                "properties": {
+                    "roomId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "title": {
+                        "type": "string",
+                        "maxLength": 100,
+                        "minLength": 0
+                    },
+                    "content": {
+                        "type": "string",
+                        "maxLength": 5000,
+                        "minLength": 0
+                    }
+                },
+                "required": [
+                    "roomId"
+                ]
+            },
+            "ReactionRequest": {
+                "type": "object",
+                "properties": {
+                    "emoji": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            },
+            "ApiResponseReactionResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/ReactionResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ReactionResponse": {
+                "type": "object",
+                "properties": {
+                    "diaryId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "emoji": {
+                        "type": "string"
+                    },
+                    "liked": {
+                        "type": "boolean"
+                    },
+                    "likeCount": {
+                        "type": "integer",
+                        "format": "int64"
                     }
                 }
             },
@@ -3190,6 +4180,36 @@
                     }
                 }
             },
+            "NoteResponse": {
+                "type": "object",
+                "properties": {
+                    "noteId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "content": {
+                        "type": "string"
+                    }
+                }
+            },
+            "VoteReasonResponse": {
+                "type": "object",
+                "properties": {
+                    "episodeId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "reason": {
+                        "type": "string"
+                    },
+                    "basedOn": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
             "LikeMessageResponse": {
                 "type": "object",
                 "properties": {
@@ -3203,6 +4223,135 @@
                     },
                     "text": {
                         "type": "string"
+                    }
+                }
+            },
+            "ApiResponseListResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/Response"
+                        }
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseListMemberResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/MemberResponse"
+                        }
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "MemberResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseListFeedItem": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/FeedItem"
+                        }
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "FeedItem": {
+                "type": "object",
+                "properties": {
+                    "diaryId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "roomId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "authorId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "authorNickname": {
+                        "type": "string"
+                    },
+                    "authorBreadType": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "isMine": {
+                        "type": "boolean"
+                    },
+                    "likeCount": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "commentCount": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "liked": {
+                        "type": "boolean"
+                    },
+                    "emoji": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
                     }
                 }
             },
@@ -3548,6 +4697,53 @@
                     }
                 }
             },
+            "ApiResponsePartnerLetterView": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/PartnerLetterView"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "PartnerLetterView": {
+                "type": "object",
+                "properties": {
+                    "letterId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "seasonId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "partnerId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "partnerName": {
+                        "type": "string"
+                    },
+                    "partnerBreadType": {
+                        "type": "string"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
             "AiEpisodeMessagesView": {
                 "type": "object",
                 "properties": {
@@ -3639,6 +4835,39 @@
                     }
                 }
             },
+            "ApiResponseKickResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/KickResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "KickResponse": {
+                "type": "object",
+                "properties": {
+                    "roomId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "userId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "message": {
+                        "type": "string"
+                    }
+                }
+            },
             "FeedbackRequest": {
                 "type": "object",
                 "required": [
@@ -3677,24 +4906,6 @@
                     },
                     "message": {
                         "type": "string"
-                    }
-                }
-            },
-            "VoteReasonResponse": {
-                "type": "object",
-                "properties": {
-                    "episodeId": {
-                        "type": "integer",
-                        "format": "int64"
-                    },
-                    "reason": {
-                        "type": "string"
-                    },
-                    "basedOn": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
                     }
                 }
             }

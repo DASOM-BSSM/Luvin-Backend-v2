@@ -12,6 +12,7 @@ import com.luvin.ai.dto.CreateSeasonHttpRequest;
 import com.luvin.ai.dto.Episode1SelectionHttpRequest;
 import com.luvin.ai.dto.Episode3ResultHttpRequest;
 import com.luvin.ai.dto.MarkSeenHttpRequest;
+import com.luvin.ai.dto.PartnerLetterView;
 import com.luvin.ai.dto.RerollHttpRequest;
 import com.luvin.ai.dto.StartNextSeasonRequest;
 import com.luvin.ai.service.AiSeasonOrchestrationService;
@@ -140,5 +141,22 @@ public class AiSeasonController {
     public ApiResponse<AiReportView> getReport() {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(orchestrationService.getReport(memberId));
+    }
+
+    /**
+     * 안 읽은 "SECRET LOVE" 쪽지 조회(최신 1개만). 없으면 data가 null인 200 응답을 돌려준다
+     * (별도 204 처리 없이, 이 컨트롤러 전반의 ApiResponse 래핑 컨벤션을 그대로 따른다).
+     */
+    @GetMapping("/letters/unread")
+    public ApiResponse<PartnerLetterView> getUnreadLetter() {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(orchestrationService.getUnreadLetter(memberId));
+    }
+
+    @PostMapping("/letters/{letterId}/read")
+    public ApiResponse<Void> markLetterRead(@PathVariable("letterId") Long letterId) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        orchestrationService.markLetterRead(memberId, letterId);
+        return ApiResponse.okMessage("쪽지를 읽음 처리했습니다.");
     }
 }
