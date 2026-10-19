@@ -9,8 +9,8 @@ import com.luvin.ai.client.dto.JobResponseDto;
 import com.luvin.ai.client.dto.LetterRequestDto;
 import com.luvin.ai.client.dto.LetterResponseDto;
 import com.luvin.ai.client.dto.MessageResponseDto;
+import com.luvin.ai.client.dto.ReportHighlightResponseDto;
 import com.luvin.ai.client.dto.ReportResponseDto;
-import com.luvin.ai.client.dto.ReportTraitResponseDto;
 import com.luvin.ai.client.dto.RerollRequestDto;
 import com.luvin.ai.client.dto.SeasonResponseDto;
 import com.luvin.ai.client.dto.SelectionRequestDto;
@@ -41,7 +41,7 @@ import com.luvin.ai.dto.AiEpisodeFeedbackView;
 import com.luvin.ai.dto.AiTraitsRequest;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiHighlightView;
-import com.luvin.ai.dto.AiReportTraitView;
+import com.luvin.ai.dto.AiReportHighlightsView;
 import com.luvin.ai.dto.PartnerLetterView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiMessageView;
@@ -563,13 +563,15 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         // AiJobPollingScheduler가 ensureLetterGenerationStarted()를 이미 호출해 생성을 시작해 둔다
         // (도착 안내가 뜨기 전에 미리 시작해야 "쪽지를 펼치고 있어요..."가 짧게 보인다).
 
-        List<AiHighlightView> highlights = response.highlights().stream()
-                .map(h -> new AiHighlightView(
-                        h.messageId(), h.speakerId(), AiCharacterRole.fromWire(h.speakerRole(), null),
-                        h.text(), h.reason(), h.observedBehavior()))
-                .collect(Collectors.toList());
-        return new AiReportView(response.finalPartnerId(), response.narrative(), highlights, response.renderMode(),
-                toTraitViews(response.representativeStrengths()), toTraitViews(response.representativeWeaknesses()));
+        AiReportHighlightsView highlights = new AiReportHighlightsView(
+                toHighlightView(response.highlights().episode2()),
+                toHighlightView(response.highlights().episode4()));
+        return new AiReportView(response.finalPartnerId(), response.tendency(), response.feedback(),
+                response.strengths(), response.weaknesses(), highlights, response.renderMode());
+    }
+
+    private AiHighlightView toHighlightView(ReportHighlightResponseDto highlight) {
+        return new AiHighlightView(highlight.message(), highlight.reason());
     }
 
     @Override
@@ -692,18 +694,6 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         }
 
         stateWriter.persistLetterJobAccepted(letter.getId(), jobResponse.jobId());
-    }
-
-    /** 구버전 리포트(강점/약점 키가 아예 없음)는 null로 오므로 빈 배열로 처리한다. */
-    private List<AiReportTraitView> toTraitViews(List<ReportTraitResponseDto> traits) {
-        if (traits == null) {
-            return List.of();
-        }
-        return traits.stream()
-                .map(t -> new AiReportTraitView(
-                        t.title(), t.description(),
-                        t.evidenceMessageIds() != null ? t.evidenceMessageIds() : List.of()))
-                .collect(Collectors.toList());
     }
 
     // ---------------------------------------------------------------- 내부 헬퍼
