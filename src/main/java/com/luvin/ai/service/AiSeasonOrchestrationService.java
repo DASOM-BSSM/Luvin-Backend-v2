@@ -4,6 +4,7 @@ import com.luvin.ai.dto.AiCharacterProfileRequest;
 import com.luvin.ai.dto.AiEpisodeFeedbackView;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
+import com.luvin.ai.dto.AiMessageLikeView;
 import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
@@ -119,4 +120,12 @@ public interface AiSeasonOrchestrationService {
      * 자체에는 영향이 없도록 호출부에서 best-effort로 다룬다.
      */
     void ensureLetterGenerationStarted(Long seasonPk);
+
+    /**
+     * ep2/ep4 1:1 대화 메시지 하트를 토글한다(켜져 있으면 끄고, 꺼져 있으면 켠다). 본인 분신/상대
+     * 메시지 모두 가능하고 개수 제한이 없다. messageId는 해당 회차의 실제 one_to_one 메시지여야
+     * 한다(아니면 400). seasonId가 null이면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난
+     * 시즌 포함)을 대상으로 한다.
+     */
+    AiMessageLikeView toggleEpisodeMessageLike(Long memberId, UUID seasonId, int episodeNumber, UUID messageId);
 }
