@@ -1,8 +1,10 @@
 package com.luvin.auth.service;
 
+import com.luvin.auth.domain.AppleRefreshToken;
 import com.luvin.auth.dto.AppleLoginRequest;
 import com.luvin.auth.dto.AuthLoginRequest;
 import com.luvin.auth.dto.AuthLoginResponse;
+import com.luvin.auth.repository.AppleRefreshTokenRepository;
 import com.luvin.common.exception.InvalidAppleTokenException;
 import com.luvin.common.security.AuthenticatedUser;
 import com.luvin.common.security.JwtTokenProvider;
@@ -10,6 +12,8 @@ import com.luvin.common.security.TokenBlacklistService;
 import com.luvin.user.domain.User;
 import com.luvin.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,12 +21,16 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final TokenBlacklistService tokenBlacklistService;
     private final GoogleTokenVerifier googleTokenVerifier;
     private final GoogleAuthorizationCodeExchanger googleAuthorizationCodeExchanger;
     private final AppleTokenVerifier appleTokenVerifier;
+    private final AppleOAuthClient appleOAuthClient;
+    private final AppleRefreshTokenRepository appleRefreshTokenRepository;
 
     @Transactional
     public AuthLoginResponse login(AuthLoginRequest request) {
@@ -77,7 +85,33 @@ public class AuthService {
             }
         }
 
+        if (request.authorizationCode() != null && !request.authorizationCode().isBlank()) {
+            persistAppleRefreshToken(user, request.authorizationCode());
+        }
+
         return issueLoginResponse(user, isNewUser);
+    }
+
+    /**
+     * authorization code로 refresh token을 받아 저장해 둔다 — 회원 탈퇴 시 재인증 없이 바로 애플
+     * 토큰을 해지하기 위한 용도다. identityToken 검증(로그인의 본 목적)과는 독립적인 best-effort
+     * 단계라 실패해도 로그인 자체는 막지 않는다. config 누락(IllegalStateException)까지 포함해
+     * 의도적으로 넓게 잡는다 — 이 메서드의 실패가 로그인 전체를 절대 막아서는 안 되기 때문이다.
+     * 실패하면 이 회원은 다음 로그인 때 새 code를 보내면 그때 다시 저장을 시도한다.
+     */
+    private void persistAppleRefreshToken(User user, String authorizationCode) {
+        try {
+            AppleTokenResponse tokenResponse = appleOAuthClient.exchangeAuthorizationCode(authorizationCode);
+            AppleRefreshToken existing = appleRefreshTokenRepository.findByUserId(user.getId()).orElse(null);
+            if (existing != null) {
+                existing.updateRefreshToken(tokenResponse.refreshToken());
+            } else {
+                appleRefreshTokenRepository.save(new AppleRefreshToken(user, tokenResponse.refreshToken()));
+            }
+        } catch (RuntimeException e) {
+            log.warn("Apple refresh token 저장 실패(탈퇴 시 자동 해지 불가 상태로 남음): userId={}, cause={}",
+                    user.getId(), e.getMessage());
+        }
     }
 
     private AuthLoginResponse loginWithGoogleUser(GoogleUserInfo googleUser) {
