@@ -4,17 +4,18 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * representativeStrengths/representativeWeaknesses는 구버전 리포트에는 없을 수 있다(wire에 키
- * 자체가 없으면 Jackson이 null로 둔다) — 앱 응답으로 옮길 때 null이면 빈 배열로 처리한다
- * (AiSeasonOrchestrationServiceImpl.getReport 참고).
+ * 5화 리포트 응답(2025 스키마 변경, PR #5). narrative/representative_strengths·weaknesses는
+ * 폐기되고 tendency/feedback/strengths/weaknesses로 대체됐다. highlights는 배열에서
+ * {episode2, episode4} 고정 키 객체로 바뀌었다. evidence/render_mode는 변경 없다.
  */
 public record ReportResponseDto(
         UUID finalPartnerId,
-        String narrative,
-        List<HighlightResponseDto> highlights,
+        String tendency,
+        String feedback,
+        List<String> strengths,
+        List<String> weaknesses,
+        ReportHighlightsResponseDto highlights,
         List<UUID> evidence,
-        String renderMode,
-        List<ReportTraitResponseDto> representativeStrengths,
-        List<ReportTraitResponseDto> representativeWeaknesses
+        String renderMode
 ) {
 }

@@ -4,6 +4,7 @@ import com.luvin.ai.client.exception.AiAuthConfigException;
 import com.luvin.ai.client.exception.AiContractViolationException;
 import com.luvin.ai.client.exception.AiNotFoundException;
 import com.luvin.ai.client.exception.AiRateLimitException;
+import com.luvin.ai.client.exception.AiReportOutdatedException;
 import com.luvin.ai.client.exception.AiRerollLockedException;
 import com.luvin.ai.client.exception.AiRevisionConflictException;
 import com.luvin.ai.client.exception.AiSelectionConflictException;
@@ -148,6 +149,15 @@ public class AiExceptionHandler {
     @ExceptionHandler(AiReportNotReadyException.class)
     public ResponseEntity<ApiResponse<Void>> handleReportNotReady(AiReportNotReadyException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage()));
+    }
+
+    /** 2025 리포트 스키마 변경(PR #5) 배포 전에 생성된 구 스키마 리포트. 재생성 수단이 없어
+     * 앱이 "새 시즌을 시작해야 한다"는 안내를 보여줄 수 있도록 code로 구분해 내려준다. */
+    @ExceptionHandler(AiReportOutdatedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleReportOutdated(AiReportOutdatedException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("이전 형식으로 저장된 리포트입니다. 새 시즌을 시작해야 최신 리포트를 볼 수 있습니다.",
+                        "REPORT_OUTDATED"));
     }
 
     @ExceptionHandler(AiServiceException.class)

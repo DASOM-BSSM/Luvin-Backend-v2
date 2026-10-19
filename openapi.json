@@ -3600,6 +3600,9 @@
                     },
                     "fullName": {
                         "type": "string"
+                    },
+                    "authorizationCode": {
+                        "type": "string"
                     }
                 }
             },
@@ -4769,47 +4772,22 @@
             "AiHighlightView": {
                 "type": "object",
                 "properties": {
-                    "messageId": {
-                        "type": "string",
-                        "format": "uuid"
-                    },
-                    "speakerId": {
-                        "type": "string",
-                        "format": "uuid"
-                    },
-                    "speakerRole": {
-                        "type": "string",
-                        "enum": [
-                            "representative",
-                            "candidate"
-                        ]
-                    },
-                    "text": {
+                    "message": {
                         "type": "string"
                     },
                     "reason": {
                         "type": "string"
-                    },
-                    "observedBehavior": {
-                        "type": "string"
                     }
                 }
             },
-            "AiReportTraitView": {
+            "AiReportHighlightsView": {
                 "type": "object",
                 "properties": {
-                    "title": {
-                        "type": "string"
+                    "episode2": {
+                        "$ref": "#/components/schemas/AiHighlightView"
                     },
-                    "description": {
-                        "type": "string"
-                    },
-                    "evidenceMessageIds": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "format": "uuid"
-                        }
+                    "episode4": {
+                        "$ref": "#/components/schemas/AiHighlightView"
                     }
                 }
             },
@@ -4820,29 +4798,29 @@
                         "type": "string",
                         "format": "uuid"
                     },
-                    "narrative": {
+                    "tendency": {
                         "type": "string"
                     },
-                    "highlights": {
+                    "feedback": {
+                        "type": "string"
+                    },
+                    "strengths": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/AiHighlightView"
+                            "type": "string"
                         }
+                    },
+                    "weaknesses": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "highlights": {
+                        "$ref": "#/components/schemas/AiReportHighlightsView"
                     },
                     "renderMode": {
                         "type": "string"
-                    },
-                    "representativeStrengths": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/AiReportTraitView"
-                        }
-                    },
-                    "representativeWeaknesses": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/AiReportTraitView"
-                        }
                     }
                 }
             },

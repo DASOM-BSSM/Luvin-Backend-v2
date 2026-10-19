@@ -1,20 +1,12 @@
 package com.luvin.ai.dto;
 
-import com.luvin.ai.domain.AiCharacterRole;
-
-import java.util.UUID;
-
 /**
- * 5화 리포트의 하이라이트 메시지 하나. 실제 생성 대화에서 뽑힌 메시지의 발화자(speakerId/speakerRole),
- * 원문(text), 선정 이유(reason), 그 메시지에서 드러난 점(observedBehavior)을 담는다.
- * 화면에서 발화 AI 이름을 표시할 때 speakerId와 speakerRole을 함께 사용한다.
+ * 5화 리포트 하이라이트 하나(2화 또는 4화). 항상 사용자 대변 AI(representative)의 발화만 담는다
+ * (2025 스키마 변경, PR #5) — 발화자 식별자(messageId/speakerId/speakerRole)와 원문
+ * 그대로(text)/observedBehavior는 더 이상 오지 않고 message/reason 두 개만 남았다.
  */
 public record AiHighlightView(
-        UUID messageId,
-        UUID speakerId,
-        AiCharacterRole speakerRole,
-        String text,
-        String reason,
-        String observedBehavior
+        String message,
+        String reason
 ) {
 }

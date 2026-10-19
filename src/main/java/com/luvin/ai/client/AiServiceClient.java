@@ -17,6 +17,7 @@ import com.luvin.ai.client.exception.AiContractViolationException;
 import com.luvin.ai.client.exception.AiLetterAlreadyExistsException;
 import com.luvin.ai.client.exception.AiNotFoundException;
 import com.luvin.ai.client.exception.AiRateLimitException;
+import com.luvin.ai.client.exception.AiReportOutdatedException;
 import com.luvin.ai.client.exception.AiRerollLockedException;
 import com.luvin.ai.client.exception.AiRevisionConflictException;
 import com.luvin.ai.client.exception.AiSelectionConflictException;
@@ -236,6 +237,9 @@ public class AiServiceClient {
             case "VERSION_SUPERSEDED" -> new AiVersionSupersededException(message, rawBody);
             // 오류가 아니라 "이미 정상 생성됨" — 호출부가 GET /letter로 받아와 성공 처리하도록 구분한다.
             case "LETTER_ALREADY_EXISTS" -> new AiLetterAlreadyExistsException(message, rawBody);
+            // 2025 리포트 스키마 변경(PR #5) 배포 전에 생성된 구 스키마 리포트 — 재생성 수단이
+            // 없어 그대로 앱에 code로 노출한다.
+            case "REPORT_OUTDATED" -> new AiReportOutdatedException(message, rawBody);
             // REPORT_REQUIRED/JOB_IN_PROGRESS/LETTER_ATTEMPTS_EXHAUSTED/IDEMPOTENCY_CONFLICT 등
             // 쪽지 전용 코드는 전부 getAiErrorCode()로 코드를 보존한 채 아래 기본 분기로 흘려보낸다 —
             // 전부 "이번엔 접수 못 함, 다음 스케줄러 tick에 재시도"로 동일하게 처리되기 때문이다.
