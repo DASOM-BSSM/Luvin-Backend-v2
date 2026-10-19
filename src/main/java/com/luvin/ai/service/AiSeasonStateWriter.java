@@ -3,6 +3,7 @@ package com.luvin.ai.service;
 import com.luvin.ai.client.dto.SeasonResponseDto;
 import com.luvin.ai.client.dto.SelectionResponseDto;
 import com.luvin.ai.domain.AiCharacterRole;
+import com.luvin.ai.domain.AiEpisodeFeedback;
 import com.luvin.ai.domain.AiEpisodeProgress;
 import com.luvin.ai.domain.AiGameResult;
 import com.luvin.ai.domain.AiRerollRequest;
@@ -12,6 +13,7 @@ import com.luvin.ai.domain.AiSeasonCreationInput;
 import com.luvin.ai.domain.AiSelection;
 import com.luvin.ai.domain.AiSelectionSource;
 import com.luvin.ai.domain.PartnerLetter;
+import com.luvin.ai.repository.AiEpisodeFeedbackRepository;
 import com.luvin.ai.repository.AiEpisodeProgressRepository;
 import com.luvin.ai.repository.AiRerollRequestRepository;
 import com.luvin.ai.repository.AiSeasonCharacterRepository;
@@ -19,6 +21,7 @@ import com.luvin.ai.repository.AiSeasonCreationInputRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.ai.repository.AiSelectionRepository;
 import com.luvin.ai.repository.PartnerLetterRepository;
+import com.luvin.ai.service.exception.AiFeedbackAlreadySubmittedException;
 import com.luvin.ai.service.exception.AiInsufficientTokensException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
 import com.luvin.ai.service.exception.PartnerLetterNotFoundException;
@@ -64,6 +67,7 @@ public class AiSeasonStateWriter {
     private final UserTokenRepository userTokenRepository;
     private final TokenHistoryRepository tokenHistoryRepository;
     private final PartnerLetterRepository partnerLetterRepository;
+    private final AiEpisodeFeedbackRepository episodeFeedbackRepository;
 
     private static final int FIRST_SEASON_NUMBER = 1;
 
@@ -306,5 +310,25 @@ public class AiSeasonStateWriter {
         PartnerLetter letter = partnerLetterRepository.findByIdAndMemberId(letterId, memberId)
                 .orElseThrow(PartnerLetterNotFoundException::new);
         letter.markRead();
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<AiEpisodeFeedback> findFeedback(Long seasonPk, int episodeNumber) {
+        return episodeFeedbackRepository.findBySeason_IdAndEpisodeNumber(seasonPk, episodeNumber);
+    }
+
+    /**
+     * 회차당 1회 제약(season_id + episode_number unique)을 DB에서도 강제한다 — 호출 전에 이미
+     * findFeedback으로 선제 확인하지만, 동시에 두 번 제출되는 경쟁 상황은 유니크 제약 위반을
+     * AiFeedbackAlreadySubmittedException으로 변환해 똑같이 409로 응답한다.
+     */
+    @Transactional
+    public AiEpisodeFeedback persistEpisodeFeedback(Long seasonPk, int episodeNumber, UUID messageId, String content) {
+        try {
+            return episodeFeedbackRepository.save(new AiEpisodeFeedback(
+                    seasonRepository.getReferenceById(seasonPk), episodeNumber, messageId, content));
+        } catch (DataIntegrityViolationException raceLoser) {
+            throw new AiFeedbackAlreadySubmittedException();
+        }
     }
 }

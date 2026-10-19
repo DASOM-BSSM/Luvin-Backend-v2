@@ -1,5 +1,6 @@
 package com.luvin.ai.controller;
 
+import com.luvin.ai.dto.AiEpisodeFeedbackView;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiReportView;
@@ -11,6 +12,7 @@ import com.luvin.ai.dto.CreateSeasonFromSurveyRequest;
 import com.luvin.ai.dto.CreateSeasonHttpRequest;
 import com.luvin.ai.dto.Episode1SelectionHttpRequest;
 import com.luvin.ai.dto.Episode3ResultHttpRequest;
+import com.luvin.ai.dto.EpisodeFeedbackHttpRequest;
 import com.luvin.ai.dto.MarkSeenHttpRequest;
 import com.luvin.ai.dto.PartnerLetterView;
 import com.luvin.ai.dto.RerollHttpRequest;
@@ -144,6 +146,21 @@ public class AiSeasonController {
         Long memberId = SecurityUtils.getCurrentUserId();
         orchestrationService.markMessagesSeen(memberId, episodeNumber, request.sequence());
         return ApiResponse.okMessage("진행도가 저장되었습니다.");
+    }
+
+    /**
+     * "나의 빵에게" — 2화/4화 1:1 대화 중 본인 AI 분신이 한 말 한 줄을 골라 피드백을 남긴다.
+     * 회차당 1회만 가능하다(409 FEEDBACK_ALREADY_SUBMITTED). season_id를 생략하면 현재(최신) 시즌,
+     * 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 대상으로 한다.
+     */
+    @PostMapping("/episodes/{number}/feedback")
+    public ApiResponse<AiEpisodeFeedbackView> submitEpisodeFeedback(
+            @PathVariable("number") int episodeNumber,
+            @RequestParam(value = "season_id", required = false) UUID seasonId,
+            @Valid @RequestBody EpisodeFeedbackHttpRequest request) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(orchestrationService.submitEpisodeFeedback(
+                memberId, seasonId, episodeNumber, request.messageId(), request.content()));
     }
 
     /** season_id를 생략하면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다. */
