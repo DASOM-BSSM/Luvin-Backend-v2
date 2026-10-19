@@ -3,6 +3,7 @@ package com.luvin.ai.controller;
 import com.luvin.ai.dto.AiEpisodeFeedbackView;
 import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
+import com.luvin.ai.dto.AiMessageLikeView;
 import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
@@ -13,6 +14,7 @@ import com.luvin.ai.dto.CreateSeasonHttpRequest;
 import com.luvin.ai.dto.Episode1SelectionHttpRequest;
 import com.luvin.ai.dto.Episode3ResultHttpRequest;
 import com.luvin.ai.dto.EpisodeFeedbackHttpRequest;
+import com.luvin.ai.dto.EpisodeMessageLikeHttpRequest;
 import com.luvin.ai.dto.MarkSeenHttpRequest;
 import com.luvin.ai.dto.PartnerLetterView;
 import com.luvin.ai.dto.RerollHttpRequest;
@@ -161,6 +163,21 @@ public class AiSeasonController {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(orchestrationService.submitEpisodeFeedback(
                 memberId, seasonId, episodeNumber, request.messageId(), request.content()));
+    }
+
+    /**
+     * 2화/4화 1:1 대화 메시지 하트를 토글한다(켜져 있으면 끄고, 꺼져 있으면 켠다). 본인 분신/상대
+     * 메시지 모두 가능하고 개수 제한이 없다. season_id를 생략하면 현재(최신) 시즌, 지정하면 본인
+     * 소유의 그 시즌(지난 시즌 포함)을 대상으로 한다.
+     */
+    @PostMapping("/episodes/{number}/likes")
+    public ApiResponse<AiMessageLikeView> toggleEpisodeMessageLike(
+            @PathVariable("number") int episodeNumber,
+            @RequestParam(value = "season_id", required = false) UUID seasonId,
+            @Valid @RequestBody EpisodeMessageLikeHttpRequest request) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(orchestrationService.toggleEpisodeMessageLike(
+                memberId, seasonId, episodeNumber, request.messageId()));
     }
 
     /** season_id를 생략하면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다. */

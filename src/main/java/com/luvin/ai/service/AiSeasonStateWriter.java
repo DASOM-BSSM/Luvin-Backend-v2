@@ -4,6 +4,7 @@ import com.luvin.ai.client.dto.SeasonResponseDto;
 import com.luvin.ai.client.dto.SelectionResponseDto;
 import com.luvin.ai.domain.AiCharacterRole;
 import com.luvin.ai.domain.AiEpisodeFeedback;
+import com.luvin.ai.domain.AiEpisodeMessageLike;
 import com.luvin.ai.domain.AiEpisodeProgress;
 import com.luvin.ai.domain.AiGameResult;
 import com.luvin.ai.domain.AiRerollRequest;
@@ -14,6 +15,7 @@ import com.luvin.ai.domain.AiSelection;
 import com.luvin.ai.domain.AiSelectionSource;
 import com.luvin.ai.domain.PartnerLetter;
 import com.luvin.ai.repository.AiEpisodeFeedbackRepository;
+import com.luvin.ai.repository.AiEpisodeMessageLikeRepository;
 import com.luvin.ai.repository.AiEpisodeProgressRepository;
 import com.luvin.ai.repository.AiRerollRequestRepository;
 import com.luvin.ai.repository.AiSeasonCharacterRepository;
@@ -68,6 +70,7 @@ public class AiSeasonStateWriter {
     private final TokenHistoryRepository tokenHistoryRepository;
     private final PartnerLetterRepository partnerLetterRepository;
     private final AiEpisodeFeedbackRepository episodeFeedbackRepository;
+    private final AiEpisodeMessageLikeRepository episodeMessageLikeRepository;
 
     private static final int FIRST_SEASON_NUMBER = 1;
 
@@ -330,5 +333,26 @@ public class AiSeasonStateWriter {
         } catch (DataIntegrityViolationException raceLoser) {
             throw new AiFeedbackAlreadySubmittedException();
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> findLikedMessageIds(Long seasonPk, int episodeNumber) {
+        return episodeMessageLikeRepository.findBySeason_IdAndEpisodeNumber(seasonPk, episodeNumber).stream()
+                .map(AiEpisodeMessageLike::getMessageId)
+                .toList();
+    }
+
+    /** row 존재 여부가 곧 liked 상태다 — 있으면 지우고(끔), 없으면 만든다(켬). 반환값은 토글 후 상태. */
+    @Transactional
+    public boolean toggleEpisodeMessageLike(Long seasonPk, int episodeNumber, UUID messageId) {
+        Optional<AiEpisodeMessageLike> existing = episodeMessageLikeRepository
+                .findBySeason_IdAndEpisodeNumberAndMessageId(seasonPk, episodeNumber, messageId);
+        if (existing.isPresent()) {
+            episodeMessageLikeRepository.delete(existing.get());
+            return false;
+        }
+        episodeMessageLikeRepository.save(new AiEpisodeMessageLike(
+                seasonRepository.getReferenceById(seasonPk), episodeNumber, messageId));
+        return true;
     }
 }
