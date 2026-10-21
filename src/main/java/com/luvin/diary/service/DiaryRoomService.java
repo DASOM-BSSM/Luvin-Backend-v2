@@ -1,6 +1,7 @@
 package com.luvin.diary.service;
 
 import com.luvin.common.exception.BusinessException;
+import com.luvin.common.exception.DiaryRoomInviteCodeNotFoundException;
 import com.luvin.common.exception.DiaryRoomNotFoundException;
 import com.luvin.common.exception.DiaryRoomOwnerCannotLeaveException;
 import com.luvin.common.exception.ErrorCode;
@@ -16,7 +17,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +28,12 @@ public class DiaryRoomService {
     private final UserRepository userRepository;
     private final DiaryRepository diaryRepository;
     private final DiaryCommentRepository diaryCommentRepository;
+
+    /** 초대 코드 글자. 헷갈리는 0/O, 1/I/L은 뺐다. */
+    private static final String INVITE_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    private static final int INVITE_CODE_LENGTH = 8;
+    private static final int INVITE_CODE_MAX_TRIES = 10;
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private DiaryRoom getRoom(Long roomId) {
         return diaryRoomRepository.findById(roomId)
@@ -35,6 +44,7 @@ public class DiaryRoomService {
     @Transactional
     public DiaryRoomDto.Response createRoom(Long memberId, DiaryRoomDto.Request requestDto) {
         DiaryRoom room = new DiaryRoom(requestDto.name(), requestDto.description(), memberId);
+        room.changeInviteCode(newUniqueInviteCode());
         DiaryRoom savedRoom = diaryRoomRepository.save(room);
 
         // 방 생성을 요청한 유저를 해당 방의 방장(OWNER)으로 자동 등록
@@ -148,5 +158,65 @@ public class DiaryRoomService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         return diaryRepository.findRoomFeed(roomId, memberId);
+    }
+
+    // ------------------------------------------------------------------ 초대 코드
+
+    /** 초대 코드 조회. 방장·멤버만 볼 수 있다. 코드가 없는 기존 방이면 이때 발급한다. */
+    @Transactional
+    public DiaryRoomDto.InviteCodeResponse getInviteCode(Long memberId, Long roomId) {
+        DiaryRoom room = getRoom(roomId);
+        if (!room.isOwnedBy(memberId) && !diaryRoomRepository.isMember(roomId, memberId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        if (room.getInviteCode() == null) {
+            room.changeInviteCode(newUniqueInviteCode());
+        }
+        return new DiaryRoomDto.InviteCodeResponse(roomId, room.getInviteCode());
+    }
+
+    /** 초대 코드 재발급 (코드가 유출됐을 때). 방장만 가능하고, 이전 코드는 바로 쓸 수 없게 된다. */
+    @Transactional
+    public DiaryRoomDto.InviteCodeResponse regenerateInviteCode(Long memberId, Long roomId) {
+        DiaryRoom room = getRoom(roomId);
+        if (!room.isOwnedBy(memberId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+        room.changeInviteCode(newUniqueInviteCode());
+        return new DiaryRoomDto.InviteCodeResponse(roomId, room.getInviteCode());
+    }
+
+    /**
+     * 초대 코드로 참여. 코드를 아는 사람은 누구나 들어올 수 있다 (인원 제한 없음).
+     * 이미 멤버면 아무것도 하지 않고 200 (멱등). 대소문자·앞뒤 공백은 무시한다.
+     */
+    @Transactional
+    public DiaryRoomDto.MembershipResponse joinByInviteCode(Long memberId, String rawInviteCode) {
+        String inviteCode = rawInviteCode.strip().toUpperCase(Locale.ROOT);
+        DiaryRoom room = diaryRoomRepository.findByInviteCode(inviteCode)
+                .orElseThrow(DiaryRoomInviteCodeNotFoundException::new);
+
+        diaryRoomRepository.insertMemberIfAbsent(room.getId(), memberId);
+        long memberCount = diaryRoomRepository.countMembers(room.getId());
+        return new DiaryRoomDto.MembershipResponse(room.getId(), memberId, true, memberCount);
+    }
+
+    private String newUniqueInviteCode() {
+        for (int i = 0; i < INVITE_CODE_MAX_TRIES; i++) {
+            String code = randomInviteCode();
+            if (!diaryRoomRepository.existsByInviteCode(code)) {
+                return code;
+            }
+        }
+        // 31^8 ≈ 8500억 가지라 사실상 오지 않는다. 오면 DB 상태가 비정상이라 바로 알 수 있게 실패시킨다.
+        throw new IllegalStateException("초대 코드 발급에 실패했습니다.");
+    }
+
+    private static String randomInviteCode() {
+        StringBuilder sb = new StringBuilder(INVITE_CODE_LENGTH);
+        for (int i = 0; i < INVITE_CODE_LENGTH; i++) {
+            sb.append(INVITE_CODE_CHARS.charAt(RANDOM.nextInt(INVITE_CODE_CHARS.length())));
+        }
+        return sb.toString();
     }
 }

@@ -8,8 +8,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface DiaryRoomRepository extends JpaRepository<DiaryRoom, Long> {
+
+    Optional<DiaryRoom> findByInviteCode(String inviteCode);
+
+    boolean existsByInviteCode(String inviteCode);
 
     // 내가 속한 공유방 목록 조회. 최근에 참여한(방장은 만든) 방이 먼저 온다.
     @Query("select r from DiaryRoom r join DiaryRoomMember m on r.id = m.id.roomId where m.id.userId = :userId "

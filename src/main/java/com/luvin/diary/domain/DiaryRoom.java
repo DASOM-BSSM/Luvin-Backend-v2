@@ -29,6 +29,13 @@ public class DiaryRoom {
     @Column(name = "description", columnDefinition = "text")
     private String description;
 
+    /**
+     * 초대 코드 (영구, 8자리). 이 코드를 아는 사람은 누구나 방에 참여할 수 있다.
+     * 이미 있던 방에 컬럼을 추가해도 배포가 깨지지 않도록 DB에서는 null을 허용하고, 없으면 처음 조회할 때 발급한다.
+     */
+    @Column(name = "invite_code", length = 8, unique = true)
+    private String inviteCode;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -44,6 +51,10 @@ public class DiaryRoom {
         this.description = description;
     }
 
+    public void changeInviteCode(String inviteCode) {
+        this.inviteCode = inviteCode;
+    }
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
@@ -52,9 +63,4 @@ public class DiaryRoom {
     public boolean isOwnedBy(Long userId) {
         return this.ownerId != null && this.ownerId.equals(userId);
     }
-
-//    // 방장 확인은 owner_id 하나로만 한다.     -> 위에 껄로 통합함
-//    public boolean isOwnedBy(Long userId) {
-//        return this.ownerId.equals(userId);
-//    }
 }
