@@ -54,6 +54,8 @@ class AiJobEventStreamIntegrationTest {
     /** jobId → 가짜 AI가 받은 요청 헤더 (X-Owner-Subject, Last-Event-ID). */
     private static final Map<String, Map<String, String>> RECEIVED = new ConcurrentHashMap<>();
     private static final UUID MISSING_AT_AI_JOB = UUID.randomUUID();
+    /** 가짜 AI가 400(잘못된 cursor)으로 거절하는 Last-Event-ID. */
+    private static final String INVALID_CURSOR = "not-a-cursor";
 
     private static final String AI_EVENTS = ": keep-alive\n\n"
             + "id: 1\nevent: segment_start\ndata: {\"segment\":\"scene\"}\n\n"
@@ -162,6 +164,16 @@ class AiJobEventStreamIntegrationTest {
     }
 
     @Test
+    void AI가_Last_Event_ID를_400으로_거절하면_INVALID_LAST_EVENT_ID로_알린다() throws Exception {
+        UUID jobId = createJob(owner);
+
+        HttpResponse<String> res = stream(owner, jobId, "Last-Event-ID", INVALID_CURSOR, null);
+
+        assertEquals(200, res.statusCode());
+        assertTrue(res.body().contains("event:stream_error\ndata:{\"error_code\":\"INVALID_LAST_EVENT_ID\"}\n\n"), res.body());
+    }
+
+    @Test
     void 토큰이_없으면_401() throws Exception {
         HttpResponse<String> res = http.send(HttpRequest.newBuilder(
                         URI.create("http://localhost:" + port + "/api/ai/jobs/" + UUID.randomUUID() + "/events"))
@@ -223,7 +235,10 @@ class AiJobEventStreamIntegrationTest {
         }
     }
 
-    /** GET /v1/jobs/{jobId}/events 흉내. MISSING_AT_AI_JOB이면 404, 아니면 AI_EVENTS를 보내고 닫는다. */
+    /**
+     * GET /v1/jobs/{jobId}/events 흉내. MISSING_AT_AI_JOB이면 404, Last-Event-ID가 INVALID_CURSOR면 400,
+     * 아니면 AI_EVENTS를 보내고 닫는다.
+     */
     private static void handleFakeAi(HttpExchange exchange) throws IOException {
         String jobId = exchange.getRequestURI().getPath().split("/")[3];
         Map<String, String> headers = new ConcurrentHashMap<>();
@@ -236,15 +251,23 @@ class AiJobEventStreamIntegrationTest {
 
         try (OutputStream out = exchange.getResponseBody()) {
             if (jobId.equals(MISSING_AT_AI_JOB.toString())) {
-                byte[] error = "{\"error_code\":\"JOB_NOT_FOUND\",\"message\":\"job not found\"}".getBytes(StandardCharsets.UTF_8);
-                exchange.getResponseHeaders().set("Content-Type", "application/json");
-                exchange.sendResponseHeaders(404, error.length);
-                out.write(error);
+                writeError(exchange, out, 404, "{\"error_code\":\"JOB_NOT_FOUND\",\"message\":\"job not found\"}");
+                return;
+            }
+            if (INVALID_CURSOR.equals(lastEventId)) {
+                writeError(exchange, out, 400, "{\"error_code\":\"INVALID_CURSOR\",\"message\":\"invalid Last-Event-ID\"}");
                 return;
             }
             exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
             exchange.sendResponseHeaders(200, 0);
             out.write(AI_EVENTS.getBytes(StandardCharsets.UTF_8));
         }
+    }
+
+    private static void writeError(HttpExchange exchange, OutputStream out, int status, String json) throws IOException {
+        byte[] error = json.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(status, error.length);
+        out.write(error);
     }
 }

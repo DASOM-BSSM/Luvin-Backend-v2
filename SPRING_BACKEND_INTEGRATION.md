@@ -129,8 +129,12 @@ AI `GET /v1/jobs/{job_id}/events`를 Spring이 구독해 앱에 `GET /api/ai/job
 - 이벤트 이름·`id`·`data`(snake_case)는 AI가 보낸 그대로입니다. `delta.text`는 검증 전 JSON 조각이라 segment별로
   모았다가 `segment_end`에서 처리하고 `segment_error`면 버립니다. `completed`/`error`가 오면 Spring이 연결을 닫습니다.
 - 재연결할 때는 마지막으로 받은 `id`를 `Last-Event-ID` 헤더(또는 `after_event_id` query)로 보내면 AI에 그대로 전달됩니다.
-- AI 쪽 구독이 실패하거나 `completed`/`error` 없이 끊기면 `stream_error` 이벤트(`{"error_code": "JOB_NOT_FOUND" |
-  "AI_UNAVAILABLE" | "STREAM_INTERRUPTED" | "INTERNAL_ERROR"}`)를 보내고 닫습니다. 앱은 재연결하거나 polling으로 돌아갑니다.
+- AI 쪽 구독이 실패하거나 `completed`/`error` 없이 끊기면 `stream_error` 이벤트(`{"error_code": ...}`)를 보내고 닫습니다.
+  - `INVALID_LAST_EVENT_ID`: AI가 보낸 id가 잘못됐다고 거절(400). 같은 id로 다시 붙지 말고 id 없이 붙거나 polling으로 돌아갑니다.
+  - `JOB_NOT_FOUND`: AI에 job이 없음(404). polling으로 상태를 확인합니다.
+  - `AI_UNAVAILABLE`, `STREAM_INTERRUPTED`, `INTERNAL_ERROR`: 마지막으로 받은 id로 다시 붙거나 polling으로 돌아갑니다.
+- AI는 이벤트가 없을 때 15초마다 `: keep-alive` 주석을 보내고(Spring은 무시), 재연결 시 `Last-Event-ID`보다 큰 id부터 다시 보냅니다.
+  job 상태로 보충 생성한 종료 이벤트에는 id가 없을 수 있지만, 종료 이벤트라 재연결에는 영향이 없습니다.
 - 15초마다 `: keep-alive` 주석을 보내고, 10분이 지나면 닫습니다. 서버 한 대당 동시 스트림은 200개까지이고, 넘으면 503입니다
   (`app.ai.stream.*`로 조정).
 - 앱이 연결을 끊어도 AI job은 취소하지 않고 구독만 닫습니다.

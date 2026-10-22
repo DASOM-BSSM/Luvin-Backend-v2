@@ -14,6 +14,7 @@ import com.luvin.ai.client.dto.SeasonResponseDto;
 import com.luvin.ai.client.dto.SelectionRequestDto;
 import com.luvin.ai.client.dto.SelectionResponseDto;
 import com.luvin.ai.client.exception.AiAuthConfigException;
+import com.luvin.ai.client.exception.AiBadRequestException;
 import com.luvin.ai.client.exception.AiContractViolationException;
 import com.luvin.ai.client.exception.AiLetterAlreadyExistsException;
 import com.luvin.ai.client.exception.AiNotFoundException;
@@ -280,6 +281,7 @@ public class AiServiceClient {
         log.warn("AI service call failed: op={}, status={}, errorCode={}", opName, statusCode, parsed.errorCode());
 
         return switch (statusCode) {
+            case 400 -> new AiBadRequestException(message, parsed.errorCode(), rawBody);
             case 401 -> new AiAuthConfigException(message, rawBody);
             case 404 -> new AiNotFoundException(message, rawBody);
             case 409 -> mapConflict(message, parsed.errorCode(), rawBody);
