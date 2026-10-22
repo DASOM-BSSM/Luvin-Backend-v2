@@ -22,6 +22,10 @@
         {
             "name": "\uac10\uc815\uc77c\uae30 \ub313\uae00",
             "description": "\uc77c\uae30 \ub313\uae00 \uc791\uc131\u00b7\uc870\ud68c\u00b7\uc218\uc815\u00b7\uc0ad\uc81c"
+        },
+        {
+            "name": "AI job \uc9c4\ud589 \uc774\ubca4\ud2b8",
+            "description": "generation/reroll job \uc9c4\ud589 \uc0c1\ud669 SSE \uad6c\ub3c5"
         }
     ],
     "paths": {
@@ -2937,8 +2941,10 @@
         "/api/ai/jobs/{jobId}/events": {
             "get": {
                 "tags": [
-                    "ai-job-controller"
+                    "AI job \uc9c4\ud589 \uc774\ubca4\ud2b8"
                 ],
+                "summary": "job \uc9c4\ud589 \uc774\ubca4\ud2b8 \uad6c\ub3c5 (SSE)",
+                "description": "generation/reroll \uc694\uccad \uc751\ub2f5\uc758 `jobId`\ub85c \uc5f0\uacb0\ud55c\ub2e4. \ud5e4\ub354: `Authorization: Bearer <\ud1a0\ud070>`, `Accept: text/event-stream`.\n`Last-Event-ID` \uc5c6\uc774 \uc5f0\uacb0\ud558\uba74 \uadf8 job\uc758 \uccab \uc774\ubca4\ud2b8\ubd80\ud130 \uc804\ubd80 \ubc1b\ub294\ub2e4(\uc774\ubbf8 \ub05d\ub09c job\uc774\uba74 \uc804\ubd80 \ubc1b\uc740 \ub4a4 \uc885\ub8cc \uc774\ubca4\ud2b8\ub85c \ub2eb\ud798).\n\uc7ac\uc5f0\uacb0\ud560 \ub54c\ub9cc \ub9c8\uc9c0\ub9c9\uc73c\ub85c \ubc1b\uc740 `id`\ub97c `Last-Event-ID` \ud5e4\ub354(\ub610\ub294 `after_event_id` query)\ub85c \ubcf4\ub0b8\ub2e4.\n\n**\uc774\ubca4\ud2b8** (data\ub294 snake_case JSON, `segment`: `scene` | `candidates` | `one_to_one` | `report`)\n- `segment_start` `{\"segment\":\"scene\"}`\n- `delta` `{\"segment\":\"scene\",\"text\":\"{\\\"messages\\\":[\"}` \u2014 text\ub294 \uac80\uc99d \uc804 JSON \uc870\uac01. \ud654\uba74\uc5d0 \uadf8\ub300\ub85c \ud45c\uc2dc\ud558\uc9c0 \uc54a\ub294\ub2e4.\n- `segment_end` `{\"segment\":\"scene\",\"message_count\":45}` \u2014 \uadf8 \uad6c\uac04 \uac80\uc99d \uc644\ub8cc. \uc544\uc9c1 \uc870\ud68c API\uc5d0\ub294 \uc5c6\ub2e4.\n- `segment_error` `{\"segment\":\"scene\",\"error_code\":\"INVALID_OUTPUT\"}` \u2014 \uadf8 \uad6c\uac04 \ubc84\ud37c\ub97c \ubc84\ub9b0\ub2e4(`STREAM_FAILED`\ub3c4 \uc788\uc74c).\n- `completed` `{\"result_version_id\":\"<uuid>\",\"revision\":2}` \u2014 \uc774 \uc774\ubca4\ud2b8\ub97c \ubc1b\uc740 \ub4a4 \uc870\ud68c API\ub85c \uacb0\uacfc\ub97c \uac00\uc838\uc628\ub2e4.\n  \uc11c\ubc84\uac00 \uacb0\uacfc\ub97c DB\uc5d0 \ubc18\uc601\ud55c \ub4a4 \ubcf4\ub0b4\ubbc0\ub85c \ubc14\ub85c \uc870\ud68c\ub41c\ub2e4. \ubc18\uc601\uc774 \ub4dc\ubb3c\uac8c \uc2e4\ud328\ud558\uba74 \uc870\ud68c\uac00 409\uc77c \uc218 \uc788\uc73c\ub2c8 \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc870\ud68c\ud55c\ub2e4.\n  job \uc0c1\ud0dc\ub85c \ubcf4\ucda9 \uc0dd\uc131\ub41c \uc885\ub8cc \uc774\ubca4\ud2b8\uba74 `{\"status\":\"succeeded\",\"result_version_id\":\"<uuid>\",\"error_code\":null}`.\n- `error` `{\"error_code\":\"STALE_JOB\"}` \u2014 job \uc2e4\ud328.\n- `stream_error` `{\"error_code\":\"...\"}` \u2014 \ubc31\uc5d4\ub4dc\uac00 \ubcf4\ub0b4\ub294 \uc911\uacc4 \uc2e4\ud328.\n  `INVALID_LAST_EVENT_ID`(id \uc5c6\uc774 \uc7ac\uc5f0\uacb0), `JOB_NOT_FOUND`(polling \ud655\uc778),\n  `AI_UNAVAILABLE` / `STREAM_INTERRUPTED` / `INTERNAL_ERROR`(\ub9c8\uc9c0\ub9c9 id\ub85c \uc7ac\uc5f0\uacb0 \ub610\ub294 polling).\n- 15\ucd08\ub9c8\ub2e4 `: keep-alive` \uc8fc\uc11d. `completed` / `error` / `stream_error` \ub4a4\uc5d0\ub294 \uc11c\ubc84\uac00 \uc5f0\uacb0\uc744 \ub2eb\uc73c\ub2c8 \ud074\ub77c\uc774\uc5b8\ud2b8\ub3c4 \ub2eb\ub294\ub2e4.\n\n**\uc624\ub958 \uc751\ub2f5** (SSE\uac00 \uc544\ub2c8\ub77c JSON)\n- 401 \ud1a0\ud070 \uc5c6\uc74c/\ub9cc\ub8cc: `{\"success\":false,\"data\":null,\"message\":\"\uc778\uc99d\uc774 \ud544\uc694\ud569\ub2c8\ub2e4. \ub85c\uadf8\uc778 \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.\",\"code\":null}`\n- 404 \ub0b4 job\uc774 \uc544\ub2d8/\uc5c6\ub294 job\n- 503 \uc11c\ubc84\ub2f9 \ub3d9\uc2dc \uc2a4\ud2b8\ub9bc \ud55c\ub3c4 \ucd08\uacfc\n",
                 "operationId": "streamJobEvents",
                 "parameters": [
                     {
@@ -2969,11 +2975,46 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "SSE \uc2a4\ud2b8\ub9bc",
                         "content": {
-                            "text/event-stream": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/SseEmitter"
+                            "text/event-stream": {}
+                        }
+                    },
+                    "401": {
+                        "description": "\ud1a0\ud070 \uc5c6\uc74c/\ub9cc\ub8cc",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uc778\uc99d\uc774 \ud544\uc694\ud569\ub2c8\ub2e4. \ub85c\uadf8\uc778 \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.",
+                                    "code": null
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "\ub0b4 job\uc774 \uc544\ub2c8\uac70\ub098 \uc5c6\ub294 job",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "job\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4: <jobId>",
+                                    "code": null
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "\uc11c\ubc84\ub2f9 \ub3d9\uc2dc \uc2a4\ud2b8\ub9bc \ud55c\ub3c4 \ucd08\uacfc \u2014 \uae30\uc874 polling\uc73c\ub85c \uc9c4\ud589",
+                        "content": {
+                            "application/json": {
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uc694\uccad\uc774 \ub9ce\uc544 \ucc98\ub9ac\uac00 \uc9c0\uc5f0\ub418\uace0 \uc788\uc2b5\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.",
+                                    "code": null
                                 }
                             }
                         }

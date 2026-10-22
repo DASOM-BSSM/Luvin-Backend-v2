@@ -18,6 +18,9 @@ public interface AiRerollRequestRepository extends JpaRepository<AiRerollRequest
     /** job SSE 구독 전 소유권 확인용. */
     boolean existsByJobIdAndSeason_MemberId(UUID jobId, Long memberId);
 
+    /** job SSE가 completed/error를 받았을 때 그 job을 바로 반영하기 위해 쓴다. */
+    Optional<AiRerollRequest> findByJobId(UUID jobId);
+
     List<AiRerollRequest> findAllByJobStatusIn(List<AiJobStatus> statuses);
 
     List<AiRerollRequest> findAllByJobStatusInAndNextPollAtLessThanEqual(

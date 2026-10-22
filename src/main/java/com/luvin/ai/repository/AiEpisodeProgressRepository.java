@@ -15,6 +15,9 @@ public interface AiEpisodeProgressRepository extends JpaRepository<AiEpisodeProg
     /** job SSE 구독 전 소유권 확인용. 새 generation을 요청하면 jobId가 덮어써지므로 최신 job만 맞는다. */
     boolean existsByJobIdAndSeason_MemberId(UUID jobId, Long memberId);
 
+    /** job SSE가 completed/error를 받았을 때 그 job을 바로 반영하기 위해 쓴다. */
+    Optional<AiEpisodeProgress> findByJobId(UUID jobId);
+
     /** Spring 재시작 후 미완료 job polling 복구에 사용한다 (요구사항 4절, 8절). */
     List<AiEpisodeProgress> findAllByJobStatusIn(List<AiJobStatus> statuses);
 
