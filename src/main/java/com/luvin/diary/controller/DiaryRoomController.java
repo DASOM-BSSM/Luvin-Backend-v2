@@ -74,7 +74,7 @@ public class DiaryRoomController {
         return ApiResponse.ok(diaryRoomService.addMember(memberId, roomId, request.userId()));
     }
 
-    @Operation(summary = "멤버 강퇴", description = "방장만 가능 (403). 방장 자신은 강퇴 불가 (400). 멤버가 아닌 id여도 200.")
+    @Operation(summary = "멤버 강퇴", description = "방장만 가능 (403). 방장 자신은 강퇴 불가 (400). 멤버가 아닌 id여도 200. 실제로 강퇴되면 초대 코드가 새로 발급되어 이전 코드는 쓸 수 없다.")
     @DeleteMapping("/{roomId}/members/kick")
     public ApiResponse<DiaryRoomDto.KickResponse> kickMember(@PathVariable Long roomId, @RequestParam Long userId) {
         Long memberId = SecurityUtils.getCurrentUserId();

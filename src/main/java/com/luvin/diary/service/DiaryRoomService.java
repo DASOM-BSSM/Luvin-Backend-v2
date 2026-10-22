@@ -147,7 +147,11 @@ public class DiaryRoomService {
         if (targetUserId.equals(memberId)) {
             throw new DiaryRoomOwnerCannotLeaveException();
         }
-        diaryRoomRepository.deleteMember(roomId, targetUserId);
+        // 강퇴된 사람이 같은 초대 코드로 바로 다시 들어오지 못하도록, 실제로 강퇴됐을 때만 코드를 새로 발급한다.
+        // (이전 코드는 다른 사람도 더는 쓸 수 없으니, 방장·멤버는 새 코드를 조회해서 다시 공유해야 한다.)
+        if (diaryRoomRepository.deleteMember(roomId, targetUserId) > 0) {
+            diaryRoomRepository.updateInviteCode(roomId, newUniqueInviteCode());
+        }
         return new DiaryRoomDto.KickResponse(roomId, targetUserId, "공유방에서 나갔습니다.");
     }
 

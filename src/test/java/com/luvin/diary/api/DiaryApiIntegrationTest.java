@@ -381,6 +381,30 @@ class DiaryApiIntegrationTest {
     }
 
     @Test
+    void 강퇴하면_초대_코드가_바뀌어_강퇴된_사람은_이전_코드로_다시_못_들어온다() {
+        long roomId = createRoom(owner, "방");
+        String oldCode = inviteCode(owner, roomId);
+        assertEquals(200, call(HttpMethod.POST, "/api/diary-rooms/join", member, Map.of("inviteCode", oldCode)).status());
+
+        assertEquals(200, call(HttpMethod.DELETE, "/api/diary-rooms/" + roomId + "/members/kick?userId=" + member.id(), owner, null).status());
+
+        String newCode = inviteCode(owner, roomId);
+        assertFalse(newCode.equals(oldCode));
+        assertEquals(404, call(HttpMethod.POST, "/api/diary-rooms/join", member, Map.of("inviteCode", oldCode)).status());
+        assertFalse(jdbc.queryForObject(
+                "select count(*) > 0 from diary_room_member where room_id = ? and user_id = ?", Boolean.class, roomId, member.id()));
+    }
+
+    @Test
+    void 멤버가_아닌_사람을_강퇴하면_초대_코드는_그대로다() {
+        long roomId = createRoom(owner, "방");
+        String code = inviteCode(owner, roomId);
+
+        assertEquals(200, call(HttpMethod.DELETE, "/api/diary-rooms/" + roomId + "/members/kick?userId=" + outsider.id(), owner, null).status());
+        assertEquals(code, inviteCode(owner, roomId));
+    }
+
+    @Test
     void 초대_코드는_DB에서_NOT_NULL_UNIQUE다() {
         assertEquals("NO", jdbc.queryForObject(
                 "select is_nullable from information_schema.columns where table_name = 'diary_room' and column_name = 'invite_code'",
