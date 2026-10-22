@@ -29,7 +29,7 @@ public class DiaryRoomService {
     private final DiaryRepository diaryRepository;
     private final DiaryCommentRepository diaryCommentRepository;
 
-    /** 초대 코드 글자. 헷갈리는 0/O, 1/I/L은 뺐다. */
+    /** 초대 코드 글자. 헷갈리는 0/O, 1/I/L은 뺐다. Flyway V7의 chars와 반드시 같게 유지한다. */
     private static final String INVITE_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
     private static final int INVITE_CODE_LENGTH = 8;
     private static final int INVITE_CODE_MAX_TRIES = 10;
@@ -162,15 +162,12 @@ public class DiaryRoomService {
 
     // ------------------------------------------------------------------ 초대 코드
 
-    /** 초대 코드 조회. 방장·멤버만 볼 수 있다. 코드가 없는 기존 방이면 이때 발급한다. */
-    @Transactional
+    /** 초대 코드 조회. 방장·멤버만 볼 수 있다. (기존 방의 코드는 Flyway V7이 미리 채운다.) */
+    @Transactional(readOnly = true)
     public DiaryRoomDto.InviteCodeResponse getInviteCode(Long memberId, Long roomId) {
         DiaryRoom room = getRoom(roomId);
         if (!room.isOwnedBy(memberId) && !diaryRoomRepository.isMember(roomId, memberId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
-        }
-        if (room.getInviteCode() == null) {
-            room.changeInviteCode(newUniqueInviteCode());
         }
         return new DiaryRoomDto.InviteCodeResponse(roomId, room.getInviteCode());
     }

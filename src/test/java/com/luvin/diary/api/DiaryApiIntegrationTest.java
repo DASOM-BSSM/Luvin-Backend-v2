@@ -381,13 +381,16 @@ class DiaryApiIntegrationTest {
     }
 
     @Test
-    void 초대_코드가_없는_기존_방은_처음_조회할_때_발급된다() {
-        long roomId = createRoom(owner, "기존방");
-        jdbc.update("update diary_room set invite_code = null where id = ?", roomId);
-
-        String code = inviteCode(owner, roomId);
-        assertEquals(8, code.length());
-        assertEquals(code, jdbc.queryForObject("select invite_code from diary_room where id = ?", String.class, roomId));
+    void 초대_코드는_DB에서_NOT_NULL_UNIQUE다() {
+        assertEquals("NO", jdbc.queryForObject(
+                "select is_nullable from information_schema.columns where table_name = 'diary_room' and column_name = 'invite_code'",
+                String.class));
+        Integer uniqueConstraints = jdbc.queryForObject(
+                "select count(*) from pg_constraint con join pg_class rel on rel.oid = con.conrelid "
+                        + "where rel.relname = 'diary_room' and con.contype = 'u' "
+                        + "and con.conkey = array[(select attnum from pg_attribute where attrelid = rel.oid and attname = 'invite_code')]",
+                Integer.class);
+        assertEquals(1, uniqueConstraints);
     }
 
     @Test

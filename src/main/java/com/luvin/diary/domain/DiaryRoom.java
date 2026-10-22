@@ -31,9 +31,9 @@ public class DiaryRoom {
 
     /**
      * 초대 코드 (영구, 8자리). 이 코드를 아는 사람은 누구나 방에 참여할 수 있다.
-     * 이미 있던 방에 컬럼을 추가해도 배포가 깨지지 않도록 DB에서는 null을 허용하고, 없으면 처음 조회할 때 발급한다.
+     * 방을 만들 때 발급한다. 이 컬럼이 생기기 전에 있던 방은 Flyway V7이 코드를 채우고 NOT NULL/UNIQUE를 건다.
      */
-    @Column(name = "invite_code", length = 8, unique = true)
+    @Column(name = "invite_code", nullable = false, length = 8, unique = true)
     private String inviteCode;
 
     @CreationTimestamp
