@@ -36,8 +36,9 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * 이벤트 이름·id·data는 손대지 않고 넘긴다. delta의 text는 검증 전 JSON 조각이라 앱이 segment별로 모았다가
  * segment_end에서 처리하고, segment_error면 버린다 — Spring은 내용을 해석하지 않는다.
- * completed/error를 받으면 앱 연결을 닫는다. 결과 저장은 지금처럼 AiJobPollingScheduler가 맡고,
- * 앱이 끊고 나가도 AI job은 취소하지 않는다(구독만 닫는다).
+ * completed/error를 받으면 그 job 상태를 먼저 DB에 반영한 뒤(AiJobPollingScheduler.pollJobNow) 앱에 넘기고
+ * 연결을 닫는다 — 앱이 completed를 받자마자 조회 API를 불러도 결과가 나오게 하기 위함이다.
+ * 앱이 끊고 나가도 AI job은 취소하지 않는다(구독만 닫는다). 그때는 평소 polling이 결과를 반영한다.
  *
  * AI 쪽 구독이 실패하거나 completed/error 없이 끊기면 stream_error 이벤트({"error_code": ...})를 보내고 닫는다.
  * 앱은 받은 마지막 id로 다시 붙거나 기존 polling으로 돌아가면 된다.
@@ -52,6 +53,7 @@ public class AiJobEventStreamService {
     private static final Set<String> TERMINAL_EVENTS = Set.of("completed", "error");
 
     private final AiServiceClient aiServiceClient;
+    private final AiJobPollingScheduler pollingScheduler;
     private final OwnerSubjectProvider ownerSubjectProvider;
     private final AiEpisodeProgressRepository episodeProgressRepository;
     private final AiRerollRequestRepository rerollRequestRepository;
@@ -64,12 +66,14 @@ public class AiJobEventStreamService {
     private final Set<JobStream> openStreams = ConcurrentHashMap.newKeySet();
 
     public AiJobEventStreamService(AiServiceClient aiServiceClient,
+                                   AiJobPollingScheduler pollingScheduler,
                                    OwnerSubjectProvider ownerSubjectProvider,
                                    AiEpisodeProgressRepository episodeProgressRepository,
                                    AiRerollRequestRepository rerollRequestRepository,
                                    PartnerLetterRepository partnerLetterRepository,
                                    AiServiceProperties properties) {
         this.aiServiceClient = aiServiceClient;
+        this.pollingScheduler = pollingScheduler;
         this.ownerSubjectProvider = ownerSubjectProvider;
         this.episodeProgressRepository = episodeProgressRepository;
         this.rerollRequestRepository = rerollRequestRepository;
@@ -132,7 +136,8 @@ public class AiJobEventStreamService {
 
         void relay(String ownerSubject, UUID jobId, String lastEventId) {
             try {
-                aiServiceClient.streamJobEvents(ownerSubject, jobId, lastEventId, this::attachUpstream, this::forward);
+                aiServiceClient.streamJobEvents(ownerSubject, jobId, lastEventId, this::attachUpstream,
+                        event -> forward(jobId, event));
                 if (!closed.get() && !terminalSeen) {
                     sendStreamError("STREAM_INTERRUPTED");
                 }
@@ -199,9 +204,13 @@ public class AiJobEventStreamService {
             }
         }
 
-        private boolean forward(AiSseEventDto event) {
+        private boolean forward(UUID jobId, AiSseEventDto event) {
             if (closed.get()) {
                 return false;
+            }
+            boolean terminal = TERMINAL_EVENTS.contains(event.event());
+            if (terminal) {
+                syncJobState(jobId);
             }
             SseEmitter.SseEventBuilder builder = SseEmitter.event();
             if (event.id() != null) {
@@ -215,11 +224,21 @@ public class AiJobEventStreamService {
             if (!send(builder)) {
                 return false;
             }
-            if (TERMINAL_EVENTS.contains(event.event())) {
+            if (terminal) {
                 terminalSeen = true;
                 return false;
             }
             return true;
+        }
+
+        /** 실패해도 앱에는 그대로 completed/error를 넘긴다 — 결과는 다음 polling 차례에 반영된다. */
+        private void syncJobState(UUID jobId) {
+            try {
+                pollingScheduler.pollJobNow(jobId);
+            } catch (RuntimeException e) {
+                log.warn("AI job state sync on terminal SSE event failed, polling will catch up: jobId={}, cause={}",
+                        jobId, e.getClass().getSimpleName());
+            }
         }
 
         private void sendStreamError(String errorCode) {

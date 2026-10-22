@@ -24,6 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -116,6 +117,17 @@ public class AiJobPollingScheduler {
                 log.warn("reroll job polling failed, will retry on next tick: rerollId={}", reroll.getId(), e);
             }
         }
+    }
+
+    /**
+     * job SSE에서 completed/error를 받았을 때, 다음 polling 차례(최대 5초 backoff)를 기다리지 않고 그 job을 바로
+     * 반영한다. 앱이 completed를 받자마자 조회 API를 불러도 409(아직 완료되지 않음)가 나지 않게 하기 위함이다.
+     * 평소 polling과 같은 메서드를 타므로 이미 반영된 job(pending 아님)이면 아무것도 하지 않는다.
+     * 쪽지 job은 앱이 jobId를 받지 않아 SSE로 구독할 일이 없으므로 다루지 않는다.
+     */
+    public void pollJobNow(UUID jobId) {
+        episodeProgressRepository.findByJobId(jobId).ifPresent(progress -> pollOneGenerationJob(progress.getId()));
+        rerollRequestRepository.findByJobId(jobId).ifPresent(reroll -> pollOneRerollJob(reroll.getId()));
     }
 
     private void pollOneGenerationJob(Long progressId) {

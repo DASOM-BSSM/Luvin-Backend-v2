@@ -128,6 +128,10 @@ AI `GET /v1/jobs/{job_id}/events`를 Spring이 구독해 앱에 `GET /api/ai/job
   요청해 `jobId`가 바뀌면 이전 job은 더 이상 구독할 수 없습니다.
 - 이벤트 이름·`id`·`data`(snake_case)는 AI가 보낸 그대로입니다. `delta.text`는 검증 전 JSON 조각이라 segment별로
   모았다가 `segment_end`에서 처리하고 `segment_error`면 버립니다. `completed`/`error`가 오면 Spring이 연결을 닫습니다.
+- `completed`/`error`는 Spring이 그 job 상태를 먼저 DB에 반영한 뒤(`AiJobPollingScheduler.pollJobNow`) 앱에 넘깁니다.
+  그래서 앱이 `completed`를 받자마자 조회 API를 부르면 결과가 나옵니다. 이 반영이 실패해도(로그만 남김) `completed`는
+  그대로 넘기므로, 드물게 조회가 409(아직 완료되지 않음)면 잠시 후 다시 조회합니다 — 다음 polling 차례에 반영됩니다.
+  `segment_end` 시점에는 아직 저장 전이라 조회 API에 결과가 없습니다.
 - 재연결할 때는 마지막으로 받은 `id`를 `Last-Event-ID` 헤더(또는 `after_event_id` query)로 보내면 AI에 그대로 전달됩니다.
 - AI 쪽 구독이 실패하거나 `completed`/`error` 없이 끊기면 `stream_error` 이벤트(`{"error_code": ...}`)를 보내고 닫습니다.
   - `INVALID_LAST_EVENT_ID`: AI가 보낸 id가 잘못됐다고 거절(400). 같은 id로 다시 붙지 말고 id 없이 붙거나 polling으로 돌아갑니다.
@@ -138,6 +142,31 @@ AI `GET /v1/jobs/{job_id}/events`를 Spring이 구독해 앱에 `GET /api/ai/job
 - 15초마다 `: keep-alive` 주석을 보내고, 10분이 지나면 닫습니다. 서버 한 대당 동시 스트림은 200개까지이고, 넘으면 503입니다
   (`app.ai.stream.*`로 조정).
 - 앱이 연결을 끊어도 AI job은 취소하지 않고 구독만 닫습니다.
+- 운영 경로는 ALB → Spring 컨테이너뿐이라(nginx·응답 압축 없음) SSE가 버퍼링되지 않습니다. ALB idle timeout(60초)보다
+  keep-alive(15초)가 짧아 이벤트가 없어도 끊기지 않습니다. 앞에 CDN이나 nginx를 두게 되면 버퍼링 설정을 다시 확인합니다.
+
+#### 재현 절차 (`TOKEN`, `BASE`는 환경에 맞게)
+
+```bash
+# 1. generation 성공: 응답 data.jobId로 바로 구독 → segment_* / delta … completed 후 닫힘
+curl -s -X POST "$BASE/api/ai/seasons/episodes/1/generations" -H "Authorization: Bearer $TOKEN"
+curl -N "$BASE/api/ai/jobs/$JOB_ID/events" -H "Authorization: Bearer $TOKEN" -H "Accept: text/event-stream"
+curl -s "$BASE/api/ai/seasons/episodes/1?season_id=$SEASON_ID" -H "Authorization: Bearer $TOKEN"   # completed 직후 200
+
+# 2. reroll 성공: 완료된 회차(2 또는 4)에서 1:1 상대를 바꿔 요청 → 같은 방식으로 구독
+curl -s -X POST "$BASE/api/ai/seasons/episodes/2/rerolls" -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{"partnerId":"<candidate uuid>"}'
+
+# 3. 끝난 job 재구독: 1이 끝난 뒤 같은 jobId로 다시 붙으면 이벤트를 처음부터 다시 받고 completed로 닫힘
+# 4. 재연결: 받은 id 중 하나를 Last-Event-ID로 보내면 그 다음 id부터 받음
+curl -N "$BASE/api/ai/jobs/$JOB_ID/events" -H "Authorization: Bearer $TOKEN" -H "Last-Event-ID: $ID"
+# 5. stream_error: 잘못된 id → {"error_code":"INVALID_LAST_EVENT_ID"} 후 닫힘
+curl -N "$BASE/api/ai/jobs/$JOB_ID/events" -H "Authorization: Bearer $TOKEN" -H "Last-Event-ID: not-a-cursor"
+# 6. HTTP 오류: 토큰 없이 → 401, 다른 계정 토큰 → 404
+```
+
+job 자체를 실패시키는 방법(`error`, `segment_error`)은 앱에서 만들 수 없습니다. 실제 AI로 재현하려면 AI 쪽 장애 주입이
+필요하고, Spring 중계 동작은 `AiJobEventStreamIntegrationTest`(가짜 AI 서버)로 검증합니다.
 
 ### 메시지 페이지 조회
 

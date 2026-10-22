@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.luvin.LuvinBackendV2Application;
 import com.luvin.ai.domain.AiEpisodeProgress;
+import com.luvin.ai.domain.AiJobStatus;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.repository.AiEpisodeProgressRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
@@ -54,6 +55,8 @@ class AiJobEventStreamIntegrationTest {
     /** jobId → 가짜 AI가 받은 요청 헤더 (X-Owner-Subject, Last-Event-ID). */
     private static final Map<String, Map<String, String>> RECEIVED = new ConcurrentHashMap<>();
     private static final UUID MISSING_AT_AI_JOB = UUID.randomUUID();
+    /** 가짜 AI의 GET /v1/jobs/{id}가 돌려주는 완료 결과 version. */
+    private static final UUID RESULT_VERSION_ID = UUID.randomUUID();
     /** 가짜 AI가 400(잘못된 cursor)으로 거절하는 Last-Event-ID. */
     private static final String INVALID_CURSOR = "not-a-cursor";
 
@@ -131,6 +134,18 @@ class AiJobEventStreamIntegrationTest {
         Map<String, String> sentToAi = RECEIVED.get(jobId.toString());
         assertEquals(ownerSubjectProvider.resolve(owner.id()), sentToAi.get("X-Owner-Subject"));
         assertEquals("0", sentToAi.get("Last-Event-ID"));
+    }
+
+    @Test
+    void completed를_앱에_보내기_전에_job_완료를_DB에_반영해_바로_조회할_수_있다() throws Exception {
+        UUID jobId = createJob(owner);
+
+        assertEquals(200, stream(owner, jobId, null, null, null).statusCode());
+
+        // 진행 상태의 nextPollAt이 비어 있어 스케줄러는 이 job을 건드리지 않는다 — 반영됐다면 SSE 중계가 한 것이다.
+        AiEpisodeProgress progress = progressRepository.findByJobId(jobId).orElseThrow();
+        assertEquals(AiJobStatus.SUCCEEDED, progress.getJobStatus());
+        assertEquals(RESULT_VERSION_ID, progress.getVersionId());
     }
 
     @Test
@@ -237,10 +252,18 @@ class AiJobEventStreamIntegrationTest {
 
     /**
      * GET /v1/jobs/{jobId}/events 흉내. MISSING_AT_AI_JOB이면 404, Last-Event-ID가 INVALID_CURSOR면 400,
-     * 아니면 AI_EVENTS를 보내고 닫는다.
+     * 아니면 AI_EVENTS를 보내고 닫는다. GET /v1/jobs/{jobId}(polling)는 항상 succeeded를 돌려준다.
      */
     private static void handleFakeAi(HttpExchange exchange) throws IOException {
-        String jobId = exchange.getRequestURI().getPath().split("/")[3];
+        String[] path = exchange.getRequestURI().getPath().split("/");
+        String jobId = path[3];
+        if (path.length == 4) {
+            try (OutputStream out = exchange.getResponseBody()) {
+                writeJson(exchange, out, 200, "{\"job_id\":\"" + jobId + "\",\"status\":\"succeeded\",\"status_url\":\"/v1/jobs/"
+                        + jobId + "\",\"result_version_id\":\"" + RESULT_VERSION_ID + "\",\"error_code\":null}");
+            }
+            return;
+        }
         Map<String, String> headers = new ConcurrentHashMap<>();
         headers.put("X-Owner-Subject", String.valueOf(exchange.getRequestHeaders().getFirst("X-Owner-Subject")));
         String lastEventId = exchange.getRequestHeaders().getFirst("Last-Event-ID");
@@ -251,11 +274,11 @@ class AiJobEventStreamIntegrationTest {
 
         try (OutputStream out = exchange.getResponseBody()) {
             if (jobId.equals(MISSING_AT_AI_JOB.toString())) {
-                writeError(exchange, out, 404, "{\"error_code\":\"JOB_NOT_FOUND\",\"message\":\"job not found\"}");
+                writeJson(exchange, out, 404, "{\"error_code\":\"JOB_NOT_FOUND\",\"message\":\"job not found\"}");
                 return;
             }
             if (INVALID_CURSOR.equals(lastEventId)) {
-                writeError(exchange, out, 400, "{\"error_code\":\"INVALID_CURSOR\",\"message\":\"invalid Last-Event-ID\"}");
+                writeJson(exchange, out, 400, "{\"error_code\":\"INVALID_CURSOR\",\"message\":\"invalid Last-Event-ID\"}");
                 return;
             }
             exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
@@ -264,10 +287,10 @@ class AiJobEventStreamIntegrationTest {
         }
     }
 
-    private static void writeError(HttpExchange exchange, OutputStream out, int status, String json) throws IOException {
-        byte[] error = json.getBytes(StandardCharsets.UTF_8);
+    private static void writeJson(HttpExchange exchange, OutputStream out, int status, String json) throws IOException {
+        byte[] body = json.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json");
-        exchange.sendResponseHeaders(status, error.length);
-        out.write(error);
+        exchange.sendResponseHeaders(status, body.length);
+        out.write(body);
     }
 }
