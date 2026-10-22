@@ -12,7 +12,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface PartnerLetterRepository extends JpaRepository<PartnerLetter, Long> {
-    Optional<PartnerLetter> findBySeason_Id(Long seasonPk);
+    /** 기존 5화 흐름의 시즌 쪽지(episode_order null). 장면 블록 회차 쪽지는 회차마다 따로 있다. */
+    Optional<PartnerLetter> findBySeason_IdAndEpisodeOrderIsNull(Long seasonPk);
+
+    boolean existsBySeason_IdAndEpisodeOrder(Long seasonPk, Integer episodeOrder);
+
+    void deleteAllBySeason_IdAndEpisodeOrderIsNotNull(Long seasonPk);
 
     /**
      * 안 읽은 쪽지가 여러 개 쌓여도 최신 1개만 돌려준다(요구사항) — 응답에 seasonId(UUID, AiSeason의

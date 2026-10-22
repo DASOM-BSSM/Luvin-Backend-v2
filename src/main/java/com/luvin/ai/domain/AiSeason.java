@@ -79,6 +79,26 @@ public class AiSeason {
     @Column(name = "survey_result_id")
     private UUID surveyResultId;
 
+    /**
+     * 장면 블록 회차(1~10화) 흐름의 시즌 배경. null이면 아직 새 흐름을 시작하지 않은 시즌이다(기존 5화
+     * 흐름으로 진행한 시즌 포함). 처음 정해진 뒤에는 시즌 동안 바꾸지 않는다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "setting", length = 20)
+    private AiSeasonSetting setting;
+
+    /** 새 흐름에서 지금 진행할 회차(1~10). AI가 관리하는 currentEpisode(기존 5화 흐름)와 별개다. */
+    @Column(name = "current_order")
+    private Integer currentOrder;
+
+    /** 6화 선택(③) 전에는 null. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "route", length = 20)
+    private AiStoryRoute route;
+
+    @Column(name = "romance_partner_id", columnDefinition = "uuid")
+    private UUID romancePartnerId;
+
     public AiSeason(Long memberId, Integer seasonNumber, UUID seasonId, Integer revision, Integer currentEpisode,
                      UUID surveyResultId) {
         this.memberId = memberId;
@@ -91,6 +111,45 @@ public class AiSeason {
         LocalDateTime now = LocalDateTime.now();
         this.createdAt = now;
         this.updatedAt = now;
+    }
+
+    public boolean isStoryStarted() {
+        return setting != null;
+    }
+
+    /** 새 흐름을 시작한다. 이미 배경이 정해졌으면 바꾸지 않는다. */
+    public void startStory(AiSeasonSetting setting) {
+        if (this.setting != null) {
+            return;
+        }
+        this.setting = setting;
+        this.currentOrder = 1;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /** 회차 완료 시 다음 회차로 넘어간다. 이미 더 진행했으면 되돌리지 않는다. */
+    public void advanceOrder(int nextOrder) {
+        if (this.currentOrder == null || nextOrder > this.currentOrder) {
+            this.currentOrder = nextOrder;
+            this.updatedAt = LocalDateTime.now();
+        }
+    }
+
+    public void applyRoute(AiStoryRoute route, UUID romancePartnerId) {
+        this.route = route;
+        this.romancePartnerId = romancePartnerId;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /** 개발 전용 초기화. 시즌을 새 흐름 시작 전 상태(진행 중)로 되돌린다. */
+    public void resetStory() {
+        this.setting = null;
+        this.currentOrder = null;
+        this.route = null;
+        this.romancePartnerId = null;
+        this.status = AiSeasonStatus.IN_PROGRESS;
+        this.completedAt = null;
+        this.updatedAt = LocalDateTime.now();
     }
 
     public void syncFromAi(Integer revision, Integer currentEpisode) {

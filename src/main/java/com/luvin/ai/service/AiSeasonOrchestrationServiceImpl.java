@@ -11,7 +11,6 @@ import com.luvin.ai.client.dto.LetterResponseDto;
 import com.luvin.ai.client.dto.MessageResponseDto;
 import com.luvin.ai.client.dto.ReportHighlightResponseDto;
 import com.luvin.ai.client.dto.ReportResponseDto;
-import com.luvin.ai.client.dto.RerollRequestDto;
 import com.luvin.ai.client.dto.SeasonResponseDto;
 import com.luvin.ai.client.dto.SelectionRequestDto;
 import com.luvin.ai.client.dto.SelectionResponseDto;
@@ -27,7 +26,6 @@ import com.luvin.ai.domain.AiEpisodeProgress;
 import com.luvin.ai.domain.AiGameResult;
 import com.luvin.ai.domain.AiIdempotencyActionType;
 import com.luvin.ai.domain.AiJobStatus;
-import com.luvin.ai.domain.AiRerollRequest;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonCharacter;
 import com.luvin.ai.domain.AiSeasonCreationInput;
@@ -48,7 +46,6 @@ import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiMessageView;
 import com.luvin.ai.dto.AiSceneKind;
 import com.luvin.ai.dto.AiReportView;
-import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
 import com.luvin.ai.dto.AiSelectionView;
 import com.luvin.ai.dto.AiTopicView;
@@ -61,8 +58,6 @@ import com.luvin.ai.service.exception.AiCandidateInvalidException;
 import com.luvin.ai.service.exception.AiEpisodeProgressionException;
 import com.luvin.ai.service.exception.AiFeedbackAlreadySubmittedException;
 import com.luvin.ai.service.exception.AiInputValidationException;
-import com.luvin.ai.service.exception.AiRerollNotAllowedException;
-import com.luvin.ai.service.exception.AiRerollNotFoundException;
 import com.luvin.ai.service.exception.AiSeasonAlreadyExistsException;
 import com.luvin.ai.service.exception.AiSeasonCompletedException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
@@ -103,9 +98,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     private static final Logger log = LoggerFactory.getLogger(AiSeasonOrchestrationServiceImpl.class);
     private static final int EPISODE_1 = 1;
     private static final int EPISODE_3 = 3;
-    private static final Set<Integer> REROLLABLE_EPISODES = Set.of(2, 4);
-    /** "나의 빵에게" 피드백이 가능한 1:1 대화 회차. REROLLABLE_EPISODES와 지금은 값이 같지만
-     * 서로 다른 개념이라 별도 상수로 둔다. */
+    /** "나의 빵에게" 피드백이 가능한 1:1 대화 회차. */
     private static final Set<Integer> FEEDBACK_EPISODES = Set.of(2, 4);
     /** 메시지 하트(좋아요)가 가능한 1:1 대화 회차. 역시 같은 이유로 별도 상수로 둔다. */
     private static final Set<Integer> LIKE_EPISODES = Set.of(2, 4);
@@ -123,6 +116,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     private final AiTraitsWireAdapter traitsWireAdapter;
     private final com.luvin.user.repository.UserRepository userRepository;
     private final com.luvin.survey.repository.SurveyResultV2Repository surveyResultV2Repository;
+    private final com.luvin.ai.service.story.AiStoryService storyService;
 
     public AiSeasonOrchestrationServiceImpl(AiServiceClient aiServiceClient,
                                              AiInputValidator inputValidator,
@@ -135,7 +129,8 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                                              AiSelectionRepository selectionRepository,
                                              AiTraitsWireAdapter traitsWireAdapter,
                                              com.luvin.user.repository.UserRepository userRepository,
-                                             com.luvin.survey.repository.SurveyResultV2Repository surveyResultV2Repository) {
+                                             com.luvin.survey.repository.SurveyResultV2Repository surveyResultV2Repository,
+                                             com.luvin.ai.service.story.AiStoryService storyService) {
         this.aiServiceClient = aiServiceClient;
         this.inputValidator = inputValidator;
         this.ownerSubjectProvider = ownerSubjectProvider;
@@ -148,6 +143,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         this.traitsWireAdapter = traitsWireAdapter;
         this.userRepository = userRepository;
         this.surveyResultV2Repository = surveyResultV2Repository;
+        this.storyService = storyService;
     }
 
     // ---------------------------------------------------------------- 시즌 생성
@@ -452,65 +448,6 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         }
     }
 
-    // ---------------------------------------------------------------- reroll (2화/4화)
-
-    @Override
-    public AiRerollView requestReroll(Long memberId, int episodeNumber, UUID requestedPartnerId) {
-        if (!REROLLABLE_EPISODES.contains(episodeNumber)) {
-            throw new AiRerollNotAllowedException("reroll은 2화, 4화에만 제공됩니다.");
-        }
-        AiSeason season = getOwnedSeasonOrThrow(memberId);
-        assertNotCompleted(season);
-        AiEpisodeProgress progress = getEpisodeProgressOrThrow(season, episodeNumber);
-        if (progress.getJobStatus() != AiJobStatus.SUCCEEDED || progress.getVersionId() == null) {
-            throw new AiEpisodeProgressionException(episodeNumber + "화가 아직 완료되지 않아 reroll할 수 없습니다.");
-        }
-
-        // 다음 화 generation이 이미 접수된 경우 로컬 상태만으로 먼저 빠르게 막는다 (요구사항 5.5).
-        episodeProgressRepository.findBySeason_IdAndEpisodeNumber(season.getId(), episodeNumber + 1)
-                .filter(AiEpisodeProgress::isGenerationAccepted)
-                .ifPresent(nextEpisode -> {
-                    throw new AiRerollNotAllowedException(
-                            (episodeNumber + 1) + "화 generation이 이미 접수되어 reroll이 잠겼습니다.");
-                });
-
-        List<AiSeasonCharacter> characters = seasonCharacterRepository.findAllBySeason_Id(season.getId());
-        assertValidCandidate(characters, requestedPartnerId);
-
-        String ownerSubject = ownerSubjectProvider.resolve(memberId);
-        String businessKey = "season:" + season.getSeasonId() + ":episode:" + episodeNumber
-                + ":reroll:" + requestedPartnerId;
-        UUID idempotencyKey = idempotencyKeyService.resolveOrIssue(
-                memberId, AiIdempotencyActionType.EPISODE_REROLL, businessKey);
-
-        UUID expectedVersionId = progress.getVersionId();
-        RerollRequestDto request = new RerollRequestDto(season.getRevision(), expectedVersionId, requestedPartnerId);
-        JobResponseDto jobResponse;
-        try {
-            jobResponse = aiServiceClient.requestReroll(ownerSubject, idempotencyKey, season.getSeasonId(), episodeNumber, request);
-        } catch (AiRevisionConflictException | AiUnclassifiedConflictException conflict) {
-            SeasonResponseDto refreshed = aiServiceClient.getSeason(ownerSubject, season.getSeasonId());
-            RerollRequestDto retried = new RerollRequestDto(refreshed.revision(), expectedVersionId, requestedPartnerId);
-            jobResponse = aiServiceClient.requestReroll(ownerSubject, idempotencyKey, season.getSeasonId(), episodeNumber, retried);
-        }
-
-        AiRerollRequest saved = stateWriter.persistRerollAccepted(
-                season.getId(), episodeNumber, expectedVersionId, requestedPartnerId, idempotencyKey, jobResponse.jobId());
-        return toRerollView(saved);
-    }
-
-    @Override
-    public AiRerollView getRerollStatus(Long memberId, UUID seasonId, int episodeNumber) {
-        AiSeason season = getOwnedSeasonOrThrow(memberId, seasonId);
-        AiRerollRequest reroll = stateWriter.findLatestReroll(season.getId(), episodeNumber)
-                .orElseThrow(() -> new AiRerollNotFoundException(episodeNumber));
-        return toRerollView(reroll);
-    }
-
-    private AiRerollView toRerollView(AiRerollRequest reroll) {
-        return new AiRerollView(reroll.getJobId(), reroll.getJobStatus().name(), reroll.getErrorCode());
-    }
-
     // ---------------------------------------------------------------- 메시지 조회
 
     @Override
@@ -556,6 +493,12 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     @Override
     public AiReportView getReport(Long memberId, UUID seasonId) {
         AiSeason season = getOwnedSeasonOrThrow(memberId, seasonId);
+        // 장면 블록 회차(1~10화) 시즌은 10화 완료 때 Spring이 FastAPI로 만들어 저장한 리포트를 같은 형식으로 돌려준다.
+        // 기존 5화 대화 기반 리포트(AI 서비스 GET /report)는 새 흐름 시즌에서 부르지 않는다.
+        java.util.Optional<AiReportView> storyReport = storyService.storedReport(season.getId());
+        if (storyReport.isPresent()) {
+            return storyReport.get();
+        }
         ensureEpisodeGenerationSucceeded(season, FINAL_EPISODE);
 
         String ownerSubject = ownerSubjectProvider.resolve(memberId);
@@ -841,11 +784,15 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     private AiSeasonStatusView toStatusView(AiSeason season, List<AiSeasonCharacter> characters) {
         List<AiCharacterView> characterViews = characters.stream()
                 .map(c -> new AiCharacterView(
-                        c.getCharacterId(), c.getRole().name(), c.getGender()))
+                        c.getCharacterId(), c.getRole().name(), c.getGender(),
+                        c.getCastRole() == null ? null : c.getCastRole().wireValue(),
+                        c.getAttachmentStyle() == null ? null : c.getAttachmentStyle().wireValue(),
+                        c.getName()))
                 .collect(Collectors.toList());
         return new AiSeasonStatusView(
                 season.getSeasonId(), season.getRevision(), season.getCurrentEpisode(),
-                season.getStatus().name(), characterViews, season.getSurveyResultId(), season.getSeasonNumber());
+                season.getStatus().name(), characterViews, season.getSurveyResultId(), season.getSeasonNumber(),
+                storyService.stateOf(season.getId()));
     }
 
     private AiEpisodeProgressView toProgressView(AiEpisodeProgress progress) {

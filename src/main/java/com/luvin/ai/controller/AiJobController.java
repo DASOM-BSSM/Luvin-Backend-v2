@@ -21,17 +21,17 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.UUID;
 
 /**
- * generation/reroll/쪽지 job의 진행 이벤트를 SSE로 받는다. jobId는 각 요청 응답(jobId 필드)에 있는 값이다.
+ * generation/쪽지 job의 진행 이벤트를 SSE로 받는다. jobId는 각 요청 응답(jobId 필드)에 있는 값이다.
  * 이벤트 처리 규칙은 {@link AiJobEventStreamService} 참고. SSE는 보조 수단이고 결과 확정은 기존 조회 API로 한다.
  */
-@Tag(name = "AI job 진행 이벤트", description = "generation/reroll job 진행 상황 SSE 구독")
+@Tag(name = "AI job 진행 이벤트", description = "generation job 진행 상황 SSE 구독")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/ai/jobs")
 public class AiJobController {
 
     private static final String STREAM_DESCRIPTION = """
-            generation/reroll 요청 응답의 `jobId`로 연결한다. 헤더: `Authorization: Bearer <토큰>`, `Accept: text/event-stream`.
+            generation 요청 응답의 `jobId`로 연결한다. 헤더: `Authorization: Bearer <토큰>`, `Accept: text/event-stream`.
             `Last-Event-ID` 없이 연결하면 그 job의 첫 이벤트부터 전부 받는다(이미 끝난 job이면 전부 받은 뒤 종료 이벤트로 닫힘).
             재연결할 때만 마지막으로 받은 `id`를 `Last-Event-ID` 헤더(또는 `after_event_id` query)로 보낸다.
 

@@ -5,7 +5,6 @@ import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiMessageLikeView;
 import com.luvin.ai.dto.AiReportView;
-import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
 import com.luvin.ai.dto.AiSeasonSummaryView;
 import com.luvin.ai.dto.AiSelectionView;
@@ -17,11 +16,11 @@ import com.luvin.ai.dto.EpisodeFeedbackHttpRequest;
 import com.luvin.ai.dto.EpisodeMessageLikeHttpRequest;
 import com.luvin.ai.dto.MarkSeenHttpRequest;
 import com.luvin.ai.dto.PartnerLetterView;
-import com.luvin.ai.dto.RerollHttpRequest;
 import com.luvin.ai.dto.StartNextSeasonRequest;
 import com.luvin.ai.service.AiSeasonOrchestrationService;
 import com.luvin.common.response.ApiResponse;
 import com.luvin.common.security.SecurityUtils;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,6 +36,9 @@ import java.util.UUID;
 
 /**
  * 모바일 앱은 AI 서비스를 직접 호출하지 않고 항상 이 컨트롤러를 경유한다 (요구사항 1절).
+ *
+ * 기존 5화 흐름의 회차 API(generations, 1화/3화 selection, 메시지 페이지 조회, 피드백, 좋아요)는 장면 블록 회차
+ * ({@link AiStoryController})로 바뀌어 @Deprecated다. 동작은 그대로 두고, 프론트 전환이 끝나면 별도 작업으로 지운다.
  *
  * 3화 미니게임 결과 endpoint({@link #submitEpisode3Result})는 주의가 필요하다: success 판정과
  * 성공 대상 결정은 Spring이 담당해야 하며(요구사항 1절, 5.4), 이 컨트롤러가 요청 body의 success 값을
@@ -92,18 +94,24 @@ public class AiSeasonController {
         return ApiResponse.ok(orchestrationService.listSeasons(memberId));
     }
 
+    @Deprecated
+    @Operation(deprecated = true, description = "기존 5화 흐름 회차 생성. 새 흐름은 GET /episodes/{order}/content를 쓴다. 프론트 전환 후 삭제 예정.")
     @PostMapping("/episodes/{number}/generations")
     public ApiResponse<AiEpisodeProgressView> requestGeneration(@PathVariable("number") int episodeNumber) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(orchestrationService.requestGeneration(memberId, episodeNumber));
     }
 
+    @Deprecated
+    @Operation(deprecated = true, description = "기존 5화 흐름 1화 선택. 새 흐름은 POST /episodes/{order}/choices를 쓴다. 프론트 전환 후 삭제 예정.")
     @PostMapping("/episodes/1/selection")
     public ApiResponse<AiSelectionView> submitEpisode1Selection(@Valid @RequestBody Episode1SelectionHttpRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(orchestrationService.submitEpisode1Selection(memberId, request.partnerId()));
     }
 
+    @Deprecated
+    @Operation(deprecated = true, description = "기존 5화 흐름 3화 미니게임 선택. 새 흐름에는 에피소드 안 미니게임이 없다. 프론트 전환 후 삭제 예정.")
     @PostMapping("/episodes/3/selection")
     public ApiResponse<AiSelectionView> submitEpisode3Result(@RequestBody Episode3ResultHttpRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
@@ -111,26 +119,9 @@ public class AiSeasonController {
                 memberId, request.success(), request.partnerId()));
     }
 
-    @PostMapping("/episodes/{number}/rerolls")
-    public ApiResponse<AiRerollView> requestReroll(@PathVariable("number") int episodeNumber,
-                                                    @Valid @RequestBody RerollHttpRequest request) {
-        Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(orchestrationService.requestReroll(memberId, episodeNumber, request.partnerId()));
-    }
-
-    /**
-     * reroll 완료 여부 폴링용. 같은 회차로 reroll을 요청한 적이 없으면 404.
-     * season_id를 생략하면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다.
-     */
-    @GetMapping("/episodes/{number}/rerolls")
-    public ApiResponse<AiRerollView> getRerollStatus(
-            @PathVariable("number") int episodeNumber,
-            @RequestParam(value = "season_id", required = false) UUID seasonId) {
-        Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(orchestrationService.getRerollStatus(memberId, seasonId, episodeNumber));
-    }
-
     /** season_id를 생략하면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다. */
+    @Deprecated
+    @Operation(deprecated = true, description = "기존 5화 흐름 메시지 페이지 조회. 새 흐름은 GET /episodes/{order}/content가 블록 목록을 한 번에 내려준다. 프론트 전환 후 삭제 예정.")
     @GetMapping("/episodes/{number}")
     public ApiResponse<AiEpisodeMessagesView> getEpisodeMessages(
             @PathVariable("number") int episodeNumber,
@@ -155,6 +146,8 @@ public class AiSeasonController {
      * 회차당 1회만 가능하다(409 FEEDBACK_ALREADY_SUBMITTED). season_id를 생략하면 현재(최신) 시즌,
      * 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 대상으로 한다.
      */
+    @Deprecated
+    @Operation(deprecated = true, description = "기존 5화 흐름 2·4화 피드백. 새 흐름에서는 쓰지 않는다. 프론트 전환 후 삭제 예정.")
     @PostMapping("/episodes/{number}/feedback")
     public ApiResponse<AiEpisodeFeedbackView> submitEpisodeFeedback(
             @PathVariable("number") int episodeNumber,
@@ -170,6 +163,8 @@ public class AiSeasonController {
      * 메시지 모두 가능하고 개수 제한이 없다. season_id를 생략하면 현재(최신) 시즌, 지정하면 본인
      * 소유의 그 시즌(지난 시즌 포함)을 대상으로 한다.
      */
+    @Deprecated
+    @Operation(deprecated = true, description = "기존 5화 흐름 2·4화 좋아요. 새 흐름에서는 쓰지 않는다. 프론트 전환 후 삭제 예정.")
     @PostMapping("/episodes/{number}/likes")
     public ApiResponse<AiMessageLikeView> toggleEpisodeMessageLike(
             @PathVariable("number") int episodeNumber,

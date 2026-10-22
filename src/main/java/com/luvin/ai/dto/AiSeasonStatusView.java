@@ -12,6 +12,8 @@ public record AiSeasonStatusView(
         /** 이 시즌을 만든 survey_results.id. legacy(원시 traits) 경로로 만든 시즌은 null — 추측하지 않는다. */
         UUID sourceSurveyResultId,
         /** 그 사용자의 몇 번째 시즌인지(1부터). */
-        Integer seasonNumber
+        Integer seasonNumber,
+        /** 장면 블록 회차(1~10화) 상태. 새 흐름을 시작하기 전이면 null. */
+        com.luvin.ai.dto.story.AiStoryStateView story
 ) {
 }

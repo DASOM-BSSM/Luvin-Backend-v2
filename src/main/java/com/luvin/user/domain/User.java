@@ -40,6 +40,10 @@ public class User {
     @Column(length = 10)
     private String gender;
 
+    /**
+     * 마이페이지에서 사용자가 입력한 나이. 입력 전이면 null이다 — 예전에 가입 시 넣던 20 고정값은
+     * V8 마이그레이션으로 null 처리했다. 러빈지옥 시즌 배경과 audience(minor/adult)를 이 값으로 정한다.
+     */
     private Integer age;
 
     @Column(length = 10)
@@ -99,9 +103,10 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public void updateProfile(String nickname, String gender, String job, String bio) {
+    public void updateProfile(String nickname, String gender, Integer age, String job, String bio) {
         if (nickname != null) this.nickname = nickname;
         if (gender != null) this.gender = gender;
+        if (age != null) this.age = age;
         if (job != null) this.job = job;
         if (bio != null) this.bio = bio;
     }

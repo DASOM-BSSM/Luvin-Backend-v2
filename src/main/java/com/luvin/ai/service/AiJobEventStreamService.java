@@ -9,7 +9,6 @@ import com.luvin.ai.client.exception.AiServerException;
 import com.luvin.ai.client.exception.AiServiceException;
 import com.luvin.ai.config.AiServiceProperties;
 import com.luvin.ai.repository.AiEpisodeProgressRepository;
-import com.luvin.ai.repository.AiRerollRequestRepository;
 import com.luvin.ai.repository.PartnerLetterRepository;
 import com.luvin.ai.security.OwnerSubjectProvider;
 import com.luvin.ai.service.exception.AiJobNotFoundException;
@@ -56,7 +55,6 @@ public class AiJobEventStreamService {
     private final AiJobPollingScheduler pollingScheduler;
     private final OwnerSubjectProvider ownerSubjectProvider;
     private final AiEpisodeProgressRepository episodeProgressRepository;
-    private final AiRerollRequestRepository rerollRequestRepository;
     private final PartnerLetterRepository partnerLetterRepository;
     private final Duration maxDuration;
     private final Duration heartbeatInterval;
@@ -69,14 +67,12 @@ public class AiJobEventStreamService {
                                    AiJobPollingScheduler pollingScheduler,
                                    OwnerSubjectProvider ownerSubjectProvider,
                                    AiEpisodeProgressRepository episodeProgressRepository,
-                                   AiRerollRequestRepository rerollRequestRepository,
                                    PartnerLetterRepository partnerLetterRepository,
                                    AiServiceProperties properties) {
         this.aiServiceClient = aiServiceClient;
         this.pollingScheduler = pollingScheduler;
         this.ownerSubjectProvider = ownerSubjectProvider;
         this.episodeProgressRepository = episodeProgressRepository;
-        this.rerollRequestRepository = rerollRequestRepository;
         this.partnerLetterRepository = partnerLetterRepository;
         this.maxDuration = properties.stream().maxDuration();
         this.heartbeatInterval = properties.stream().heartbeatInterval();
@@ -109,10 +105,9 @@ public class AiJobEventStreamService {
         return emitter;
     }
 
-    /** generation(회차 진행), reroll, 쪽지 중 내 것으로 저장된 job인지 본다. */
+    /** generation(회차 진행), 쪽지 중 내 것으로 저장된 job인지 본다. */
     private boolean isOwnedBy(Long memberId, UUID jobId) {
         return episodeProgressRepository.existsByJobIdAndSeason_MemberId(jobId, memberId)
-                || rerollRequestRepository.existsByJobIdAndSeason_MemberId(jobId, memberId)
                 || partnerLetterRepository.existsByJobIdAndMemberId(jobId, memberId);
     }
 

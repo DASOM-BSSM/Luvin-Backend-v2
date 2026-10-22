@@ -7,7 +7,6 @@ import com.luvin.ai.domain.AiEpisodeFeedback;
 import com.luvin.ai.domain.AiEpisodeMessageLike;
 import com.luvin.ai.domain.AiEpisodeProgress;
 import com.luvin.ai.domain.AiGameResult;
-import com.luvin.ai.domain.AiRerollRequest;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonCharacter;
 import com.luvin.ai.domain.AiSeasonCreationInput;
@@ -17,7 +16,6 @@ import com.luvin.ai.domain.PartnerLetter;
 import com.luvin.ai.repository.AiEpisodeFeedbackRepository;
 import com.luvin.ai.repository.AiEpisodeMessageLikeRepository;
 import com.luvin.ai.repository.AiEpisodeProgressRepository;
-import com.luvin.ai.repository.AiRerollRequestRepository;
 import com.luvin.ai.repository.AiSeasonCharacterRepository;
 import com.luvin.ai.repository.AiSeasonCreationInputRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
@@ -63,7 +61,6 @@ public class AiSeasonStateWriter {
     private final AiSeasonCharacterRepository seasonCharacterRepository;
     private final AiEpisodeProgressRepository episodeProgressRepository;
     private final AiSelectionRepository selectionRepository;
-    private final AiRerollRequestRepository rerollRequestRepository;
     private final AiSeasonCreationInputRepository seasonCreationInputRepository;
     private final SurveyResultV2Repository surveyResultV2Repository;
     private final UserTokenRepository userTokenRepository;
@@ -232,15 +229,6 @@ public class AiSeasonStateWriter {
     }
 
     @Transactional
-    public AiRerollRequest persistRerollAccepted(Long seasonPk, int episodeNumber, UUID previousVersionId,
-                                                  UUID requestedPartnerId, UUID idempotencyKey, UUID jobId) {
-        AiRerollRequest rerollRequest = rerollRequestRepository.findByIdempotencyKey(idempotencyKey)
-                .orElseGet(() -> new AiRerollRequest(seasonRepository.getReferenceById(seasonPk),
-                        episodeNumber, idempotencyKey, previousVersionId, requestedPartnerId, jobId));
-        return rerollRequestRepository.save(rerollRequest);
-    }
-
-    @Transactional
     public void persistVersionReplaced(Long episodeProgressPk, UUID newVersionId) {
         episodeProgressRepository.findById(episodeProgressPk)
                 .ifPresent(progress -> progress.replaceVersion(newVersionId));
@@ -262,11 +250,6 @@ public class AiSeasonStateWriter {
         return seasonCharacterRepository.findAllBySeason_Id(seasonPk);
     }
 
-    @Transactional(readOnly = true)
-    public Optional<AiRerollRequest> findLatestReroll(Long seasonPk, int episodeNumber) {
-        return rerollRequestRepository.findFirstBySeason_IdAndEpisodeNumberOrderByCreatedAtDesc(seasonPk, episodeNumber);
-    }
-
     private AiSeason getSeasonOrThrow(Long seasonPk) {
         return seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
     }
@@ -281,12 +264,12 @@ public class AiSeasonStateWriter {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PartnerLetter ensureLetterRow(Long seasonPk, Long memberId) {
-        return partnerLetterRepository.findBySeason_Id(seasonPk).orElseGet(() -> {
+        return partnerLetterRepository.findBySeason_IdAndEpisodeOrderIsNull(seasonPk).orElseGet(() -> {
             try {
                 return partnerLetterRepository.saveAndFlush(
                         new PartnerLetter(memberId, seasonRepository.getReferenceById(seasonPk)));
             } catch (DataIntegrityViolationException raceLoser) {
-                return partnerLetterRepository.findBySeason_Id(seasonPk).orElseThrow(() -> raceLoser);
+                return partnerLetterRepository.findBySeason_IdAndEpisodeOrderIsNull(seasonPk).orElseThrow(() -> raceLoser);
             }
         });
     }
