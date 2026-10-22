@@ -2,8 +2,10 @@ package com.luvin.ai.service;
 
 import com.luvin.ai.client.AiServiceClient;
 import com.luvin.ai.client.dto.AiSseEventDto;
+import com.luvin.ai.client.exception.AiBadRequestException;
 import com.luvin.ai.client.exception.AiNotFoundException;
 import com.luvin.ai.client.exception.AiRateLimitException;
+import com.luvin.ai.client.exception.AiServerException;
 import com.luvin.ai.client.exception.AiServiceException;
 import com.luvin.ai.config.AiServiceProperties;
 import com.luvin.ai.repository.AiEpisodeProgressRepository;
@@ -137,8 +139,7 @@ public class AiJobEventStreamService {
             } catch (AiServiceException e) {
                 // 앱이 먼저 떠나서 우리가 AI 스트림을 닫은 경우에도 여기로 온다 — 그때는 보낼 곳이 없다.
                 if (!closed.get()) {
-                    log.warn("AI job SSE relay failed: jobId={}, cause={}", jobId, e.getClass().getSimpleName());
-                    sendStreamError(e instanceof AiNotFoundException ? "JOB_NOT_FOUND" : "AI_UNAVAILABLE");
+                    sendStreamError(toStreamErrorCode(e, jobId, lastEventId));
                 }
             } catch (RuntimeException e) {
                 if (!closed.get()) {
@@ -152,6 +153,29 @@ public class AiJobEventStreamService {
                     emitter.complete();
                 }
             }
+        }
+
+        /**
+         * 앱이 다음에 할 일이 갈리도록 나눈다. 잘못된 Last-Event-ID(400)는 같은 id로 다시 붙어도 계속 실패하므로
+         * 따로 알리고, 일시 장애(5xx/네트워크/429)와 달리 401·403·계약 위반은 Spring 설정 문제라 error로 남긴다.
+         * HTTP status는 AiServiceClient가 이미 warn으로 기록한다.
+         */
+        private String toStreamErrorCode(AiServiceException e, UUID jobId, String lastEventId) {
+            String cause = e.getClass().getSimpleName();
+            if (e instanceof AiNotFoundException) {
+                log.warn("AI job SSE relay failed: jobId={}, cause={}", jobId, cause);
+                return "JOB_NOT_FOUND";
+            }
+            if (e instanceof AiBadRequestException && lastEventId != null && !lastEventId.isBlank()) {
+                log.warn("AI job SSE rejected Last-Event-ID: jobId={}, cause={}", jobId, cause);
+                return "INVALID_LAST_EVENT_ID";
+            }
+            if (e instanceof AiServerException || e instanceof AiRateLimitException) {
+                log.warn("AI job SSE relay failed: jobId={}, cause={}", jobId, cause);
+            } else {
+                log.error("AI job SSE relay failed (설정/계약 확인 필요): jobId={}, cause={}", jobId, cause);
+            }
+            return "AI_UNAVAILABLE";
         }
 
         void heartbeat() {
