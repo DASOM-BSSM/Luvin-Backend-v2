@@ -2933,6 +2933,53 @@
                     }
                 }
             }
+        },
+        "/api/ai/jobs/{jobId}/events": {
+            "get": {
+                "tags": [
+                    "ai-job-controller"
+                ],
+                "operationId": "streamJobEvents",
+                "parameters": [
+                    {
+                        "name": "jobId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
+                    },
+                    {
+                        "name": "Last-Event-ID",
+                        "in": "header",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "after_event_id",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SseEmitter"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -5113,6 +5160,15 @@
                     },
                     "message": {
                         "type": "string"
+                    }
+                }
+            },
+            "SseEmitter": {
+                "type": "object",
+                "properties": {
+                    "timeout": {
+                        "type": "integer",
+                        "format": "int64"
                     }
                 }
             }

@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface PartnerLetterRepository extends JpaRepository<PartnerLetter, Long> {
     Optional<PartnerLetter> findBySeason_Id(Long seasonPk);
@@ -23,6 +24,9 @@ public interface PartnerLetterRepository extends JpaRepository<PartnerLetter, Lo
             + "WHERE l.memberId = :memberId AND l.read = false AND l.message IS NOT NULL "
             + "ORDER BY l.createdAt DESC")
     List<PartnerLetter> findUnreadOrderByCreatedAtDesc(@Param("memberId") Long memberId);
+
+    /** job SSE 구독 전 소유권 확인용. 재시도로 새 job을 받으면 jobId가 덮어써지므로 최신 job만 맞는다. */
+    boolean existsByJobIdAndMemberId(UUID jobId, Long memberId);
 
     /** 본인 소유가 아닌 letterId는 존재 자체를 노출하지 않기 위해 memberId까지 함께 조회한다. */
     Optional<PartnerLetter> findByIdAndMemberId(Long id, Long memberId);

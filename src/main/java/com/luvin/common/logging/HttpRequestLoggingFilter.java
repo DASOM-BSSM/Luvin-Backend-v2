@@ -28,7 +28,8 @@ import java.util.concurrent.TimeUnit;
  * 비동기 요청/오류 디스패치는 OncePerRequestFilter 기본 동작(shouldNotFilterAsyncDispatch/
  * shouldNotFilterErrorDispatch가 true)에 따라 이 필터가 최초 1회만 감싸므로, 비동기 작업이
  * 컨테이너 스레드 반환 이후에도 계속되는 경우 DURATION은 실제 비동기 완료 시점이 아니라
- * 최초 디스패치가 끝난 시점까지만 측정한다(이 프로젝트는 현재 비동기 응답을 쓰지 않는다).
+ * 최초 디스패치가 끝난 시점까지만 측정한다 — job SSE(GET /api/ai/jobs/{jobId}/events)는 스트림이 열린
+ * 시점에 200과 그때까지의 시간으로 한 번만 기록된다.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)

@@ -119,6 +119,22 @@ MVP에서 지원하는 버전은 `pool.v1`, `topics.v1`뿐입니다. 생략하�
 네트워크 timeout은 job 실패를 의미하지 않습니다. 동일 generation POST를 즉시 새 key로 다시 보내지
 말고 기존 `job_id`를 우선 조회합니다.
 
+### job 진행 이벤트(SSE) 중계
+
+AI `GET /v1/jobs/{job_id}/events`를 Spring이 구독해 앱에 `GET /api/ai/jobs/{jobId}/events`로 그대로 넘깁니다
+(`AiJobEventStreamService`). polling은 그대로 두고, SSE는 진행 상황을 빨리 보여주는 보조 수단입니다.
+
+- `jobId`는 generation/reroll/쪽지 요청 응답의 `jobId`이고, 내 job이 아니면 404(JSON)입니다. 같은 회차를 다시
+  요청해 `jobId`가 바뀌면 이전 job은 더 이상 구독할 수 없습니다.
+- 이벤트 이름·`id`·`data`(snake_case)는 AI가 보낸 그대로입니다. `delta.text`는 검증 전 JSON 조각이라 segment별로
+  모았다가 `segment_end`에서 처리하고 `segment_error`면 버립니다. `completed`/`error`가 오면 Spring이 연결을 닫습니다.
+- 재연결할 때는 마지막으로 받은 `id`를 `Last-Event-ID` 헤더(또는 `after_event_id` query)로 보내면 AI에 그대로 전달됩니다.
+- AI 쪽 구독이 실패하거나 `completed`/`error` 없이 끊기면 `stream_error` 이벤트(`{"error_code": "JOB_NOT_FOUND" |
+  "AI_UNAVAILABLE" | "STREAM_INTERRUPTED" | "INTERNAL_ERROR"}`)를 보내고 닫습니다. 앱은 재연결하거나 polling으로 돌아갑니다.
+- 15초마다 `: keep-alive` 주석을 보내고, 10분이 지나면 닫습니다. 서버 한 대당 동시 스트림은 200개까지이고, 넘으면 503입니다
+  (`app.ai.stream.*`로 조정).
+- 앱이 연결을 끊어도 AI job은 취소하지 않고 구독만 닫습니다.
+
 ### 메시지 페이지 조회
 
 `GET /v1/seasons/{season_id}/episodes/{number}`

@@ -15,6 +15,9 @@ public interface AiRerollRequestRepository extends JpaRepository<AiRerollRequest
     Optional<AiRerollRequest> findFirstBySeason_IdAndEpisodeNumberOrderByCreatedAtDesc(
             Long seasonId, Integer episodeNumber);
 
+    /** job SSE 구독 전 소유권 확인용. */
+    boolean existsByJobIdAndSeason_MemberId(UUID jobId, Long memberId);
+
     List<AiRerollRequest> findAllByJobStatusIn(List<AiJobStatus> statuses);
 
     List<AiRerollRequest> findAllByJobStatusInAndNextPollAtLessThanEqual(
