@@ -19,6 +19,7 @@ import com.luvin.ai.service.exception.AiEpisodeProgressionException;
 import com.luvin.ai.service.exception.AiFeedbackAlreadySubmittedException;
 import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiInsufficientTokensException;
+import com.luvin.ai.service.exception.AiJobNotFoundException;
 import com.luvin.ai.service.exception.AiReportNotReadyException;
 import com.luvin.ai.service.exception.AiRerollNotAllowedException;
 import com.luvin.ai.service.exception.AiRerollNotFoundException;
@@ -31,6 +32,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -53,6 +55,16 @@ public class AiExceptionHandler {
     @ExceptionHandler(AiRerollNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleRerollNotFound(AiRerollNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
+    }
+
+    /**
+     * job SSE 요청은 Accept가 text/event-stream이라 Content-Type을 직접 정해두지 않으면 JSON 오류 본문을
+     * 쓸 수 없다(406으로 바뀜). 아래 rate limit(동시 스트림 한도 초과)도 같은 이유로 JSON을 명시한다.
+     */
+    @ExceptionHandler(AiJobNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleJobNotFound(AiJobNotFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON)
+                .body(ApiResponse.error(e.getMessage()));
     }
 
     @ExceptionHandler(PartnerLetterNotFoundException.class)
@@ -127,7 +139,7 @@ public class AiExceptionHandler {
 
     @ExceptionHandler(AiRateLimitException.class)
     public ResponseEntity<ApiResponse<Void>> handleRateLimit(AiRateLimitException e) {
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.error("요청이 많아 처리가 지연되고 있습니다. 잠시 후 다시 시도해주세요."));
     }
 

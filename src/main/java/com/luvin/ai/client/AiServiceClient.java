@@ -1,6 +1,7 @@
 package com.luvin.ai.client;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.luvin.ai.client.dto.AiSseEventDto;
 import com.luvin.ai.client.dto.CreateSeasonRequestDto;
 import com.luvin.ai.client.dto.EpisodeResponseDto;
 import com.luvin.ai.client.dto.GenerationRequestDto;
@@ -26,6 +27,7 @@ import com.luvin.ai.client.exception.AiServiceException;
 import com.luvin.ai.client.exception.AiUnclassifiedConflictException;
 import com.luvin.ai.client.exception.AiValidationException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
+import com.luvin.ai.config.AiServiceProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
@@ -35,11 +37,23 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * AI 서비스(FastAPI) 8개 endpoint에 대한 얇은 HTTP client.
+ * AI 서비스(FastAPI) endpoint에 대한 얇은 HTTP client.
  * 모든 요청에 X-Owner-Subject를 전달하고, 모든 POST에는 Idempotency-Key(UUID)를 전달한다 (요구사항 3.2).
  * HTTP status와 body를 도메인 예외로 변환하는 책임까지 이 계층에서 진다 (요구사항 6절).
  */
@@ -50,10 +64,19 @@ public class AiServiceClient {
 
     private final RestClient restClient;
     private final ObjectMapper aiObjectMapper;
+    private final HttpClient streamHttpClient;
+    private final String baseUrl;
+    private final Duration readTimeout;
 
-    public AiServiceClient(RestClient aiRestClient, ObjectMapper aiObjectMapper) {
+    public AiServiceClient(RestClient aiRestClient, ObjectMapper aiObjectMapper,
+                           HttpClient aiStreamHttpClient, AiServiceProperties properties) {
         this.restClient = aiRestClient;
         this.aiObjectMapper = aiObjectMapper;
+        this.streamHttpClient = aiStreamHttpClient;
+        this.baseUrl = properties.baseUrl().endsWith("/")
+                ? properties.baseUrl().substring(0, properties.baseUrl().length() - 1)
+                : properties.baseUrl();
+        this.readTimeout = properties.readTimeout();
     }
 
     public SeasonResponseDto createSeason(String ownerSubject, UUID idempotencyKey, CreateSeasonRequestDto request) {
@@ -152,6 +175,52 @@ public class AiServiceClient {
                 .uri("/v1/seasons/{seasonId}/letter", seasonId)
                 .headers(h -> applyHeaders(h, ownerSubject, null))
                 .exchange((req, resp) -> handle(resp, "GET .../letter", LetterResponseDto.class)));
+    }
+
+    /**
+     * job 진행 이벤트(SSE)를 구독해 이벤트가 올 때마다 onEvent로 넘긴다. onEvent가 false를 돌려주면 구독을 끝낸다.
+     * lastEventId가 있으면 Last-Event-ID로 보내 그 다음 이벤트부터 받는다.
+     *
+     * read-timeout은 응답 헤더를 받을 때까지만 적용하고 본문은 시간 제한 없이 읽는다 — 다른 스레드에서 끊으려면
+     * onOpen으로 받은 본문 스트림을 닫는다(그러면 읽던 쪽은 IOException으로 빠져나온다).
+     * 오류 응답은 다른 endpoint와 같은 예외로 바꾸고, 연결/읽기 실패는 AiServerException으로 던진다.
+     */
+    public void streamJobEvents(String ownerSubject, UUID jobId, String lastEventId,
+                                Consumer<Closeable> onOpen, Predicate<AiSseEventDto> onEvent) {
+        String opName = "GET /v1/jobs/{id}/events";
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(baseUrl + "/v1/jobs/" + jobId + "/events"))
+                .timeout(readTimeout)
+                .header("X-Owner-Subject", ownerSubject)
+                .header(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
+                .GET();
+        if (lastEventId != null && !lastEventId.isBlank()) {
+            request.header("Last-Event-ID", lastEventId);
+        }
+
+        HttpResponse<InputStream> response;
+        try {
+            response = streamHttpClient.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
+        } catch (IOException e) {
+            log.warn("AI service network failure: op={}, cause={}", opName, e.getMessage());
+            throw new AiServerException(opName + " 네트워크 오류/timeout", e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new AiServerException(opName + " 연결 중 중단됨", e);
+        }
+
+        try (InputStream body = response.body()) {
+            if (response.statusCode() / 100 != 2) {
+                throw toException(response.statusCode(), opName, new String(body.readAllBytes(), StandardCharsets.UTF_8));
+            }
+            String contentType = response.headers().firstValue(HttpHeaders.CONTENT_TYPE).orElse("");
+            if (!contentType.startsWith(MediaType.TEXT_EVENT_STREAM_VALUE)) {
+                throw new AiContractViolationException(opName + " 응답이 text/event-stream이 아닙니다: " + contentType, null);
+            }
+            onOpen.accept(body);
+            AiSseEventReader.read(new InputStreamReader(body, StandardCharsets.UTF_8), onEvent);
+        } catch (IOException e) {
+            throw new AiServerException(opName + " 스트림 읽기 중 IO 오류", e);
+        }
     }
 
     /**

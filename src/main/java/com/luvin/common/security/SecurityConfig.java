@@ -1,5 +1,6 @@
 package com.luvin.common.security;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -57,6 +58,9 @@ public class SecurityConfig {
                 .httpBasic(basic -> basic.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // SSE(SseEmitter)가 끝날 때의 ASYNC 디스패치는 JWT 필터를 다시 타지 않아 익명으로 보인다.
+                        // 최초 요청에서 이미 인가를 통과했으므로 ASYNC 디스패치는 그대로 통과시킨다.
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers("/api/auth/**", "/h2-console/**", "/actuator/health",
                                 "/openapi.json", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated()

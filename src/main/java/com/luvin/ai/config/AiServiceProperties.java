@@ -15,7 +15,8 @@ public record AiServiceProperties(
         Duration connectTimeout,
         Duration readTimeout,
         PollingProperties polling,
-        RetryProperties retry
+        RetryProperties retry,
+        StreamProperties stream
 ) {
     public AiServiceProperties {
         if (connectTimeout == null) {
@@ -30,6 +31,9 @@ public record AiServiceProperties(
         if (retry == null) {
             retry = new RetryProperties(3, Duration.ofSeconds(1), Duration.ofSeconds(8));
         }
+        if (stream == null) {
+            stream = new StreamProperties(Duration.ofMinutes(10), Duration.ofSeconds(15), 200);
+        }
     }
 
     /**
@@ -42,5 +46,14 @@ public record AiServiceProperties(
      * 5xx/timeout에 대한 제한적 재시도 backoff (요구사항 6절).
      */
     public record RetryProperties(int maxAttempts, Duration initialBackoff, Duration maxBackoff) {
+    }
+
+    /**
+     * job SSE 중계(GET /api/ai/jobs/{jobId}/events).
+     * maxDuration이 지나면 앱 연결을 닫는다 — 앱은 Last-Event-ID로 다시 붙거나 polling으로 돌아간다.
+     * heartbeatInterval마다 SSE 주석을 보내 ALB idle timeout(기본 60초)에 끊기지 않게 하고, 앱이 떠난 것도 이때 알아챈다.
+     * maxConcurrent는 서버 한 대가 동시에 열어두는 스트림 수 상한이다(초과 시 503).
+     */
+    public record StreamProperties(Duration maxDuration, Duration heartbeatInterval, int maxConcurrent) {
     }
 }

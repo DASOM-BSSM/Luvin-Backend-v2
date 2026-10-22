@@ -16,6 +16,8 @@ import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RestClient;
 
+import java.net.http.HttpClient;
+
 /**
  * AI 서비스 전용 RestClient. 앱 전역 ObjectMapper와 분리해서 wire format(snake_case, UUID, ISO-8601)을
  * AI 서비스 계약에 맞게 독립적으로 관리한다 (요구사항 3.1).
@@ -58,6 +60,19 @@ public class AiClientConfig {
                     converters.removeIf(MappingJackson2HttpMessageConverter.class::isInstance);
                     converters.add(0, new MappingJackson2HttpMessageConverter(aiObjectMapper));
                 })
+                .build();
+    }
+
+    /**
+     * GET /v1/jobs/{job_id}/events(SSE) 전용 client. RestClient(Apache HttpClient)는 응답을 닫을 때
+     * chunked 본문을 끝까지 읽어 버려서, 앱이 먼저 떠나도 AI job이 끝날 때까지 스레드가 묶인다.
+     * JDK HttpClient는 본문 스트림을 닫으면 바로 연결을 끊으므로 스트리밍에는 이쪽을 쓴다.
+     */
+    @Bean
+    public HttpClient aiStreamHttpClient(AiServiceProperties properties) {
+        return HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(properties.connectTimeout())
                 .build();
     }
 }
