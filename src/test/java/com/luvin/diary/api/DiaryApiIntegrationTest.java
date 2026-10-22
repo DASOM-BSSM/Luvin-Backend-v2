@@ -312,6 +312,111 @@ class DiaryApiIntegrationTest {
         assertEquals(1, count("diary_room_member"));
     }
 
+    // ------------------------------------------------------------------ 초대 코드
+
+    @Test
+    void 방을_만들면_8자리_초대_코드가_생기고_방장과_멤버만_조회할_수_있다() {
+        long roomId = createRoomWithMember();
+
+        Res ownerView = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/invite-code", owner, null);
+        assertEquals(200, ownerView.status());
+        String code = ownerView.data().get("inviteCode").asText();
+        assertTrue(code.matches("[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{8}"), "code=" + code);
+
+        assertEquals(code, call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/invite-code", member, null)
+                .data().get("inviteCode").asText());
+        assertEquals(403, call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/invite-code", outsider, null).status());
+    }
+
+    @Test
+    void 초대_코드로_누구나_참여할_수_있고_대소문자를_구분하지_않으며_다시_참여해도_200() {
+        long roomId = createRoom(owner, "방");
+        String code = inviteCode(owner, roomId);
+
+        Res joined = call(HttpMethod.POST, "/api/diary-rooms/join", outsider, Map.of("inviteCode", " " + code.toLowerCase() + " "));
+        assertEquals(200, joined.status());
+        assertEquals(roomId, joined.data().get("roomId").asLong());
+        assertEquals(outsider.id(), joined.data().get("userId").asLong());
+        assertTrue(joined.data().get("isMember").asBoolean());
+        assertEquals(2, joined.data().get("memberCount").asLong());
+        assertEquals("MEMBER", jdbc.queryForObject(
+                "select role from diary_room_member where room_id = ? and user_id = ?", String.class, roomId, outsider.id()));
+
+        Res again = call(HttpMethod.POST, "/api/diary-rooms/join", outsider, Map.of("inviteCode", code));
+        assertEquals(200, again.status());
+        assertEquals(2, again.data().get("memberCount").asLong());
+
+        // 방장이 자기 방 코드로 참여해도 역할은 OWNER 그대로
+        assertEquals(200, call(HttpMethod.POST, "/api/diary-rooms/join", owner, Map.of("inviteCode", code)).status());
+        assertEquals("OWNER", jdbc.queryForObject(
+                "select role from diary_room_member where room_id = ? and user_id = ?", String.class, roomId, owner.id()));
+
+        // 참여하면 방 피드를 볼 수 있다
+        assertEquals(200, call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/diaries", outsider, null).status());
+    }
+
+    @Test
+    void 없는_초대_코드는_404_빈_코드는_400() {
+        createRoom(owner, "방");
+
+        Res wrong = call(HttpMethod.POST, "/api/diary-rooms/join", member, Map.of("inviteCode", "ZZZZZZZZ"));
+        assertEquals(404, wrong.status());
+        assertEquals("초대 코드가 올바르지 않습니다. 다시 확인해주세요.", wrong.message());
+        assertEquals(400, call(HttpMethod.POST, "/api/diary-rooms/join", member, Map.of("inviteCode", " ")).status());
+    }
+
+    @Test
+    void 초대_코드_재발급은_방장만_가능하고_이전_코드는_쓸_수_없다() {
+        long roomId = createRoomWithMember();
+        String oldCode = inviteCode(owner, roomId);
+
+        assertEquals(403, call(HttpMethod.POST, "/api/diary-rooms/" + roomId + "/invite-code", member, null).status());
+        Res regenerated = call(HttpMethod.POST, "/api/diary-rooms/" + roomId + "/invite-code", owner, null);
+        assertEquals(200, regenerated.status());
+        String newCode = regenerated.data().get("inviteCode").asText();
+        assertFalse(newCode.equals(oldCode));
+
+        assertEquals(404, call(HttpMethod.POST, "/api/diary-rooms/join", outsider, Map.of("inviteCode", oldCode)).status());
+        assertEquals(200, call(HttpMethod.POST, "/api/diary-rooms/join", outsider, Map.of("inviteCode", newCode)).status());
+    }
+
+    @Test
+    void 강퇴하면_초대_코드가_바뀌어_강퇴된_사람은_이전_코드로_다시_못_들어온다() {
+        long roomId = createRoom(owner, "방");
+        String oldCode = inviteCode(owner, roomId);
+        assertEquals(200, call(HttpMethod.POST, "/api/diary-rooms/join", member, Map.of("inviteCode", oldCode)).status());
+
+        assertEquals(200, call(HttpMethod.DELETE, "/api/diary-rooms/" + roomId + "/members/kick?userId=" + member.id(), owner, null).status());
+
+        String newCode = inviteCode(owner, roomId);
+        assertFalse(newCode.equals(oldCode));
+        assertEquals(404, call(HttpMethod.POST, "/api/diary-rooms/join", member, Map.of("inviteCode", oldCode)).status());
+        assertFalse(jdbc.queryForObject(
+                "select count(*) > 0 from diary_room_member where room_id = ? and user_id = ?", Boolean.class, roomId, member.id()));
+    }
+
+    @Test
+    void 멤버가_아닌_사람을_강퇴하면_초대_코드는_그대로다() {
+        long roomId = createRoom(owner, "방");
+        String code = inviteCode(owner, roomId);
+
+        assertEquals(200, call(HttpMethod.DELETE, "/api/diary-rooms/" + roomId + "/members/kick?userId=" + outsider.id(), owner, null).status());
+        assertEquals(code, inviteCode(owner, roomId));
+    }
+
+    @Test
+    void 초대_코드는_DB에서_NOT_NULL_UNIQUE다() {
+        assertEquals("NO", jdbc.queryForObject(
+                "select is_nullable from information_schema.columns where table_name = 'diary_room' and column_name = 'invite_code'",
+                String.class));
+        Integer uniqueConstraints = jdbc.queryForObject(
+                "select count(*) from pg_constraint con join pg_class rel on rel.oid = con.conrelid "
+                        + "where rel.relname = 'diary_room' and con.contype = 'u' "
+                        + "and con.conkey = array[(select attnum from pg_attribute where attrelid = rel.oid and attname = 'invite_code')]",
+                Integer.class);
+        assertEquals(1, uniqueConstraints);
+    }
+
     @Test
     void 토큰이_없으면_401() {
         ResponseEntity<String> res = restTemplate.getForEntity("/api/diaries/community", String.class);
@@ -347,6 +452,12 @@ class DiaryApiIntegrationTest {
         assertEquals(200, call(HttpMethod.POST, "/api/diary-rooms/" + roomId + "/members", owner,
                 Map.of("userId", member.id())).status());
         return roomId;
+    }
+
+    private String inviteCode(TestUser who, long roomId) {
+        Res res = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/invite-code", who, null);
+        assertEquals(200, res.status(), String.valueOf(res.body()));
+        return res.data().get("inviteCode").asText();
     }
 
     private Res createDiary(TestUser who, long roomId) {

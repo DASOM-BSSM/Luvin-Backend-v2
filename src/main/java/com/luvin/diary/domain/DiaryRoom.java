@@ -29,6 +29,13 @@ public class DiaryRoom {
     @Column(name = "description", columnDefinition = "text")
     private String description;
 
+    /**
+     * 초대 코드 (영구, 8자리). 이 코드를 아는 사람은 누구나 방에 참여할 수 있다.
+     * 방을 만들 때 발급한다. 이 컬럼이 생기기 전에 있던 방은 Flyway V7이 코드를 채우고 NOT NULL/UNIQUE를 건다.
+     */
+    @Column(name = "invite_code", nullable = false, length = 8, unique = true)
+    private String inviteCode;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -44,6 +51,10 @@ public class DiaryRoom {
         this.description = description;
     }
 
+    public void changeInviteCode(String inviteCode) {
+        this.inviteCode = inviteCode;
+    }
+
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
@@ -52,9 +63,4 @@ public class DiaryRoom {
     public boolean isOwnedBy(Long userId) {
         return this.ownerId != null && this.ownerId.equals(userId);
     }
-
-//    // 방장 확인은 owner_id 하나로만 한다.     -> 위에 껄로 통합함
-//    public boolean isOwnedBy(Long userId) {
-//        return this.ownerId.equals(userId);
-//    }
 }

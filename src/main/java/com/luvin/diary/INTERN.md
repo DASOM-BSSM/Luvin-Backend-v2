@@ -28,7 +28,11 @@ diary/
 
 - **공개범위 없음. 일기는 항상 공유방 하나 안에서 쓴다.** 볼 수 있는 사람은 작성자 + 그 방의 방장·멤버(`Diary.canBeViewedBy`).
   작성 시 `roomId` 필수, 수정은 제목·내용만(방 이동 불가).
-- **공유방은 초대 방식.** 스스로 참여하는 API는 없고 방장이 멤버를 추가한다. 방장은 나갈 수 없다(400).
+- **공유방 참여는 초대 코드.** 방마다 8자리 영구 코드(헷갈리는 0/O, 1/I/L 제외)가 있고, 코드를 아는 사람은 누구나 참여한다(인원 제한 없음).
+  방장·멤버가 코드를 조회해 공유하고, 유출되면 방장이 재발급한다(이전 코드 즉시 무효). 방장이 userId로 직접 추가하는 API도 남아 있다.
+  **멤버를 강퇴하면 코드가 자동으로 재발급**된다(강퇴된 사람이 같은 코드로 바로 재참여하는 것을 막음). 이전 코드는 모두에게 무효가 되므로 새 코드를 다시 공유해야 한다.
+  코드는 Flyway `V7__diary_room_invite_code.sql`이 기존 방에 채우고 NOT NULL·UNIQUE를 건다.
+  방장은 나갈 수 없다(400).
   방장 확인은 `diary_room.owner_id` 하나로만 한다. 방을 만들면 방장이 `OWNER`로 멤버 테이블에도 들어간다.
 - **공감 = 이모지 반응.** 디자인 기본 6개(❤️😊😭😂🥺😍) + 이모지 키보드의 아무 이모지나 가능, 문자 그대로 저장한다.
   한 사람은 일기 하나에 반응 1개: 같은 이모지 다시 누르면 취소, 다른 이모지면 교체. 이모지 1개가 아니면 400.
@@ -75,6 +79,7 @@ table diary_room [note: '공유방'] {
   owner_id bigint [not null]
   name text [not null]
   description text
+  invite_code varchar(8) [not null, unique]   // 영구 초대 코드 (강퇴·재발급 때만 바뀜). 기존 방은 Flyway V7이 채움
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
 }
@@ -150,9 +155,12 @@ Swagger(`/swagger-ui`)의 "감정일기", "감정일기 공유방", "감정일�
 | 공유방 수정 | PUT | `/api/diary-rooms/{roomId}` | 방장만 |
 | 공유방 삭제 | DELETE | `/api/diary-rooms/{roomId}` | 방장만, 방의 일기·반응·댓글·멤버도 삭제 |
 | 멤버 목록 | GET | `/api/diary-rooms/{roomId}/members` | 방장·멤버만 |
-| 멤버 추가(초대) | POST | `/api/diary-rooms/{roomId}/members` | `{userId}`, 방장만 |
+| 멤버 추가(직접) | POST | `/api/diary-rooms/{roomId}/members` | `{userId}`, 방장만 |
+| 초대 코드 조회 | GET | `/api/diary-rooms/{roomId}/invite-code` | 방장·멤버만 → `{roomId, inviteCode}` |
+| 초대 코드 재발급 | POST | `/api/diary-rooms/{roomId}/invite-code` | 방장만, 이전 코드 무효 |
+| 초대 코드로 참여 | POST | `/api/diary-rooms/join` | `{inviteCode}`, 대소문자 무시, 이미 멤버면 200, 없는 코드 404 |
 | 나가기 | DELETE | `/api/diary-rooms/{roomId}/members/me` | 방장은 400 |
-| 강퇴 | DELETE | `/api/diary-rooms/{roomId}/members/kick?userId=` | 방장만, 자기 자신은 400 |
+| 강퇴 | DELETE | `/api/diary-rooms/{roomId}/members/kick?userId=` | 방장만, 자기 자신은 400, 강퇴되면 초대 코드 재발급 |
 | 공유방 일기 조회 | GET | `/api/diary-rooms/{roomId}/diaries` | 방장·멤버만 |
 
 ### 댓글 — `DiaryCommentController` (`/api/diaries/{diaryId}/comments`)

@@ -61,4 +61,18 @@ public class DiaryRoomDto {
             String message
     ){
     }
+
+    /** 초대 코드로 참여 요청. 대소문자는 구분하지 않는다. */
+    public record JoinRequest(
+            @NotBlank(message = "초대 코드를 입력해주세요.")
+            String inviteCode
+    ) {
+    }
+
+    /** 초대 코드 조회/재발급 응답. */
+    public record InviteCodeResponse(
+            Long roomId,
+            String inviteCode
+    ) {
+    }
 }

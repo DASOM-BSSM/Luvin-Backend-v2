@@ -74,7 +74,7 @@ public class DiaryRoomController {
         return ApiResponse.ok(diaryRoomService.addMember(memberId, roomId, request.userId()));
     }
 
-    @Operation(summary = "멤버 강퇴", description = "방장만 가능 (403). 방장 자신은 강퇴 불가 (400). 멤버가 아닌 id여도 200.")
+    @Operation(summary = "멤버 강퇴", description = "방장만 가능 (403). 방장 자신은 강퇴 불가 (400). 멤버가 아닌 id여도 200. 실제로 강퇴되면 초대 코드가 새로 발급되어 이전 코드는 쓸 수 없다.")
     @DeleteMapping("/{roomId}/members/kick")
     public ApiResponse<DiaryRoomDto.KickResponse> kickMember(@PathVariable Long roomId, @RequestParam Long userId) {
         Long memberId = SecurityUtils.getCurrentUserId();
@@ -86,5 +86,26 @@ public class DiaryRoomController {
     public ApiResponse<List<DiaryDto.FeedItem>> getRoomDiaries(@PathVariable Long roomId) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryRoomService.getRoomDiaries(memberId, roomId));
+    }
+
+    @Operation(summary = "초대 코드 조회", description = "방장·멤버만 조회 가능 (403). 코드는 영구이며 공유해서 다른 사람을 초대한다.")
+    @GetMapping("/{roomId}/invite-code")
+    public ApiResponse<DiaryRoomDto.InviteCodeResponse> getInviteCode(@PathVariable Long roomId) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(diaryRoomService.getInviteCode(memberId, roomId));
+    }
+
+    @Operation(summary = "초대 코드 재발급", description = "방장만 가능 (403). 이전 코드는 바로 쓸 수 없게 된다.")
+    @PostMapping("/{roomId}/invite-code")
+    public ApiResponse<DiaryRoomDto.InviteCodeResponse> regenerateInviteCode(@PathVariable Long roomId) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(diaryRoomService.regenerateInviteCode(memberId, roomId));
+    }
+
+    @Operation(summary = "초대 코드로 참여", description = "코드를 아는 사람은 누구나 참여 가능 (인원 제한 없음). 대소문자 구분 없음. 이미 멤버면 200, 없는 코드면 404.")
+    @PostMapping("/join")
+    public ApiResponse<DiaryRoomDto.MembershipResponse> joinByInviteCode(@Valid @RequestBody DiaryRoomDto.JoinRequest request) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(diaryRoomService.joinByInviteCode(memberId, request.inviteCode()));
     }
 }

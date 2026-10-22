@@ -58,6 +58,7 @@ public class GlobalExceptionHandler {
             EpisodeNotFoundException.class,
             DiaryNotFoundException.class,
             DiaryRoomNotFoundException.class,
+            DiaryRoomInviteCodeNotFoundException.class,
             ParticipantNotFoundException.class,
             GameNotFoundException.class,
             MatchNotFoundException.class,
