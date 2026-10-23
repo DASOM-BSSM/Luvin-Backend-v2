@@ -6,6 +6,8 @@ import com.luvin.LuvinBackendV2Application;
 import com.luvin.ai.domain.AiCharacterRole;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonCharacter;
+import com.luvin.ai.domain.AiEpisodeProgress;
+import com.luvin.ai.repository.AiEpisodeProgressRepository;
 import com.luvin.ai.repository.AiSeasonCharacterRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.common.security.AuthenticatedUser;
@@ -58,7 +60,7 @@ class AiStoryFlowIntegrationTest {
 
     private static final List<String> SEASON_TABLES = List.of(
             "ai_season_choices", "ai_bread_relations", "ai_episode_contents", "ai_season_story_reports",
-            "partner_letters", "ai_season_characters");
+            "partner_letters", "ai_season_characters", "ai_episode_progresses");
 
     private static final HttpServer FAKE_AI = startFakeAi();
 
@@ -80,6 +82,8 @@ class AiStoryFlowIntegrationTest {
     private AiSeasonRepository seasonRepository;
     @Autowired
     private AiSeasonCharacterRepository characterRepository;
+    @Autowired
+    private AiEpisodeProgressRepository progressRepository;
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
     @Autowired
@@ -240,6 +244,37 @@ class AiStoryFlowIntegrationTest {
     }
 
     @Test
+    void 시즌_상태에_회차_구성과_완료한_회차가_담긴다() throws Exception {
+        TestUser user = createUser(21);
+        createSeason(user);
+
+        JsonNode fresh = data(get(user, "/me"));
+        assertEquals("blocks", fresh.get("episodeFormat").asText());
+        assertTrue(fresh.get("story").isNull());
+
+        readyContent(user, 1);
+        complete(user, 1);
+        readyContent(user, 2);
+        JsonNode story = data(get(user, "/me")).get("story");
+        assertEquals(2, story.get("currentOrder").asInt());
+        assertEquals(List.of(1), intList(story.get("completedOrders")));
+        assertEquals("blocks", data(get(user, "")).get(0).get("episodeFormat").asText());
+    }
+
+    @Test
+    void 기존_5화로_진행_중인_시즌은_legacy이고_새_흐름_API를_막는다() throws Exception {
+        TestUser user = createUser(21);
+        Season season = createSeason(user);
+        progressRepository.save(new AiEpisodeProgress(
+                seasonRepository.findById(season.pk()).orElseThrow(), 1, UUID.randomUUID()));
+
+        assertEquals("legacy", data(get(user, "/me")).get("episodeFormat").asText());
+        assertEquals("LEGACY_SEASON", error(get(user, "/episodes/1/content")).get("code").asText());
+        assertEquals("LEGACY_SEASON", error(post(user, "/episodes/3/choices",
+                "{\"pointId\":1,\"breadId\":null}")).get("code").asText());
+    }
+
+    @Test
     void 나이가_없으면_1화에서_AGE_REQUIRED() throws Exception {
         TestUser user = createUser(null);
         createSeason(user);
@@ -359,6 +394,12 @@ class AiStoryFlowIntegrationTest {
         throw new AssertionError(role + " 출연진이 없습니다.");
     }
 
+    private static List<Integer> intList(JsonNode array) {
+        List<Integer> values = new ArrayList<>();
+        array.forEach(v -> values.add(v.asInt()));
+        return values;
+    }
+
     private static List<String> blockTypes(JsonNode content) {
         List<String> types = new ArrayList<>();
         content.get("blocks").forEach(b -> types.add(b.get("type").asText()));
@@ -410,19 +451,24 @@ class AiStoryFlowIntegrationTest {
         assertTrue(res.statusCode() == 201 || res.statusCode() == 200, res.body());
     }
 
-    /** POST /v1/seasons만 흉내 낸다: representative 1명 + candidate 3명인 새 AI 시즌. */
+    /**
+     * POST /v1/seasons(representative 1명 + candidate 3명인 새 AI 시즌)와 GET /v1/seasons/{id}(시즌 상태 조회 시
+     * revision 동기화용)만 흉내 낸다.
+     */
     private static HttpServer startFakeAi() {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
             server.createContext("/v1/seasons", exchange -> {
                 exchange.getRequestBody().readAllBytes();
+                String[] path = exchange.getRequestURI().getPath().split("/");
+                String seasonId = path.length > 3 ? path[3] : UUID.randomUUID().toString();
                 StringBuilder characters = new StringBuilder("{\"id\":\"" + UUID.randomUUID()
                         + "\",\"role\":\"representative\",\"gender\":\"female\"}");
                 for (int i = 0; i < 3; i++) {
                     characters.append(",{\"id\":\"").append(UUID.randomUUID())
                             .append("\",\"role\":\"candidate\",\"gender\":\"male\"}");
                 }
-                byte[] body = ("{\"season_id\":\"" + UUID.randomUUID() + "\",\"revision\":1,\"current_episode\":1,"
+                byte[] body = ("{\"season_id\":\"" + seasonId + "\",\"revision\":1,\"current_episode\":1,"
                         + "\"characters\":[" + characters + "],\"active_version_ids\":{}}").getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().set("Content-Type", "application/json");
                 exchange.sendResponseHeaders(201, body.length);

@@ -12,6 +12,9 @@ import java.util.UUID;
 public interface AiEpisodeProgressRepository extends JpaRepository<AiEpisodeProgress, Long> {
     Optional<AiEpisodeProgress> findBySeason_IdAndEpisodeNumber(Long seasonPk, Integer episodeNumber);
 
+    /** 기존 5화 흐름으로 회차 생성을 요청한 적이 있는 시즌인지(episodeFormat legacy 판단). */
+    boolean existsBySeason_Id(Long seasonPk);
+
     /** job SSE 구독 전 소유권 확인용. 새 generation을 요청하면 jobId가 덮어써지므로 최신 job만 맞는다. */
     boolean existsByJobIdAndSeason_MemberId(UUID jobId, Long memberId);
 

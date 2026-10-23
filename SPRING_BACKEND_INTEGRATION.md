@@ -284,7 +284,7 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 | 메서드 | 경로 | 내용 |
 |---|---|---|
 | PUT | `/api/users/me` | 기존 프로필 수정에 `age` 추가(1~120). 입력 전이면 `GET /api/users/me`의 `age`가 null |
-| GET | `/api/ai/seasons/me` | 기존 응답에 `story`(setting, currentOrder, route, romancePartnerId, choices, breads[].statusText) 추가. 1화 요청 전이면 null |
+| GET | `/api/ai/seasons/me` | 기존 응답에 `episodeFormat`(`legacy` \| `blocks`)과 `story`(setting, currentOrder, completedOrders, route, romancePartnerId, choices, breads[].statusText) 추가. story는 1화 요청 전이면 null |
 | GET | `/api/ai/seasons/episodes/{order}/content` | 회차 블록. 처음 요청이면 생성을 시작하고 `status: generating` |
 | POST | `/api/ai/seasons/episodes/{order}/choices` | `{ pointId, breadId \| null }` → choice_result 블록 + 시즌 상태 |
 | POST | `/api/ai/seasons/episodes/{order}/complete` | 관계 기록 갱신 + 회차 쪽지. 10화면 최종 리포트 + 시즌 완료 |
@@ -294,6 +294,8 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
   다시 부릅니다. `failed`면 다시 부를 때 생성을 다시 시작합니다.
 - 진행 순서: 다음 회차는 이전 회차를 완료해야 생성되고(409 `PREVIOUS_EPISODE_NOT_COMPLETED`), 선택 회차(3·5·6·8화)는
   선택해야 완료됩니다(409 `CHOICE_REQUIRED`). 그래서 4화는 ①, 6화는 ②, 7화는 ③, 9화는 ④ 이후에만 생성됩니다.
+- `episodeFormat`: 새 흐름을 시작했거나 새로 만든 시즌은 `blocks`, 기존 5화 흐름으로 회차 생성을 요청한 적이 있는
+  시즌은 `legacy`입니다. `legacy` 시즌에 새 흐름 API를 부르면 409 `LEGACY_SEASON`입니다(목록 `GET /api/ai/seasons`에도 같은 값).
 - 나이가 없으면 1화 요청이 409 `AGE_REQUIRED`입니다. 배경은 1화를 처음 요청할 때 정해 시즌 동안 고정합니다
   (19세 이하 school, 20~23세 campus/cafe 랜덤, 24세 이상 office). 도중에 나이를 바꾸면 다음 시즌부터 반영됩니다.
 - 쪽지(`GET /letters/unread`)와 최종 리포트(`GET /report`)는 경로·응답 형식이 그대로입니다. 회차마다 쪽지가 하나씩
