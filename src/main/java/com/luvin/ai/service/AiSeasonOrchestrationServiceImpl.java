@@ -300,7 +300,8 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         return stateWriter.findAllSeasons(memberId).stream()
                 .map(season -> new AiSeasonSummaryView(
                         season.getSeasonId(), season.getSeasonNumber(), season.getStatus().name(),
-                        season.getCurrentEpisode(), season.getCreatedAt(), season.getCompletedAt()))
+                        season.getCurrentEpisode(), season.getCreatedAt(), season.getCompletedAt(),
+                        storyService.formatOf(season)))
                 .collect(Collectors.toList());
     }
 
@@ -792,7 +793,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         return new AiSeasonStatusView(
                 season.getSeasonId(), season.getRevision(), season.getCurrentEpisode(),
                 season.getStatus().name(), characterViews, season.getSurveyResultId(), season.getSeasonNumber(),
-                storyService.stateOf(season.getId()));
+                storyService.formatOf(season), storyService.stateOf(season.getId()));
     }
 
     private AiEpisodeProgressView toProgressView(AiEpisodeProgress progress) {

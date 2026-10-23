@@ -18,6 +18,8 @@ public class AiStoryConflictException extends RuntimeException {
     public static final String CHOICE_ALREADY_MADE = "CHOICE_ALREADY_MADE";
     public static final String EPISODE_ALREADY_COMPLETED = "EPISODE_ALREADY_COMPLETED";
     public static final String REPORT_NOT_READY = "REPORT_NOT_READY";
+    /** 기존 5화 흐름으로 진행 중인 시즌(episodeFormat legacy)에는 장면 블록 회차 API를 쓸 수 없다. */
+    public static final String LEGACY_SEASON = "LEGACY_SEASON";
 
     private final String code;
 

@@ -8,6 +8,8 @@ public record AiStoryStateView(
         /** school | campus | office | cafe */
         String setting,
         Integer currentOrder,
+        /** 완료한 회차(오름차순). 10화까지 완료하면 currentOrder는 10 그대로이고 시즌 status가 COMPLETED다. */
+        List<Integer> completedOrders,
         /** romance | solo | null(6화 선택 전) */
         String route,
         UUID romancePartnerId,

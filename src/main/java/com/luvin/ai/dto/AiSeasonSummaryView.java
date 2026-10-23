@@ -10,6 +10,8 @@ public record AiSeasonSummaryView(
         String status,
         Integer currentEpisode,
         LocalDateTime createdAt,
-        LocalDateTime completedAt
+        LocalDateTime completedAt,
+        /** legacy | blocks — AiSeasonStatusView.episodeFormat과 같다. */
+        String episodeFormat
 ) {
 }
