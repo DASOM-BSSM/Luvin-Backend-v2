@@ -14,4 +14,6 @@ public interface AiSeasonCharacterRepository extends JpaRepository<AiSeasonChara
     Optional<AiSeasonCharacter> findBySeason_IdAndCharacterId(Long seasonPk, UUID characterId);
 
     Optional<AiSeasonCharacter> findFirstBySeason_IdAndRole(Long seasonPk, AiCharacterRole role);
+
+    void deleteAllBySeason_IdAndRole(Long seasonPk, AiCharacterRole role);
 }

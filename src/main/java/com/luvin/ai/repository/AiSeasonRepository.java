@@ -30,4 +30,8 @@ public interface AiSeasonRepository extends JpaRepository<AiSeason, Long> {
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<AiSeason> findWithLockBySeasonId(UUID seasonId);
+
+    /** 장면 블록 회차를 시작할 때(출연진 배정) 동시에 두 요청이 같은 시즌을 시작하지 않도록 잠근다. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<AiSeason> findWithLockById(Long id);
 }

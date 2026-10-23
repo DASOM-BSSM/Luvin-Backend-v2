@@ -77,7 +77,6 @@ public class AuthService {
                         .name(displayName)
                         .email(appleUser.email())
                         .nickname(displayName)
-                        .age(20)
                         .mbti("INFP")
                         .datingStyle("신중형")
                         .build());
@@ -124,7 +123,6 @@ public class AuthService {
                     .name(googleUser.name())
                     .email(googleUser.email())
                     .nickname(googleUser.name())
-                    .age(20)
                     .mbti("INFP")
                     .datingStyle("신중형")
                     .build());

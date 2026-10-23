@@ -5,7 +5,6 @@ import com.luvin.ai.client.exception.AiContractViolationException;
 import com.luvin.ai.client.exception.AiNotFoundException;
 import com.luvin.ai.client.exception.AiRateLimitException;
 import com.luvin.ai.client.exception.AiReportOutdatedException;
-import com.luvin.ai.client.exception.AiRerollLockedException;
 import com.luvin.ai.client.exception.AiRevisionConflictException;
 import com.luvin.ai.client.exception.AiSelectionConflictException;
 import com.luvin.ai.client.exception.AiServerException;
@@ -21,11 +20,11 @@ import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiInsufficientTokensException;
 import com.luvin.ai.service.exception.AiJobNotFoundException;
 import com.luvin.ai.service.exception.AiReportNotReadyException;
-import com.luvin.ai.service.exception.AiRerollNotAllowedException;
-import com.luvin.ai.service.exception.AiRerollNotFoundException;
 import com.luvin.ai.service.exception.AiSeasonAlreadyExistsException;
 import com.luvin.ai.service.exception.AiSeasonCompletedException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
+import com.luvin.ai.service.exception.AiStoryConflictException;
+import com.luvin.ai.service.exception.AiStoryGenerationFailedException;
 import com.luvin.ai.service.exception.PartnerLetterNotFoundException;
 import com.luvin.common.response.ApiResponse;
 import org.slf4j.Logger;
@@ -49,11 +48,6 @@ public class AiExceptionHandler {
 
     @ExceptionHandler(AiSeasonNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleSeasonNotFound(AiSeasonNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
-    }
-
-    @ExceptionHandler(AiRerollNotFoundException.class)
-    public ResponseEntity<ApiResponse<Void>> handleRerollNotFound(AiRerollNotFoundException e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
     }
 
@@ -112,10 +106,16 @@ public class AiExceptionHandler {
                         new AiInsufficientTokensView(e.getRequired(), e.getBalance())));
     }
 
-    @ExceptionHandler({AiRerollLockedException.class, AiRerollNotAllowedException.class})
-    public ResponseEntity<ApiResponse<Void>> handleRerollLocked(RuntimeException e) {
-        // REROLL_LOCKED는 정상적인 도메인 충돌이다 (요구사항 5.5).
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error("지금은 reroll할 수 없습니다."));
+    @ExceptionHandler(AiStoryConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleStoryConflict(AiStoryConflictException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage(), e.getCode()));
+    }
+
+    @ExceptionHandler(AiStoryGenerationFailedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleStoryGenerationFailed(AiStoryGenerationFailedException e) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(ApiResponse.error("이야기를 만들지 못했어요. 잠시 후 다시 시도해주세요.",
+                        AiStoryGenerationFailedException.CODE));
     }
 
     @ExceptionHandler(AiVersionSupersededException.class)

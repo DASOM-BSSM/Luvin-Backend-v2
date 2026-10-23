@@ -158,7 +158,7 @@ public class AiEpisodeProgress {
         }
     }
 
-    /** reroll 성공으로 active version이 바뀐 경우 pagination 재시작을 위해 호출한다. */
+    /** 메시지 조회 중 AI의 active version이 바뀐 경우(VERSION_SUPERSEDED) pagination 재시작을 위해 호출한다. */
     public void replaceVersion(UUID newVersionId) {
         this.versionId = newVersionId;
         this.lastSeenSequence = 0;

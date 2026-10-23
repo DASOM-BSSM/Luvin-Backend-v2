@@ -21,10 +21,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * EP5(시즌 마무리) 완료 시 최종 매칭 상대가 보내는 "SECRET LOVE" 쪽지. 시즌당 정확히 1개만
- * 존재한다(season_id unique). AI 서비스가 POST/GET /v1/seasons/{season_id}/letter로 비동기
+ * 장면 블록 회차(1~10화)에서는 회차를 완료할 때마다 쪽지가 1개씩 생긴다(episodeOrder). 10화 쪽지가 시즌 종료 쪽지다.
+ * 이 쪽지는 회차 완료 요청 안에서 바로 생성돼 job 컬럼을 쓰지 않는다. 기존 5화 흐름 쪽지는 episodeOrder가 null이다.
+ *
+ * (기존 5화 흐름) EP5(시즌 마무리) 완료 시 최종 매칭 상대가 보내는 "SECRET LOVE" 쪽지. 시즌당 정확히 1개만
+ * 존재한다(episode_order가 null인 row는 season_id당 1개 — V8의 partial unique index). AI 서비스가 POST/GET /v1/seasons/{season_id}/letter로 비동기
  * 생성하므로(요청 시점에는 아직 본문이 없다), job 상태 추적 컬럼은 ai_episode_progresses/
- * ai_reroll_requests와 동일한 컨벤션을 따른다 — partnerId/message/renderMode는 job이
+ * 다른 job 테이블과 동일한 컨벤션을 따른다 — partnerId/message/renderMode는 job이
  * SUCCEEDED된 뒤에만 채워진다.
  *
  * attempts는 "실제로 새 job_id를 받은 횟수"만 센다(AI가 REPORT_REQUIRED 등으로 job 자체를
@@ -32,7 +35,7 @@ import java.util.UUID;
  * 집계(LETTER_ATTEMPTS_EXHAUSTED)에만 맡기지 않고 Spring 쪽에서도 이중으로 보장한다.
  */
 @Entity
-@Table(name = "partner_letters", uniqueConstraints = @UniqueConstraint(columnNames = {"season_id"}))
+@Table(name = "partner_letters", uniqueConstraints = @UniqueConstraint(columnNames = {"season_id", "episode_order"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PartnerLetter {
@@ -50,6 +53,10 @@ public class PartnerLetter {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "season_id", nullable = false)
     private AiSeason season;
+
+    /** 장면 블록 회차 쪽지면 그 회차(1~10), 기존 5화 흐름 쪽지면 null. */
+    @Column(name = "episode_order")
+    private Integer episodeOrder;
 
     @Column(name = "partner_id", columnDefinition = "uuid")
     private UUID partnerId;
@@ -100,6 +107,15 @@ public class PartnerLetter {
         this.memberId = memberId;
         this.season = season;
         this.createdAt = LocalDateTime.now();
+    }
+
+    /** 회차 완료 쪽지. 생성된 본문을 바로 받으므로 처음부터 SUCCEEDED 상태로 만든다. */
+    public static PartnerLetter forEpisode(Long memberId, AiSeason season, int episodeOrder,
+                                           UUID partnerId, String message, String renderMode) {
+        PartnerLetter letter = new PartnerLetter(memberId, season);
+        letter.episodeOrder = episodeOrder;
+        letter.markSucceeded(partnerId, message, renderMode);
+        return letter;
     }
 
     /** POST /letter가 새 job을 접수했을 때. FAILED 이후 재시도도 같은 row를 재사용한다. */

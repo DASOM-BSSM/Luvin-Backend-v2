@@ -7,10 +7,8 @@ import com.luvin.ai.client.exception.AiServiceException;
 import com.luvin.ai.config.AiServiceProperties;
 import com.luvin.ai.domain.AiEpisodeProgress;
 import com.luvin.ai.domain.AiJobStatus;
-import com.luvin.ai.domain.AiRerollRequest;
 import com.luvin.ai.domain.PartnerLetter;
 import com.luvin.ai.repository.AiEpisodeProgressRepository;
-import com.luvin.ai.repository.AiRerollRequestRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.ai.repository.PartnerLetterRepository;
 import com.luvin.ai.security.OwnerSubjectProvider;
@@ -28,7 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * generation/reroll job polling worker. Spring request thread는 202 응답을 받은 즉시 종료하고,
+ * generation/쪽지 job polling worker. Spring request thread는 202 응답을 받은 즉시 종료하고,
  * 이 워커가 영속 상태(job_status, next_poll_at)를 기준으로 완료 여부를 확인한다 (요구사항 5.3).
  *
  * Spring 재시작 후에도 QUEUED/RUNNING/RETRY_WAIT 상태로 남아있는 row를 그대로 다시 polling 대상으로
@@ -41,7 +39,7 @@ public class AiJobPollingScheduler {
     private static final Logger log = LoggerFactory.getLogger(AiJobPollingScheduler.class);
     private static final List<AiJobStatus> PENDING_STATUSES =
             List.of(AiJobStatus.QUEUED, AiJobStatus.RUNNING, AiJobStatus.RETRY_WAIT);
-    /** FAILED도 함께 뽑는다 — 쪽지 job은(생성/reroll과 달리) 로컬 한도 내에서 자동 재시도한다. */
+    /** FAILED도 함께 뽑는다 — 쪽지 job은(회차 생성과 달리) 로컬 한도 내에서 자동 재시도한다. */
     private static final List<AiJobStatus> LETTER_DUE_STATUSES =
             List.of(AiJobStatus.QUEUED, AiJobStatus.RUNNING, AiJobStatus.RETRY_WAIT, AiJobStatus.FAILED);
     private static final int FINAL_EPISODE = 5;
@@ -51,7 +49,6 @@ public class AiJobPollingScheduler {
     private final AiServiceProperties properties;
     private final OwnerSubjectProvider ownerSubjectProvider;
     private final AiEpisodeProgressRepository episodeProgressRepository;
-    private final AiRerollRequestRepository rerollRequestRepository;
     private final AiSeasonRepository seasonRepository;
     private final PartnerLetterRepository partnerLetterRepository;
     private final AiSeasonOrchestrationService orchestrationService;
@@ -61,7 +58,6 @@ public class AiJobPollingScheduler {
                                   AiServiceProperties properties,
                                   OwnerSubjectProvider ownerSubjectProvider,
                                   AiEpisodeProgressRepository episodeProgressRepository,
-                                  AiRerollRequestRepository rerollRequestRepository,
                                   AiSeasonRepository seasonRepository,
                                   PartnerLetterRepository partnerLetterRepository,
                                   AiSeasonOrchestrationService orchestrationService,
@@ -70,7 +66,6 @@ public class AiJobPollingScheduler {
         this.properties = properties;
         this.ownerSubjectProvider = ownerSubjectProvider;
         this.episodeProgressRepository = episodeProgressRepository;
-        this.rerollRequestRepository = rerollRequestRepository;
         this.seasonRepository = seasonRepository;
         this.partnerLetterRepository = partnerLetterRepository;
         this.orchestrationService = orchestrationService;
@@ -105,20 +100,6 @@ public class AiJobPollingScheduler {
         }
     }
 
-    @Scheduled(fixedDelayString = "PT1S")
-    public void pollRerollJobs() {
-        LocalDateTime now = LocalDateTime.now();
-        List<AiRerollRequest> due = rerollRequestRepository
-                .findAllByJobStatusInAndNextPollAtLessThanEqual(PENDING_STATUSES, now);
-        for (AiRerollRequest reroll : due) {
-            try {
-                pollOneRerollJob(reroll.getId());
-            } catch (Exception e) {
-                log.warn("reroll job polling failed, will retry on next tick: rerollId={}", reroll.getId(), e);
-            }
-        }
-    }
-
     /**
      * job SSE에서 completed/error를 받았을 때, 다음 polling 차례(최대 5초 backoff)를 기다리지 않고 그 job을 바로
      * 반영한다. 앱이 completed를 받자마자 조회 API를 불러도 409(아직 완료되지 않음)가 나지 않게 하기 위함이다.
@@ -127,7 +108,6 @@ public class AiJobPollingScheduler {
      */
     public void pollJobNow(UUID jobId) {
         episodeProgressRepository.findByJobId(jobId).ifPresent(progress -> pollOneGenerationJob(progress.getId()));
-        rerollRequestRepository.findByJobId(jobId).ifPresent(reroll -> pollOneRerollJob(reroll.getId()));
     }
 
     private void pollOneGenerationJob(Long progressId) {
@@ -238,37 +218,6 @@ public class AiJobPollingScheduler {
         }
     }
 
-    private void pollOneRerollJob(Long rerollId) {
-        transactionTemplate.executeWithoutResult(status ->
-                rerollRequestRepository.findById(rerollId).ifPresent(reroll -> {
-                    if (reroll.getJobId() == null || !reroll.getJobStatus().isPending()) {
-                        return;
-                    }
-                    Long memberId = reroll.getSeason().getMemberId();
-                    String ownerSubject = ownerSubjectProvider.resolve(memberId);
-
-                    JobResponseDto job = fetchJobSafely(ownerSubject, reroll.getJobId());
-                    if (job == null) {
-                        scheduleRetry(reroll);
-                        return;
-                    }
-
-                    AiJobStatus jobStatus = AiJobStatus.fromWire(job.status(), null);
-                    if (jobStatus == AiJobStatus.SUCCEEDED) {
-                        reroll.markSucceeded(job.resultVersionId());
-                        // 성공 후에는 새 version의 첫 페이지부터 다시 조회해야 한다 (요구사항 5.5) —
-                        // 해당 화의 진행 상태 version을 교체하고 lastSeenSequence를 초기화한다.
-                        episodeProgressRepository.findBySeason_IdAndEpisodeNumber(
-                                        reroll.getSeason().getId(), reroll.getEpisodeNumber())
-                                .ifPresent(progress -> progress.replaceVersion(job.resultVersionId()));
-                    } else if (jobStatus == AiJobStatus.FAILED) {
-                        reroll.markFailed(job.errorCode());
-                    } else {
-                        scheduleRetry(reroll);
-                    }
-                }));
-    }
-
     private JobResponseDto fetchJobSafely(String ownerSubject, java.util.UUID jobId) {
         try {
             return aiServiceClient.getJob(ownerSubject, jobId);
@@ -283,12 +232,6 @@ public class AiJobPollingScheduler {
         int attempts = progress.getPollAttempts() + 1;
         Duration backoff = computeBackoff(attempts);
         progress.markPending(AiJobStatus.RUNNING, LocalDateTime.now().plus(backoff), attempts);
-    }
-
-    private void scheduleRetry(AiRerollRequest reroll) {
-        int attempts = reroll.getPollAttempts() + 1;
-        Duration backoff = computeBackoff(attempts);
-        reroll.markPending(AiJobStatus.RUNNING, LocalDateTime.now().plus(backoff), attempts);
     }
 
     private void scheduleRetry(PartnerLetter letter) {

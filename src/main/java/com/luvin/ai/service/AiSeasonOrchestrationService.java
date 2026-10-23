@@ -6,7 +6,6 @@ import com.luvin.ai.dto.AiEpisodeMessagesView;
 import com.luvin.ai.dto.AiEpisodeProgressView;
 import com.luvin.ai.dto.AiMessageLikeView;
 import com.luvin.ai.dto.AiReportView;
-import com.luvin.ai.dto.AiRerollView;
 import com.luvin.ai.dto.AiSeasonStatusView;
 import com.luvin.ai.dto.AiSeasonSummaryView;
 import com.luvin.ai.dto.AiSelectionView;
@@ -18,7 +17,7 @@ import java.util.UUID;
 
 /**
  * openapi.json 8개 endpoint에 대응하는 Spring 쪽 application service.
- * 시즌 생성부터 1~5화 진행, reroll, report까지 담당한다 (요구사항 2절, 5절).
+ * 시즌 생성부터 1~5화 진행, report까지 담당한다 (요구사항 2절, 5절).
  */
 public interface AiSeasonOrchestrationService {
 
@@ -48,12 +47,14 @@ public interface AiSeasonOrchestrationService {
      * episodeNumber 화 generation을 접수한다. 이미 접수된 job이 있으면 새로 요청하지 않고 기존 진행 상태를
      * 반환한다 (중복 generation 방지, 요구사항 4절). 완료된(지난) 시즌에는 요청할 수 없다(409 SEASON_COMPLETED).
      */
+    @Deprecated // 기존 5화 흐름. 장면 블록 회차(AiStoryService)로 대체됐다.
     AiEpisodeProgressView requestGeneration(Long memberId, int episodeNumber);
 
     /**
      * 1화 사용자 선택. partnerId는 현재 시즌의 candidate 중 하나여야 한다.
      * 완료된(지난) 시즌에는 요청할 수 없다(409 SEASON_COMPLETED).
      */
+    @Deprecated // 기존 5화 흐름. 장면 블록 회차(AiStoryService)로 대체됐다.
     AiSelectionView submitEpisode1Selection(Long memberId, UUID partnerId);
 
     /**
@@ -61,25 +62,14 @@ public interface AiSeasonOrchestrationService {
      * 판정을 마친 상태여야 한다 (요구사항 5.4) — 이 메서드는 그 판정 결과를 신뢰하고 그대로 AI에 전달한다.
      * 실패면 verifiedPartnerId는 null이어야 한다. 완료된(지난) 시즌에는 요청할 수 없다(409 SEASON_COMPLETED).
      */
+    @Deprecated // 기존 5화 흐름. 장면 블록 회차(AiStoryService)로 대체됐다.
     AiSelectionView submitEpisode3MinigameResult(Long memberId, boolean success, UUID verifiedPartnerId);
-
-    /**
-     * 2·4화 1:1 상대 변경. 다음 화 generation이 이미 접수됐으면 거부한다. 완료된(지난) 시즌에는
-     * 요청할 수 없다(409 SEASON_COMPLETED).
-     */
-    AiRerollView requestReroll(Long memberId, int episodeNumber, UUID requestedPartnerId);
-
-    /**
-     * 해당 회차의 가장 최근 reroll 요청 상태를 조회한다(폴링용). POST 응답 이후 완료 여부를 확인할
-     * 별도 수단이 없던 문제를 해결한다. 한 번도 reroll을 요청한 적이 없으면 404.
-     * seasonId가 null이면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다.
-     */
-    AiRerollView getRerollStatus(Long memberId, UUID seasonId, int episodeNumber);
 
     /**
      * episodeNumber 화 완성 메시지 pagination 조회. version_id를 고정해서 조회한다.
      * seasonId가 null이면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 조회한다.
      */
+    @Deprecated // 기존 5화 흐름. 장면 블록 회차(AiStoryService)로 대체됐다.
     AiEpisodeMessagesView getEpisodeMessages(
             Long memberId, UUID seasonId, int episodeNumber, Integer afterSequence, Integer limit);
 
@@ -110,6 +100,7 @@ public interface AiSeasonOrchestrationService {
      * 한다(그렇지 않으면 400). 회차당 1회만 가능하다(두 번째 시도는 409 FEEDBACK_ALREADY_SUBMITTED).
      * seasonId가 null이면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난 시즌 포함)을 대상으로 한다.
      */
+    @Deprecated // 기존 5화 흐름. 장면 블록 회차(AiStoryService)로 대체됐다.
     AiEpisodeFeedbackView submitEpisodeFeedback(
             Long memberId, UUID seasonId, int episodeNumber, UUID messageId, String content);
 
@@ -127,5 +118,6 @@ public interface AiSeasonOrchestrationService {
      * 한다(아니면 400). seasonId가 null이면 현재(최신) 시즌, 지정하면 본인 소유의 그 시즌(지난
      * 시즌 포함)을 대상으로 한다.
      */
+    @Deprecated // 기존 5화 흐름. 장면 블록 회차(AiStoryService)로 대체됐다.
     AiMessageLikeView toggleEpisodeMessageLike(Long memberId, UUID seasonId, int episodeNumber, UUID messageId);
 }

@@ -58,7 +58,6 @@ Spring DB에는 최소한 다음 데이터를 저장합니다.
 | 마지막 조회 `sequence` | 앱 표시 진행도 |
 | 1화 사용자 선택 | 2화 생성 조건 |
 | 3화 미니게임 결과와 이벤트 ID | 4화 생성 조건 및 중복 방지 |
-| reroll 요청 key와 선택 상대 | 재시도 및 사용자 과금 연계 |
 
 AI 내부 관계 점수, 기분 수치, prompt, state snapshot을 Spring이나 앱의 사용자 응답 모델로 복제하지
 않습니다. 실제 사용자의 설문 점수와 미니게임 판정은 계속 Spring이 소유합니다.
@@ -124,7 +123,7 @@ MVP에서 지원하는 버전은 `pool.v1`, `topics.v1`뿐입니다. 생략하�
 AI `GET /v1/jobs/{job_id}/events`를 Spring이 구독해 앱에 `GET /api/ai/jobs/{jobId}/events`로 그대로 넘깁니다
 (`AiJobEventStreamService`). polling은 그대로 두고, SSE는 진행 상황을 빨리 보여주는 보조 수단입니다.
 
-- `jobId`는 generation/reroll/쪽지 요청 응답의 `jobId`이고, 내 job이 아니면 404(JSON)입니다. 같은 회차를 다시
+- `jobId`는 generation/쪽지 요청 응답의 `jobId`이고, 내 job이 아니면 404(JSON)입니다. 같은 회차를 다시
   요청해 `jobId`가 바뀌면 이전 job은 더 이상 구독할 수 없습니다.
 - 이벤트 이름·`id`·`data`(snake_case)는 AI가 보낸 그대로입니다. `delta.text`는 검증 전 JSON 조각이라 segment별로
   모았다가 `segment_end`에서 처리하고 `segment_error`면 버립니다. `completed`/`error`가 오면 Spring이 연결을 닫습니다.
@@ -153,16 +152,12 @@ curl -s -X POST "$BASE/api/ai/seasons/episodes/1/generations" -H "Authorization:
 curl -N "$BASE/api/ai/jobs/$JOB_ID/events" -H "Authorization: Bearer $TOKEN" -H "Accept: text/event-stream"
 curl -s "$BASE/api/ai/seasons/episodes/1?season_id=$SEASON_ID" -H "Authorization: Bearer $TOKEN"   # completed 직후 200
 
-# 2. reroll 성공: 완료된 회차(2 또는 4)에서 1:1 상대를 바꿔 요청 → 같은 방식으로 구독
-curl -s -X POST "$BASE/api/ai/seasons/episodes/2/rerolls" -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" -d '{"partnerId":"<candidate uuid>"}'
-
-# 3. 끝난 job 재구독: 1이 끝난 뒤 같은 jobId로 다시 붙으면 이벤트를 처음부터 다시 받고 completed로 닫힘
-# 4. 재연결: 받은 id 중 하나를 Last-Event-ID로 보내면 그 다음 id부터 받음
+# 2. 끝난 job 재구독: 1이 끝난 뒤 같은 jobId로 다시 붙으면 이벤트를 처음부터 다시 받고 completed로 닫힘
+# 3. 재연결: 받은 id 중 하나를 Last-Event-ID로 보내면 그 다음 id부터 받음
 curl -N "$BASE/api/ai/jobs/$JOB_ID/events" -H "Authorization: Bearer $TOKEN" -H "Last-Event-ID: $ID"
-# 5. stream_error: 잘못된 id → {"error_code":"INVALID_LAST_EVENT_ID"} 후 닫힘
+# 4. stream_error: 잘못된 id → {"error_code":"INVALID_LAST_EVENT_ID"} 후 닫힘
 curl -N "$BASE/api/ai/jobs/$JOB_ID/events" -H "Authorization: Bearer $TOKEN" -H "Last-Event-ID: not-a-cursor"
-# 6. HTTP 오류: 토큰 없이 → 401, 다른 계정 토큰 → 404
+# 5. HTTP 오류: 토큰 없이 → 401, 다른 계정 토큰 → 404
 ```
 
 job 자체를 실패시키는 방법(`error`, `segment_error`)은 앱에서 만들 수 없습니다. 실제 AI로 재현하려면 AI 쪽 장애 주입이
@@ -174,7 +169,7 @@ job 자체를 실패시키는 방법(`error`, `segment_error`)은 앱에서 만�
 
 첫 페이지에서 반환된 `version_id`를 저장하고 이후 페이지에는 같은 `version_id`를 전달합니다.
 `after_sequence`는 마지막으로 받은 메시지의 `sequence`이며 exclusive cursor입니다. `has_more=false`가
-될 때까지 조회합니다. reroll로 활성 버전이 바뀌어 `VERSION_SUPERSEDED`가 반환되면 기존 페이지를
+될 때까지 조회합니다. AI 쪽에서 활성 버전이 바뀌어 `VERSION_SUPERSEDED`가 반환되면 기존 페이지를
 섞지 말고 새 version의 첫 페이지부터 다시 읽습니다.
 
 1·3화 응답의 `topic`은 서버가 시즌 seed로 선택한 불변 snapshot입니다.
@@ -195,16 +190,13 @@ job 자체를 실패시키는 방법(`error`, `segment_error`)은 앱에서 만�
 1. 시즌 생성 후 에피소드 1 generation을 요청합니다.
 2. 에피소드 1 완료 후 사용자가 고른 candidate로 1화 selection을 저장합니다.
 3. 최신 revision으로 에피소드 2 generation을 요청합니다.
-4. 에피소드 2 완료 후 필요하면 1:1 상대 reroll을 요청합니다.
-5. 에피소드 3 generation을 요청하고 완료된 대화를 표시합니다.
-6. Spring이 미니게임을 실행·판정한 뒤 3화 selection을 저장합니다.
-7. 최신 revision으로 에피소드 4 generation을 요청합니다.
-8. 에피소드 4 완료 후 필요하면 1:1 상대 reroll을 요청합니다.
-9. 에피소드 5 generation을 요청합니다.
-10. 완료 후 `GET /v1/seasons/{season_id}/report`로 최종 리포트를 조회합니다.
+4. 에피소드 3 generation을 요청하고 완료된 대화를 표시합니다.
+5. Spring이 미니게임을 실행·판정한 뒤 3화 selection을 저장합니다.
+6. 최신 revision으로 에피소드 4 generation을 요청합니다.
+7. 에피소드 5 generation을 요청합니다.
+8. 완료 후 `GET /v1/seasons/{season_id}/report`로 최종 리포트를 조회합니다.
 
-이후 에피소드 generation이 접수되면 이전 화 reroll은 영구 잠깁니다. 앱 화면 상태만으로 가능 여부를
-결정하지 말고 최신 시즌과 API 결과를 기준으로 처리합니다.
+앱 화면 상태만으로 진행 가능 여부를 결정하지 말고 최신 시즌과 API 결과를 기준으로 처리합니다.
 
 ## 6. 선택과 미니게임
 
@@ -229,19 +221,10 @@ job 자체를 실패시키는 방법(`error`, `segment_error`)은 앱에서 만�
 미니게임 성공 여부와 성공 시 대상 판정은 Spring 책임입니다. LLM이나 AI 서비스에 미니게임 판정을
 위임하지 않습니다.
 
-## 7. reroll
+## 7. reroll (제거됨)
 
-`POST /v1/seasons/{season_id}/episodes/{number}/rerolls`
-
-2·4화에서만 호출합니다.
-
-- `expected_revision`: 최신 시즌 revision
-- `expected_version_id`: 현재 활성 에피소드 version
-- `partner_id`: 현재 1:1 상대와 다른 candidate ID
-
-reroll 성공 전에는 기존 활성 version을 계속 표시할 수 있습니다. 성공하면 새 version을 처음부터
-조회합니다. 다음 화 generation을 이미 요청했다면 `REROLL_LOCKED`를 사용자에게 변경 불가 상태로
-표시합니다.
+다시 굽기(reroll)는 제거했습니다. Spring에는 reroll API·polling이 없고, `ai_reroll_requests` 테이블은
+V9 마이그레이션으로 사용 중단만 표시했습니다(데이터는 남아 있음).
 
 ## 8. 오류 처리
 
@@ -251,7 +234,7 @@ Spring client는 최소한 다음 HTTP 상태를 구분합니다.
 |---|---|
 | 401 | 내부 인증/header 구성 오류; 사용자 재로그인으로 자동 치환하지 않음 |
 | 404 | owner 불일치 또는 리소스 없음; 다른 사용자의 존재를 노출하지 않음 |
-| 409 | revision, 진행 순서, selection, reroll 또는 version 충돌 |
+| 409 | revision, 진행 순서, selection 또는 version 충돌 |
 | 422 | DTO·범위·페이지 파라미터 오류; 재시도하지 않음 |
 | 429 | backoff 후 제한적으로 재시도 |
 | 5xx/timeout | 기존 job 존재 여부를 확인한 뒤 제한적으로 재시도 |
@@ -288,5 +271,59 @@ Spring은 위 미완성 기능이 이미 제공된다고 가정해 우회 구현
 - pagination 중 version을 고정하는지 테스트
 - 1·3화 topic 표시와 2·4화 null 처리를 테스트
 - 미니게임 실패 시 partner ID를 보내지 않는지 테스트
-- 이후 화 시작 후 이전 reroll을 차단하는지 테스트
 - AI 내부 수치와 prompt가 앱 응답에 노출되지 않는지 contract test
+
+## 11. 장면 블록 회차 (1~10화)
+
+에피소드를 장면 블록 목록으로 재생하는 새 흐름입니다. 회차 구성과 수락·거절 판정은 Spring 코드 규칙
+(`AiEpisodePlanner`, `AiChoiceJudge`, 수치는 `AiChoiceRules`)으로 정하고, 대사·관계 정리·쪽지·리포트만
+FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 직접 호출하지 않습니다.
+
+### 앱 API
+
+| 메서드 | 경로 | 내용 |
+|---|---|---|
+| PUT | `/api/users/me` | 기존 프로필 수정에 `age` 추가(1~120). 입력 전이면 `GET /api/users/me`의 `age`가 null |
+| GET | `/api/ai/seasons/me` | 기존 응답에 `story`(setting, currentOrder, route, romancePartnerId, choices, breads[].statusText) 추가. 1화 요청 전이면 null |
+| GET | `/api/ai/seasons/episodes/{order}/content` | 회차 블록. 처음 요청이면 생성을 시작하고 `status: generating` |
+| POST | `/api/ai/seasons/episodes/{order}/choices` | `{ pointId, breadId \| null }` → choice_result 블록 + 시즌 상태 |
+| POST | `/api/ai/seasons/episodes/{order}/complete` | 관계 기록 갱신 + 회차 쪽지. 10화면 최종 리포트 + 시즌 완료 |
+
+- 블록 JSON 형식과 오류 code는 `openapi.json`(`AiEpisodeContentView`, `AiSceneBlockView`)을 따릅니다.
+- 생성 중에는 jobId가 없어 job SSE를 쓰지 않습니다. `status`가 `ready`가 될 때까지 GET content를 1~3초 간격으로
+  다시 부릅니다. `failed`면 다시 부를 때 생성을 다시 시작합니다.
+- 진행 순서: 다음 회차는 이전 회차를 완료해야 생성되고(409 `PREVIOUS_EPISODE_NOT_COMPLETED`), 선택 회차(3·5·6·8화)는
+  선택해야 완료됩니다(409 `CHOICE_REQUIRED`). 그래서 4화는 ①, 6화는 ②, 7화는 ③, 9화는 ④ 이후에만 생성됩니다.
+- 나이가 없으면 1화 요청이 409 `AGE_REQUIRED`입니다. 배경은 1화를 처음 요청할 때 정해 시즌 동안 고정합니다
+  (19세 이하 school, 20~23세 campus/cafe 랜덤, 24세 이상 office). 도중에 나이를 바꾸면 다음 시즌부터 반영됩니다.
+- 쪽지(`GET /letters/unread`)와 최종 리포트(`GET /report`)는 경로·응답 형식이 그대로입니다. 회차마다 쪽지가 하나씩
+  생기고 10화 쪽지가 시즌 종료 쪽지입니다. 시즌이 완료되면 기존처럼 `POST /next`로 다음 시즌을 시작합니다.
+- 기존 5화 흐름 API(generations, 1화/3화 selection, 메시지 페이지 조회, 피드백, 좋아요)는 @Deprecated이고 동작은
+  그대로입니다. 프론트 전환 후 별도 작업으로 지웁니다.
+
+### FastAPI story endpoint (계약 합의 전)
+
+`app.ai.story.client`가 `stub`(기본)이면 Spring 안의 stub이 정해진 문구로 응답하고, `http`면 아래 임시 경로로 보냅니다.
+경로와 필드는 AI 문서(luvin_에피소드_재구성_AI_프롬프트.md)를 기준으로 AI 쪽과 합의해 확정합니다.
+요청 DTO는 `com.luvin.ai.client.story` 패키지에 있습니다.
+
+| 경로(임시) | 호출 시점 | 응답 |
+|---|---|---|
+| `POST /v1/story/stage-intro` | 1화 생성 전 | 출연진 배경별 역할·소개 |
+| `POST /v1/story/episode` | 회차 생성 | intro + 블록 대사 |
+| `POST /v1/story/interview` | 10화 생성 | 인터뷰 블록 대사 |
+| `POST /v1/story/choice-result` | 선택 | 결과 장면(+ 거절이면 대체 장면) 대사 |
+| `POST /v1/story/summarize` | 회차 완료 | 회차 요약, 빵별 관계 기록 갱신안, 호감 변화 제안(-5~+5) |
+| `POST /v1/story/episode-note` | 회차 완료 | 기존 쪽지 형식(`LetterResponseDto`) |
+| `POST /v1/story/season-report` | 10화 완료 | 기존 리포트 형식(`ReportResponseDto`) |
+
+- 모든 호출에 `context`(setting, audience `minor|adult`, ageBand, 출연진·무대 소개, 관계 기록, 선택 기록과 사유 코드,
+  내 빵 학습 데이터)를 함께 보냅니다.
+- 응답은 Spring에서 다시 검증하고(`AiStoryResponseValidator`: 요청한 블록 id·참여 빵 일치, 빈 대사·길이 초과 금지),
+  실패하면 1회 재시도, 그래도 실패하면 저장하지 않고 오류를 돌려줍니다(502 `STORY_GENERATION_FAILED`).
+- 생성 호출 timeout은 `app.ai.story.read-timeout`(기본 60초)입니다.
+
+### 개발 전용
+
+`app.dev-tools.enabled=true`인 환경에서만 `POST /api/dev/ai/seasons/current/story/reset`이 있습니다(운영 기본값 false).
+현재 시즌의 선택·관계 기록·회차·회차 쪽지·리포트를 지우고 1화 전으로 되돌립니다.

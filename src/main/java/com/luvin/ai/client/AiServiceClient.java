@@ -9,7 +9,6 @@ import com.luvin.ai.client.dto.JobResponseDto;
 import com.luvin.ai.client.dto.LetterRequestDto;
 import com.luvin.ai.client.dto.LetterResponseDto;
 import com.luvin.ai.client.dto.ReportResponseDto;
-import com.luvin.ai.client.dto.RerollRequestDto;
 import com.luvin.ai.client.dto.SeasonResponseDto;
 import com.luvin.ai.client.dto.SelectionRequestDto;
 import com.luvin.ai.client.dto.SelectionResponseDto;
@@ -20,7 +19,6 @@ import com.luvin.ai.client.exception.AiLetterAlreadyExistsException;
 import com.luvin.ai.client.exception.AiNotFoundException;
 import com.luvin.ai.client.exception.AiRateLimitException;
 import com.luvin.ai.client.exception.AiReportOutdatedException;
-import com.luvin.ai.client.exception.AiRerollLockedException;
 import com.luvin.ai.client.exception.AiRevisionConflictException;
 import com.luvin.ai.client.exception.AiSelectionConflictException;
 import com.luvin.ai.client.exception.AiServerException;
@@ -31,6 +29,7 @@ import com.luvin.ai.client.exception.AiVersionSupersededException;
 import com.luvin.ai.config.AiServiceProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
@@ -69,7 +68,7 @@ public class AiServiceClient {
     private final String baseUrl;
     private final Duration readTimeout;
 
-    public AiServiceClient(RestClient aiRestClient, ObjectMapper aiObjectMapper,
+    public AiServiceClient(@Qualifier("aiRestClient") RestClient aiRestClient, ObjectMapper aiObjectMapper,
                            HttpClient aiStreamHttpClient, AiServiceProperties properties) {
         this.restClient = aiRestClient;
         this.aiObjectMapper = aiObjectMapper;
@@ -114,16 +113,6 @@ public class AiServiceClient {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
                 .exchange((req, resp) -> handle(resp, "POST .../selection", SelectionResponseDto.class)));
-    }
-
-    public JobResponseDto requestReroll(String ownerSubject, UUID idempotencyKey,
-                                         UUID seasonId, int episodeNumber, RerollRequestDto request) {
-        return withNetworkErrorTranslation("POST .../rerolls", () -> restClient.post()
-                .uri("/v1/seasons/{seasonId}/episodes/{number}/rerolls", seasonId, episodeNumber)
-                .headers(h -> applyHeaders(h, ownerSubject, idempotencyKey))
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .exchange((req, resp) -> handle(resp, "POST .../rerolls", JobResponseDto.class)));
     }
 
     public JobResponseDto getJob(String ownerSubject, UUID jobId) {
@@ -176,6 +165,21 @@ public class AiServiceClient {
                 .uri("/v1/seasons/{seasonId}/letter", seasonId)
                 .headers(h -> applyHeaders(h, ownerSubject, null))
                 .exchange((req, resp) -> handle(resp, "GET .../letter", LetterResponseDto.class)));
+    }
+
+    /**
+     * 장면 블록 회차 생성 endpoint(AiStoryHttpClient) 전용 POST. 생성 호출은 일반 호출보다 오래 걸려 timeout이 긴
+     * 별도 RestClient로 보내지만, 헤더 규칙과 오류 변환은 다른 endpoint와 똑같이 이 클래스가 맡는다.
+     */
+    public <T> T post(RestClient client, String path, String ownerSubject, UUID idempotencyKey,
+                      Object request, Class<T> type) {
+        String opName = "POST " + path;
+        return withNetworkErrorTranslation(opName, () -> client.post()
+                .uri(path)
+                .headers(h -> applyHeaders(h, ownerSubject, idempotencyKey))
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(request)
+                .exchange((req, resp) -> handle(resp, opName, type)));
     }
 
     /**
@@ -304,7 +308,6 @@ public class AiServiceClient {
         }
         return switch (errorCode) {
             case "REVISION_CONFLICT" -> new AiRevisionConflictException(message, errorCode, rawBody);
-            case "REROLL_LOCKED" -> new AiRerollLockedException(message, rawBody);
             case "VERSION_SUPERSEDED" -> new AiVersionSupersededException(message, rawBody);
             // 오류가 아니라 "이미 정상 생성됨" — 호출부가 GET /letter로 받아와 성공 처리하도록 구분한다.
             case "LETTER_ALREADY_EXISTS" -> new AiLetterAlreadyExistsException(message, rawBody);

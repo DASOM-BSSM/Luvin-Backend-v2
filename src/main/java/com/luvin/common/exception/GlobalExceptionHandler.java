@@ -62,7 +62,6 @@ public class GlobalExceptionHandler {
             ParticipantNotFoundException.class,
             GameNotFoundException.class,
             MatchNotFoundException.class,
-            RebakeNotFoundException.class,
             ReportNotFoundException.class,
             MessageNotFoundException.class,
             NoteNotFoundException.class,
