@@ -38,9 +38,9 @@ public final class AiChoiceRules {
             AiCastRole.FRIEND, 50,
             AiCastRole.MOOD_MAKER, 40);
 
-    /** FastAPI에는 호감 숫자 대신 구간만 넘긴다: MID_FROM 미만 low, HIGH_FROM 미만 mid, 그 이상 high. */
-    public static final int AFFINITY_MID_FROM = 35;
-    public static final int AFFINITY_HIGH_FROM = 65;
+    /** FastAPI에는 호감 숫자 대신 구간만 넘긴다: 0~39 low, 40~69 mid, 70~100 high. */
+    public static final int AFFINITY_MID_FROM = 40;
+    public static final int AFFINITY_HIGH_FROM = 70;
 
     public static final String INITIAL_STATUS_TEXT = "처음 만남";
     public static final String ROMANCE_STATUS_TEXT = "연애 중";

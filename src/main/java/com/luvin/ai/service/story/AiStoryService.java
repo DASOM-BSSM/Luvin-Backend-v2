@@ -399,20 +399,16 @@ public class AiStoryService {
         List<EpisodeNoteRequest.Relation> noteRelations = summary.relations().stream()
                 .map(u -> new EpisodeNoteRequest.Relation(u.breadId(), u.statusText(), u.recentMemory()))
                 .toList();
+        boolean finale = order == AiStoryCatalog.FINAL_ORDER;
+        List<StoryTypes.EpisodeSummary> summaries = episodeSummaries(snapshot, order, summary.episodeSummary());
         EpisodeNoteRequest noteRequest = new EpisodeNoteRequest(context, order, settingScene, summary.episodeSummary(),
-                choice, noteRelations);
+                choice, noteRelations, finale ? summaries : null);
         EpisodeNoteResponse note = callWithRetry("episode-note",
                 () -> storyClient.writeEpisodeNote(ownerSubject, noteRequest),
                 r -> AiStoryResponseValidator.validateNote(r, castIds));
 
         String reportJson = null;
-        if (order == AiStoryCatalog.FINAL_ORDER) {
-            List<SeasonReportRequest.EpisodeSummary> summaries = new ArrayList<>();
-            snapshot.contents().stream()
-                    .filter(c -> c.order() < order && c.summaryJson() != null)
-                    .forEach(c -> summaries.add(new SeasonReportRequest.EpisodeSummary(c.order(),
-                            String.valueOf(AiStoryJson.read(c.summaryJson(), Map.class).get("episodeSummary")))));
-            summaries.add(new SeasonReportRequest.EpisodeSummary(order, summary.episodeSummary()));
+        if (finale) {
             SeasonReportRequest reportRequest = new SeasonReportRequest(context,
                     snapshot.route() == null ? null : snapshot.route().wireValue(),
                     mapper.contractIdOrNull(snapshot.romancePartnerId()), summaries, mapper.choiceRecordsWithReason(),
@@ -443,22 +439,16 @@ public class AiStoryService {
      */
     public AiStoryFeedbackView submitFeedback(Long memberId, int order, Integer bodyOrder, String blockId,
                                               UUID messageId, String text) {
-        SceneMessage target = findPairMessage(memberId, order, bodyOrder, blockId, messageId);
-        if (!target.message().fromRepresentative()) {
-            throw new AiInputValidationException("내 빵의 대사에만 피드백을 남길 수 있습니다.");
-        }
+        SceneMessage target = findMyPairMessage(memberId, order, bodyOrder, blockId, messageId);
         AiStoryFeedback saved = stateWriter.saveFeedback(target.seasonPk(), order, blockId, messageId,
                 target.message().text(), text);
         return new AiStoryFeedbackView(order, saved.getBlockId(), saved.getMessageId(), saved.getText());
     }
 
-    /** 1:1 장면(pair 블록) 메시지 좋아요. liked로 켜고 끈다. 내레이션에는 누를 수 없다. */
+    /** 1:1 장면(pair 블록)에서 내 빵의 대사 좋아요. liked로 켜고 끈다. */
     public AiMessageLikeView setLike(Long memberId, int order, Integer bodyOrder, String blockId, UUID messageId,
                                      boolean liked) {
-        SceneMessage target = findPairMessage(memberId, order, bodyOrder, blockId, messageId);
-        if (target.message().speakerId() == null) {
-            throw new AiInputValidationException("내레이션에는 좋아요를 누를 수 없습니다.");
-        }
+        SceneMessage target = findMyPairMessage(memberId, order, bodyOrder, blockId, messageId);
         stateWriter.setLike(target.seasonPk(), order, blockId, messageId, target.message().text(),
                 target.message().fromRepresentative(), liked);
         return new AiMessageLikeView(messageId, liked);
@@ -467,7 +457,12 @@ public class AiStoryService {
     private record SceneMessage(Long seasonPk, AiStoryMessageView message) {
     }
 
-    private SceneMessage findPairMessage(Long memberId, int order, Integer bodyOrder, String blockId, UUID messageId) {
+    /**
+     * 피드백·좋아요 대상: 상대가 있는 pair 블록 안의 내 빵 대사(kind chat). 그 외(다른 블록, 혼자인 pair, 독백,
+     * 내레이션, 상대의 대사)는 400.
+     */
+    private SceneMessage findMyPairMessage(Long memberId, int order, Integer bodyOrder, String blockId,
+                                           UUID messageId) {
         validateOrder(order);
         if (bodyOrder != null && bodyOrder != order) {
             throw new AiInputValidationException("경로의 order와 body의 order가 다릅니다.");
@@ -488,6 +483,12 @@ public class AiStoryService {
         AiStoryMessageView message = block.messages().stream().filter(m -> m.messageId().equals(messageId))
                 .findFirst()
                 .orElseThrow(() -> new AiInputValidationException("messageId가 이 장면의 대사에 없습니다."));
+        if (!message.fromRepresentative()) {
+            throw new AiInputValidationException("내 빵의 대사에만 남길 수 있습니다.");
+        }
+        if (StoryTypes.KIND_MONOLOGUE.equals(message.kind())) {
+            throw new AiInputValidationException("독백에는 남길 수 없습니다.");
+        }
         return new SceneMessage(season.getId(), message);
     }
 
@@ -600,6 +601,18 @@ public class AiStoryService {
                 stateWriter.recentFeedbacks(snapshot.seasonPk()), stateWriter.recentLikedMyMessages(snapshot.seasonPk()));
         return new StoryTypes.GenerationContext(snapshot.setting().wireValue(), AiSeasonSettingPolicy.audience(age),
                 AiSeasonSettingPolicy.ageGroup(age), mapper.castMembers(), learned);
+    }
+
+    /** 1화부터 이번 회차까지의 회차 요약(이번 회차는 방금 받은 정리 결과). */
+    private static List<StoryTypes.EpisodeSummary> episodeSummaries(AiStorySnapshot snapshot, int order,
+                                                                    String currentSummary) {
+        List<StoryTypes.EpisodeSummary> summaries = new ArrayList<>();
+        snapshot.contents().stream()
+                .filter(c -> c.order() < order && c.summaryJson() != null)
+                .forEach(c -> summaries.add(new StoryTypes.EpisodeSummary(c.order(),
+                        String.valueOf(AiStoryJson.read(c.summaryJson(), Map.class).get("episodeSummary")))));
+        summaries.add(new StoryTypes.EpisodeSummary(order, currentSummary));
+        return summaries;
     }
 
     /** 시즌에서 이미 쓴 장면 소재: 이전 회차의 배경 장면과 상황 소개 제목. */

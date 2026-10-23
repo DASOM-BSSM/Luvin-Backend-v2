@@ -35,11 +35,11 @@ class AiChoiceJudgeTest {
     }
 
     @Test
-    void 혼자_있기는_판정하지_않는다() {
+    void 혼자_있기는_판정하지_않고_accepted로_둔다() {
         AiChoiceJudge.Decision decision = AiChoiceJudge.judge(
                 new AiChoiceJudge.Input(3, null, null, 0, 0, List.of(OTHER)));
 
-        assertFalse(decision.accepted());
+        assertTrue(decision.accepted());
         assertEquals(AiChoiceRules.REASON_ALONE, decision.reasonCode());
         assertFalse(decision.shortReply());
     }

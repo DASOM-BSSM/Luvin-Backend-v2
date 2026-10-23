@@ -17,6 +17,7 @@ import static com.luvin.ai.service.story.AiChoiceRules.MERCY_REJECT_COUNT;
  * 선택 수락·거절 판정. AI에 맡기지 않는 순수 코드 규칙이다(같은 입력이면 항상 같은 결과).
  *
  * 순서: 혼자 있기 → 거절 2회 후 무조건 수락 → ②의 회피형(짧게 수락) → 기준 호감 + 성향 보정 비교.
+ * 혼자 있기는 판정하지 않고 accepted=true로 둔다(공통 데이터 계약 3-2·5-3). 거절 사유도 없다.
  * 거절 사유는 보정이 없었다면 수락됐을 때만 성향 사유(anxious_hurt/avoidant_retreat)로 남긴다.
  */
 public final class AiChoiceJudge {
@@ -38,7 +39,7 @@ public final class AiChoiceJudge {
 
     public static Decision judge(Input input) {
         if (input.breadId() == null) {
-            return new Decision(false, AiChoiceRules.REASON_ALONE, false);
+            return new Decision(true, AiChoiceRules.REASON_ALONE, false);
         }
         Integer base = BASE_THRESHOLD.get(input.pointId());
         if (base == null) {

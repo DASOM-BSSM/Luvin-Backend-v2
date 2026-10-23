@@ -1,0 +1,106 @@
+{
+  "context" : {
+    "setting" : "cafe",
+    "audience" : "adult",
+    "ageGroup" : "20대 초반",
+    "cast" : [ {
+      "breadId" : "me",
+      "name" : "빵",
+      "breadType" : "소금빵",
+      "role" : "같은 매장 새 얼굴",
+      "description" : null
+    }, {
+      "breadId" : "avoidant",
+      "name" : "새콤한 팥빵",
+      "breadType" : "팥빵",
+      "role" : "같은 매장 친구",
+      "description" : "새콤한 팥빵와 함께 지내요"
+    }, {
+      "breadId" : "anxious",
+      "name" : "말랑한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 친구",
+      "description" : "말랑한 바게트와 함께 지내요"
+    }, {
+      "breadId" : "secure",
+      "name" : "동그란 카스테라",
+      "breadType" : "카스테라",
+      "role" : "같은 매장 친구",
+      "description" : "동그란 카스테라와 함께 지내요"
+    }, {
+      "breadId" : "friend",
+      "name" : "느긋한 프레첼",
+      "breadType" : "프레첼",
+      "role" : "같은 매장 단짝",
+      "description" : "느긋한 프레첼와 함께 지내요"
+    }, {
+      "breadId" : "maker",
+      "name" : "따끈한 도넛",
+      "breadType" : "도넛",
+      "role" : "같은 매장 분위기 ",
+      "description" : "따끈한 도넛와 함께 지내요"
+    } ],
+    "learnedProfile" : {
+      "summary" : "소금빵 타입.",
+      "recentAnswers" : [ ],
+      "feedbacks" : [ ],
+      "likedMessages" : [ ]
+    }
+  },
+  "order" : 10,
+  "settingScene" : "마지막 근무 날",
+  "episodeSummary" : "10화 요약: 장면 8개.",
+  "choice" : null,
+  "relations" : [ {
+    "breadId" : "avoidant",
+    "statusText" : "친해짐",
+    "recentMemory" : "10화: 함께 이야기를 나눴다"
+  }, {
+    "breadId" : "secure",
+    "statusText" : "친해짐",
+    "recentMemory" : "10화: 함께 이야기를 나눴다"
+  }, {
+    "breadId" : "anxious",
+    "statusText" : "친해짐",
+    "recentMemory" : "10화: 함께 이야기를 나눴다"
+  }, {
+    "breadId" : "friend",
+    "statusText" : "친해짐",
+    "recentMemory" : "10화: 함께 이야기를 나눴다"
+  }, {
+    "breadId" : "maker",
+    "statusText" : "친해짐",
+    "recentMemory" : "10화: 함께 이야기를 나눴다"
+  } ],
+  "episodeSummaries" : [ {
+    "order" : 1,
+    "summary" : "1화 요약: 장면 4개."
+  }, {
+    "order" : 2,
+    "summary" : "2화 요약: 장면 4개."
+  }, {
+    "order" : 3,
+    "summary" : "3화 요약: 장면 6개."
+  }, {
+    "order" : 4,
+    "summary" : "4화 요약: 장면 4개."
+  }, {
+    "order" : 5,
+    "summary" : "5화 요약: 장면 6개."
+  }, {
+    "order" : 6,
+    "summary" : "6화 요약: 장면 6개."
+  }, {
+    "order" : 7,
+    "summary" : "7화 요약: 장면 4개."
+  }, {
+    "order" : 8,
+    "summary" : "8화 요약: 장면 6개."
+  }, {
+    "order" : 9,
+    "summary" : "9화 요약: 장면 4개."
+  }, {
+    "order" : 10,
+    "summary" : "10화 요약: 장면 8개."
+  } ]
+}

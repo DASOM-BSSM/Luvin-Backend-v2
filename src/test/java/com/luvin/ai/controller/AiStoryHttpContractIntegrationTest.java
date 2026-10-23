@@ -160,6 +160,51 @@ class AiStoryHttpContractIntegrationTest {
                 "{\"pointId\":1,\"breadId\":null}").body()).get("data");
         assertEquals(before, count("/luvin/choice-result"));
         assertEquals(0, alone.get("blocks").get(0).get("messages").size());
+        assertTrue(alone.get("blocks").get(0).get("choiceResult").get("accepted").asBoolean());
+    }
+
+    /**
+     * 1~10화를 끝까지 돌려 7개 endpoint를 모두 부르고, endpoint마다 처음 보낸 요청 JSON을
+     * build/story-contract-examples/에 남긴다 — AI 쪽에 넘길 실제 요청 예시다.
+     */
+    @Test
+    void 시즌_전체에서_7개_endpoint를_계약_형식으로_부르고_예시를_남긴다() throws Exception {
+        setUpUserAndSeason();
+        Map<Integer, String> picks = Map.of(3, "secure", 5, "avoidant", 6, "secure", 8, "friend");
+        for (int order = 1; order <= 10; order++) {
+            JsonNode content = readyContent(order);
+            Integer point = switch (order) {
+                case 3 -> 1;
+                case 5 -> 2;
+                case 6 -> 3;
+                case 8 -> 4;
+                default -> null;
+            };
+            if (point != null) {
+                String breadId = participantId(content, picks.get(order));
+                if (breadId == null) {
+                    breadId = choiceCandidate(content, 0);
+                }
+                assertEquals(200, send("POST", "/api/ai/seasons/episodes/" + order + "/choices",
+                        "{\"pointId\":" + point + ",\"breadId\":\"" + breadId + "\"}").statusCode());
+            }
+            assertEquals(200, send("POST", "/api/ai/seasons/episodes/" + order + "/complete", null).statusCode());
+        }
+
+        // 10화 쪽지(시즌 종료 쪽지)에는 1~10화 요약 목록이 함께 간다. 그 전 회차 쪽지에는 필드가 없다.
+        JsonNode finaleNote = last("/luvin/episode-note");
+        assertEquals(10, finaleNote.get("order").asInt());
+        assertEquals(10, finaleNote.get("episodeSummaries").size());
+        assertFalse(first("/luvin/episode-note").has("episodeSummaries"));
+
+        java.nio.file.Path dir = java.nio.file.Path.of("build", "story-contract-examples");
+        java.nio.file.Files.createDirectories(dir);
+        for (String path : List.of("/luvin/stage-intro", "/luvin/episode", "/luvin/choice-result", "/luvin/interview",
+                "/luvin/summarize", "/luvin/episode-note", "/luvin/season-report")) {
+            JsonNode example = path.equals("/luvin/episode-note") ? finaleNote : first(path);
+            java.nio.file.Files.writeString(dir.resolve(path.substring("/luvin/".length()) + ".json"),
+                    CONTRACT.writerWithDefaultPrettyPrinter().writeValueAsString(example));
+        }
     }
 
     // ------------------------------------------------------------------ helpers
@@ -167,7 +212,8 @@ class AiStoryHttpContractIntegrationTest {
     private void setUpUserAndSeason() {
         String unique = UUID.randomUUID().toString();
         User user = userRepository.save(User.builder().googleId("contract-" + unique).name("빵")
-                .email(unique + "@ai-contract.test").nickname("빵").gender("FEMALE").age(22).build());
+                .email(unique + "@ai-contract.test").nickname("빵").gender("FEMALE").age(22)
+                .personalityType("salt_bread").build());
         userId = user.getId();
         token = jwtTokenProvider.createAccessToken(new AuthenticatedUser(user.getId(), user.getEmail(), user.getNickname()));
         AiSeason season = seasonRepository.save(new AiSeason(userId, 1, UUID.randomUUID(), 1, 1, null));
@@ -212,6 +258,36 @@ class AiStoryHttpContractIntegrationTest {
             }
         }
         throw new AssertionError(path + " 요청을 받지 못했습니다.");
+    }
+
+    private static JsonNode first(String path) {
+        synchronized (RECEIVED) {
+            return RECEIVED.stream().filter(e -> e.getKey().equals(path)).map(Map.Entry::getValue).findFirst()
+                    .orElseThrow(() -> new AssertionError(path + " 요청을 받지 못했습니다."));
+        }
+    }
+
+    /** 1화 group 블록에서 그 역할(role)의 빵 id. 이 회차 선택 후보가 아니면 null을 돌려준다. */
+    private String participantId(JsonNode content, String role) throws Exception {
+        JsonNode group = readyContent(1).get("blocks").get(0).get("participants");
+        String breadId = null;
+        for (JsonNode participant : group) {
+            if (role.equals(participant.get("role").asText())) {
+                breadId = participant.get("breadId").asText();
+            }
+        }
+        JsonNode choice = content.get("blocks").get(content.get("blocks").size() - 1).get("choice");
+        for (JsonNode candidate : choice.get("candidates")) {
+            if (candidate.get("breadId").asText().equals(breadId)) {
+                return breadId;
+            }
+        }
+        return null;
+    }
+
+    private static String choiceCandidate(JsonNode content, int index) {
+        return content.get("blocks").get(content.get("blocks").size() - 1).get("choice").get("candidates")
+                .get(index).get("breadId").asText();
     }
 
     private static int count(String path) {

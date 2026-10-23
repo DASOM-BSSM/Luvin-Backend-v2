@@ -378,24 +378,26 @@ class AiStoryFlowIntegrationTest {
         post(user, "/episodes/1/scene-feedback", "{\"blockId\":\"b3\",\"messageId\":\"" + myLine
                 + "\",\"text\":\"조금 더 솔직했으면\"}");
         assertEquals(200, post(user, "/episodes/1/scene-likes", "{\"blockId\":\"b3\",\"messageId\":\""
-                + partnerLine + "\",\"liked\":true}").statusCode());
+                + myLine + "\",\"liked\":true}").statusCode());
 
         JsonNode reloaded = data(get(user, "/episodes/1/content"));
         assertEquals(1, reloaded.get("feedbacks").size());
         assertEquals("조금 더 솔직했으면", reloaded.get("feedbacks").get(0).get("text").asText());
-        assertEquals(partnerLine, reloaded.get("likedMessageIds").get(0).asText());
+        assertEquals(myLine, reloaded.get("likedMessageIds").get(0).asText());
 
-        // 상대의 대사에는 피드백 불가, pair가 아닌 블록에는 둘 다 불가, body order가 경로와 다르면 불가
+        // 상대의 대사에는 피드백·좋아요 불가, pair가 아닌 블록에는 둘 다 불가, body order가 경로와 다르면 불가
         assertEquals(400, post(user, "/episodes/1/scene-feedback", "{\"blockId\":\"b3\",\"messageId\":\""
                 + partnerLine + "\",\"text\":\"x\"}").statusCode());
+        assertEquals(400, post(user, "/episodes/1/scene-likes", "{\"blockId\":\"b3\",\"messageId\":\""
+                + partnerLine + "\",\"liked\":true}").statusCode());
         String groupLine = ep1.get("blocks").get(0).get("messages").get(1).get("messageId").asText();
         assertEquals(400, post(user, "/episodes/1/scene-likes", "{\"blockId\":\"b1\",\"messageId\":\""
                 + groupLine + "\",\"liked\":true}").statusCode());
         assertEquals(400, post(user, "/episodes/1/scene-likes", "{\"order\":2,\"blockId\":\"b3\","
-                + "\"messageId\":\"" + partnerLine + "\",\"liked\":true}").statusCode());
+                + "\"messageId\":\"" + myLine + "\",\"liked\":true}").statusCode());
 
         // 끄면 목록에서 빠진다.
-        post(user, "/episodes/1/scene-likes", "{\"blockId\":\"b3\",\"messageId\":\"" + partnerLine
+        post(user, "/episodes/1/scene-likes", "{\"blockId\":\"b3\",\"messageId\":\"" + myLine
                 + "\",\"liked\":false}");
         assertEquals(0, data(get(user, "/episodes/1/content")).get("likedMessageIds").size());
     }

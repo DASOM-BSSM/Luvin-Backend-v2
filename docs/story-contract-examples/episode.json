@@ -1,0 +1,123 @@
+{
+  "context" : {
+    "setting" : "cafe",
+    "audience" : "adult",
+    "ageGroup" : "20대 초반",
+    "cast" : [ {
+      "breadId" : "me",
+      "name" : "빵",
+      "breadType" : "소금빵",
+      "role" : "같은 매장 새 얼굴",
+      "description" : null
+    }, {
+      "breadId" : "avoidant",
+      "name" : "새콤한 팥빵",
+      "breadType" : "팥빵",
+      "role" : "같은 매장 친구",
+      "description" : "새콤한 팥빵와 함께 지내요"
+    }, {
+      "breadId" : "anxious",
+      "name" : "말랑한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 친구",
+      "description" : "말랑한 바게트와 함께 지내요"
+    }, {
+      "breadId" : "secure",
+      "name" : "동그란 카스테라",
+      "breadType" : "카스테라",
+      "role" : "같은 매장 친구",
+      "description" : "동그란 카스테라와 함께 지내요"
+    }, {
+      "breadId" : "friend",
+      "name" : "느긋한 프레첼",
+      "breadType" : "프레첼",
+      "role" : "같은 매장 단짝",
+      "description" : "느긋한 프레첼와 함께 지내요"
+    }, {
+      "breadId" : "maker",
+      "name" : "따끈한 도넛",
+      "breadType" : "도넛",
+      "role" : "같은 매장 분위기 ",
+      "description" : "따끈한 도넛와 함께 지내요"
+    } ],
+    "learnedProfile" : {
+      "summary" : "소금빵 타입.",
+      "recentAnswers" : [ ],
+      "feedbacks" : [ ],
+      "likedMessages" : [ ]
+    }
+  },
+  "order" : 1,
+  "commonEvent" : "무리에 처음 합류",
+  "settingScene" : "첫 출근",
+  "route" : null,
+  "romancePartnerId" : null,
+  "referencePlot" : null,
+  "design" : [ {
+    "id" : "b1",
+    "type" : "group",
+    "participantIds" : [ "me", "avoidant", "anxious", "secure", "friend", "maker" ]
+  }, {
+    "id" : "b2",
+    "type" : "transition",
+    "participantIds" : [ ]
+  }, {
+    "id" : "b3",
+    "type" : "pair",
+    "participantIds" : [ "me", "anxious" ],
+    "pairTarget" : "anxious",
+    "short" : false
+  }, {
+    "id" : "b4",
+    "type" : "messenger",
+    "participantIds" : [ "me", "anxious" ],
+    "messenger" : {
+      "kind" : "direct",
+      "roomName" : "말랑한 바게트"
+    }
+  } ],
+  "threads" : [ ],
+  "relations" : [ {
+    "breadId" : "avoidant",
+    "affinityLevel" : "low",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  }, {
+    "breadId" : "anxious",
+    "affinityLevel" : "low",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  }, {
+    "breadId" : "secure",
+    "affinityLevel" : "low",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  }, {
+    "breadId" : "friend",
+    "affinityLevel" : "mid",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  }, {
+    "breadId" : "maker",
+    "affinityLevel" : "mid",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  } ],
+  "choices" : [ ],
+  "usedMaterials" : [ ]
+}

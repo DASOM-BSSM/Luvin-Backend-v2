@@ -1,0 +1,164 @@
+{
+  "context" : {
+    "setting" : "cafe",
+    "audience" : "adult",
+    "ageGroup" : "20대 초반",
+    "cast" : [ {
+      "breadId" : "me",
+      "name" : "빵",
+      "breadType" : "소금빵",
+      "role" : "같은 매장 새 얼굴",
+      "description" : null
+    }, {
+      "breadId" : "avoidant",
+      "name" : "새콤한 팥빵",
+      "breadType" : "팥빵",
+      "role" : "같은 매장 친구",
+      "description" : "새콤한 팥빵와 함께 지내요"
+    }, {
+      "breadId" : "anxious",
+      "name" : "말랑한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 친구",
+      "description" : "말랑한 바게트와 함께 지내요"
+    }, {
+      "breadId" : "secure",
+      "name" : "동그란 카스테라",
+      "breadType" : "카스테라",
+      "role" : "같은 매장 친구",
+      "description" : "동그란 카스테라와 함께 지내요"
+    }, {
+      "breadId" : "friend",
+      "name" : "느긋한 프레첼",
+      "breadType" : "프레첼",
+      "role" : "같은 매장 단짝",
+      "description" : "느긋한 프레첼와 함께 지내요"
+    }, {
+      "breadId" : "maker",
+      "name" : "따끈한 도넛",
+      "breadType" : "도넛",
+      "role" : "같은 매장 분위기 ",
+      "description" : "따끈한 도넛와 함께 지내요"
+    } ],
+    "learnedProfile" : {
+      "summary" : "소금빵 타입.",
+      "recentAnswers" : [ ],
+      "feedbacks" : [ ],
+      "likedMessages" : [ ]
+    }
+  },
+  "route" : "solo",
+  "romancePartnerId" : null,
+  "episodeSummaries" : [ {
+    "order" : 1,
+    "summary" : "1화 요약: 장면 4개."
+  }, {
+    "order" : 2,
+    "summary" : "2화 요약: 장면 4개."
+  }, {
+    "order" : 3,
+    "summary" : "3화 요약: 장면 6개."
+  }, {
+    "order" : 4,
+    "summary" : "4화 요약: 장면 4개."
+  }, {
+    "order" : 5,
+    "summary" : "5화 요약: 장면 6개."
+  }, {
+    "order" : 6,
+    "summary" : "6화 요약: 장면 6개."
+  }, {
+    "order" : 7,
+    "summary" : "7화 요약: 장면 4개."
+  }, {
+    "order" : 8,
+    "summary" : "8화 요약: 장면 6개."
+  }, {
+    "order" : 9,
+    "summary" : "9화 요약: 장면 4개."
+  }, {
+    "order" : 10,
+    "summary" : "10화 요약: 장면 8개."
+  } ],
+  "choices" : [ {
+    "pointId" : 1,
+    "episodeOrder" : 3,
+    "breadId" : "secure",
+    "accepted" : true,
+    "reason" : null
+  }, {
+    "pointId" : 2,
+    "episodeOrder" : 5,
+    "breadId" : "avoidant",
+    "accepted" : true,
+    "reason" : null
+  }, {
+    "pointId" : 3,
+    "episodeOrder" : 6,
+    "breadId" : "secure",
+    "accepted" : false,
+    "reason" : "low_affinity"
+  }, {
+    "pointId" : 4,
+    "episodeOrder" : 8,
+    "breadId" : "friend",
+    "accepted" : true,
+    "reason" : null
+  } ],
+  "relations" : [ {
+    "breadId" : "avoidant",
+    "affinityLevel" : "low",
+    "statusText" : "어색함",
+    "memorySummary" : "9화까지 함께한 기억이 쌓였다.",
+    "recentMemories" : [ "7화: 함께 이야기를 나눴다", "8화: 함께 이야기를 나눴다", "9화: 함께 이야기를 나눴다" ],
+    "knownFacts" : [ "1화에서 알게 된 점", "2화에서 알게 된 점", "3화에서 알게 된 점", "4화에서 알게 된 점", "5화에서 알게 된 점", "6화에서 알게 된 점", "7화에서 알게 된 점", "8화에서 알게 된 점", "9화에서 알게 된 점" ],
+    "openThreads" : [ {
+      "id" : "t9",
+      "text" : "9화에서 한 약속"
+    } ]
+  }, {
+    "breadId" : "secure",
+    "affinityLevel" : "low",
+    "statusText" : "어색함",
+    "memorySummary" : "9화까지 함께한 기억이 쌓였다.",
+    "recentMemories" : [ "7화: 함께 이야기를 나눴다", "8화: 함께 이야기를 나눴다", "9화: 함께 이야기를 나눴다" ],
+    "knownFacts" : [ "1화에서 알게 된 점", "2화에서 알게 된 점", "3화에서 알게 된 점", "4화에서 알게 된 점", "5화에서 알게 된 점", "6화에서 알게 된 점", "7화에서 알게 된 점", "8화에서 알게 된 점", "9화에서 알게 된 점" ],
+    "openThreads" : [ {
+      "id" : "t9",
+      "text" : "9화에서 한 약속"
+    } ]
+  }, {
+    "breadId" : "anxious",
+    "affinityLevel" : "low",
+    "statusText" : "어색함",
+    "memorySummary" : "9화까지 함께한 기억이 쌓였다.",
+    "recentMemories" : [ "7화: 함께 이야기를 나눴다", "8화: 함께 이야기를 나눴다", "9화: 함께 이야기를 나눴다" ],
+    "knownFacts" : [ "1화에서 알게 된 점", "2화에서 알게 된 점", "3화에서 알게 된 점", "4화에서 알게 된 점", "5화에서 알게 된 점", "6화에서 알게 된 점", "7화에서 알게 된 점", "8화에서 알게 된 점", "9화에서 알게 된 점" ],
+    "openThreads" : [ {
+      "id" : "t9",
+      "text" : "9화에서 한 약속"
+    } ]
+  }, {
+    "breadId" : "friend",
+    "affinityLevel" : "mid",
+    "statusText" : "친해짐",
+    "memorySummary" : "9화까지 함께한 기억이 쌓였다.",
+    "recentMemories" : [ "7화: 함께 이야기를 나눴다", "8화: 함께 이야기를 나눴다", "9화: 함께 이야기를 나눴다" ],
+    "knownFacts" : [ "1화에서 알게 된 점", "2화에서 알게 된 점", "3화에서 알게 된 점", "4화에서 알게 된 점", "5화에서 알게 된 점", "6화에서 알게 된 점", "7화에서 알게 된 점", "8화에서 알게 된 점", "9화에서 알게 된 점" ],
+    "openThreads" : [ {
+      "id" : "t9",
+      "text" : "9화에서 한 약속"
+    } ]
+  }, {
+    "breadId" : "maker",
+    "affinityLevel" : "low",
+    "statusText" : "어색함",
+    "memorySummary" : "9화까지 함께한 기억이 쌓였다.",
+    "recentMemories" : [ "7화: 함께 이야기를 나눴다", "8화: 함께 이야기를 나눴다", "9화: 함께 이야기를 나눴다" ],
+    "knownFacts" : [ "1화에서 알게 된 점", "2화에서 알게 된 점", "3화에서 알게 된 점", "4화에서 알게 된 점", "5화에서 알게 된 점", "6화에서 알게 된 점", "7화에서 알게 된 점", "8화에서 알게 된 점", "9화에서 알게 된 점" ],
+    "openThreads" : [ {
+      "id" : "t9",
+      "text" : "9화에서 한 약속"
+    } ]
+  } ]
+}
