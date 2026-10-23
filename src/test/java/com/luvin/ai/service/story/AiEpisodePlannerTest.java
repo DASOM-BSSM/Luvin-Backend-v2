@@ -1,5 +1,6 @@
 package com.luvin.ai.service.story;
 
+import com.luvin.ai.client.story.StoryTypes;
 import com.luvin.ai.domain.AiCastRole;
 import com.luvin.ai.domain.AiSceneBlockType;
 import com.luvin.ai.domain.AiSeasonSetting;
@@ -27,7 +28,7 @@ class AiEpisodePlannerTest {
     private final List<AiStoryCastMember> cast = List.of(me, avoidant, anxious, secure, friend, moodMaker);
 
     private static AiStoryCastMember member(AiCastRole role) {
-        return new AiStoryCastMember(UUID.randomUUID(), role, role.name(), null);
+        return new AiStoryCastMember(UUID.randomUUID(), role, role.name(), "소금빵", null);
     }
 
     private AiEpisodePlan plan(int order, AiStoryRoute route, UUID partner,
@@ -36,7 +37,8 @@ class AiEpisodePlannerTest {
         cast.forEach(c -> affinity.put(c.breadId(), 25));
         affinity.put(secure.breadId(), 40);
         return AiEpisodePlanner.plan(new AiEpisodePlanner.Input(order, AiSeasonSetting.SCHOOL, route, partner, cast,
-                affinity, Map.of(secure.breadId(), List.of("같이 떡볶이 먹기로 한 약속")), choices));
+                affinity, Map.of(secure.breadId(), List.of(new StoryTypes.Thread("t1", "같이 떡볶이 먹기로 한 약속"))),
+                choices));
     }
 
     private static List<AiSceneBlockType> types(AiEpisodePlan plan) {
@@ -55,7 +57,9 @@ class AiEpisodePlannerTest {
                 AiSceneBlockType.MESSENGER), types(plan));
         assertEquals("무리에 처음 합류", plan.commonEvent());
         assertEquals("새 학기 반 배정", plan.settingScene());
-        assertEquals(1, plan.referenceEpisode());
+        // 메신저 방 이름은 Spring이 정한다: 1:1은 상대 이름, 2화 단톡은 배경별 방 이름.
+        assertEquals(secure.name(), first(plan, AiSceneBlockType.MESSENGER).roomName());
+        assertEquals("우리 반 단톡", first(plan(2, null, null, Map.of()), AiSceneBlockType.MESSENGER).roomName());
         assertEquals(6, first(plan, AiSceneBlockType.GROUP).participantIds().size());
     }
 
@@ -141,22 +145,21 @@ class AiEpisodePlannerTest {
 
     @Test
     void pair_상대의_열린_떡밥을_다룬다() {
-        assertEquals(List.of("같이 떡볶이 먹기로 한 약속"), plan(5, null, null, Map.of()).openThreads());
+        assertEquals(List.of(new StoryTypes.Thread("t1", "같이 떡볶이 먹기로 한 약속")),
+                plan(5, null, null, Map.of()).openThreads());
     }
 
     @Test
-    void 거절_결과_장면에는_대체_장면이_붙는다() {
-        AiChoiceJudge.Decision rejected = new AiChoiceJudge.Decision(false, AiChoiceRules.REASON_LOW_AFFINITY, false);
-        AiChoiceJudge.Decision accepted = new AiChoiceJudge.Decision(true, AiChoiceRules.REASON_AFFINITY_MET, false);
+    void 선택_반응_장면은_고른_빵과_내_빵이고_혼자_있기면_내_빵만() {
+        AiChoiceJudge.Decision shortAccept = new AiChoiceJudge.Decision(true, AiChoiceRules.REASON_AVOIDANT_SHORT, true);
+        AiChoiceJudge.Decision alone = new AiChoiceJudge.Decision(false, AiChoiceRules.REASON_ALONE, false);
 
-        List<BlockPlan> rejectedAtOne = AiEpisodePlanner.planChoiceResult(1, secure.breadId(), rejected, cast);
-        List<BlockPlan> rejectedAtTwo = AiEpisodePlanner.planChoiceResult(2, secure.breadId(), rejected, cast);
-        List<BlockPlan> acceptedPlan = AiEpisodePlanner.planChoiceResult(1, secure.breadId(), accepted, cast);
+        BlockPlan reaction = AiEpisodePlanner.planChoiceReaction(2, avoidant.breadId(), shortAccept, cast);
+        BlockPlan aloneReaction = AiEpisodePlanner.planChoiceReaction(1, null, alone, cast);
 
-        assertEquals(3, rejectedAtOne.size());
-        assertEquals(friend.breadId(), rejectedAtOne.get(2).focusBreadId());
-        assertEquals(List.of(me.breadId()), rejectedAtTwo.get(2).participantIds());
-        assertEquals(1, acceptedPlan.size());
-        assertTrue(acceptedPlan.get(0).participantIds().contains(secure.breadId()));
+        assertEquals(AiSceneBlockType.CHOICE_RESULT, reaction.type());
+        assertEquals(List.of(me.breadId(), avoidant.breadId()), reaction.participantIds());
+        assertTrue(reaction.shortReply());
+        assertEquals(List.of(me.breadId()), aloneReaction.participantIds());
     }
 }

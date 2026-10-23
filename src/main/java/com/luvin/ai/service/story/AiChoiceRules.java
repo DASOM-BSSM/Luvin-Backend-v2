@@ -38,6 +38,10 @@ public final class AiChoiceRules {
             AiCastRole.FRIEND, 50,
             AiCastRole.MOOD_MAKER, 40);
 
+    /** FastAPI에는 호감 숫자 대신 구간만 넘긴다: MID_FROM 미만 low, HIGH_FROM 미만 mid, 그 이상 high. */
+    public static final int AFFINITY_MID_FROM = 35;
+    public static final int AFFINITY_HIGH_FROM = 65;
+
     public static final String INITIAL_STATUS_TEXT = "처음 만남";
     public static final String ROMANCE_STATUS_TEXT = "연애 중";
 
@@ -50,6 +54,24 @@ public final class AiChoiceRules {
     public static final String REASON_AVOIDANT_RETREAT = "avoidant_retreat";
 
     private AiChoiceRules() {
+    }
+
+    public static String affinityLevel(int affinity) {
+        if (affinity < AFFINITY_MID_FROM) {
+            return "low";
+        }
+        return affinity < AFFINITY_HIGH_FROM ? "mid" : "high";
+    }
+
+    /** 계약의 RejectReason. 거절이 아니면(수락 사유·혼자 있기) null. */
+    public static String rejectReason(boolean accepted, String reasonCode) {
+        if (accepted) {
+            return null;
+        }
+        return switch (reasonCode) {
+            case REASON_LOW_AFFINITY, REASON_ANXIOUS_HURT, REASON_AVOIDANT_RETREAT -> reasonCode;
+            default -> null;
+        };
     }
 
     public static int clampSummaryDelta(int delta) {

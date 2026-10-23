@@ -1,26 +1,23 @@
 package com.luvin.ai.client.story;
 
-import com.luvin.ai.client.dto.LetterResponseDto;
-import com.luvin.ai.client.dto.ReportResponseDto;
-
 /**
- * 장면 블록 회차 생성용 FastAPI endpoint. Spring은 Gemini를 직접 부르지 않고 이 인터페이스로만 생성을 요청한다.
- * 계약(경로·필드)이 AI 쪽과 확정되기 전에는 {@link AiStoryStubClient}로 흐름을 돌린다(app.ai.story.client=stub).
- * 오류는 기존 AiServiceClient와 같은 AiServiceException 계열로 던진다.
+ * 러빈지옥 장면 블록 회차 생성용 FastAPI endpoint(공통 데이터 계약 5장). Spring은 Gemini를 직접 부르지 않고
+ * 이 인터페이스로만 생성을 요청한다. app.ai.story.client=stub(기본)이면 {@link AiStoryStubClient}가,
+ * http면 {@link AiStoryHttpClient}가 쓰인다. 오류는 기존 AiServiceClient와 같은 AiServiceException 계열로 던진다.
  */
 public interface AiStoryClient {
 
-    StageIntroResponseDto stageIntro(String ownerSubject, StageIntroRequestDto request);
+    StageIntroResponse stageIntro(String ownerSubject, StageIntroRequest request);
 
-    EpisodeWriteResponseDto writeEpisode(String ownerSubject, EpisodeWriteRequestDto request);
+    EpisodeResponse writeEpisode(String ownerSubject, EpisodeRequest request);
 
-    StoryBlocksResponseDto writeChoiceResult(String ownerSubject, ChoiceResultRequestDto request);
+    ChoiceResultResponse writeChoiceResult(String ownerSubject, ChoiceResultRequest request);
 
-    StoryBlocksResponseDto writeInterview(String ownerSubject, InterviewRequestDto request);
+    InterviewResponse writeInterview(String ownerSubject, InterviewRequest request);
 
-    SummarizeResponseDto summarize(String ownerSubject, SummarizeRequestDto request);
+    SummarizeResponse summarize(String ownerSubject, SummarizeRequest request);
 
-    LetterResponseDto writeEpisodeNote(String ownerSubject, EpisodeNoteRequestDto request);
+    EpisodeNoteResponse writeEpisodeNote(String ownerSubject, EpisodeNoteRequest request);
 
-    ReportResponseDto writeSeasonReport(String ownerSubject, SeasonReportRequestDto request);
+    SeasonReportResponse writeSeasonReport(String ownerSubject, SeasonReportRequest request);
 }

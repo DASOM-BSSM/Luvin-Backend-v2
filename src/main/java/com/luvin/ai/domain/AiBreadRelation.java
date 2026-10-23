@@ -60,7 +60,11 @@ public class AiBreadRelation {
     @Column(name = "memory_summary", columnDefinition = "text")
     private String memorySummary;
 
-    /** 최근 3회차 주요 장면. 선택 카드의 "기억 한 줄" 재료. */
+    /** 정리 단계가 준 선택 카드용 기억 한 줄(20자 이내). 회차 생성 응답이 기억을 주지 않을 때 쓴다. */
+    @Column(name = "choice_memory", length = 40)
+    private String choiceMemory;
+
+    /** 최근 3회차 주요 장면. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "recent_memories", nullable = false, columnDefinition = "jsonb")
     private String recentMemoriesJson;
@@ -69,6 +73,7 @@ public class AiBreadRelation {
     @Column(name = "known_facts", nullable = false, columnDefinition = "jsonb")
     private String knownFactsJson;
 
+    /** 아직 안 풀린 떡밥·약속. [{"id","text"}] 형식(예전 문자열 배열 row도 읽을 때 변환한다). */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "open_threads", nullable = false, columnDefinition = "jsonb")
     private String openThreadsJson;
@@ -105,8 +110,9 @@ public class AiBreadRelation {
 
     /** 회차 완료 정리 단계 결과를 반영한다. null인 항목은 기존 값을 유지한다. */
     public void applyMemory(String memorySummary, String recentMemoriesJson, String knownFactsJson,
-                            String openThreadsJson, String statusText) {
+                            String openThreadsJson, String statusText, String choiceMemory) {
         if (memorySummary != null) this.memorySummary = memorySummary;
+        if (choiceMemory != null) this.choiceMemory = choiceMemory;
         if (recentMemoriesJson != null) this.recentMemoriesJson = recentMemoriesJson;
         if (knownFactsJson != null) this.knownFactsJson = knownFactsJson;
         if (openThreadsJson != null) this.openThreadsJson = openThreadsJson;

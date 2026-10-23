@@ -34,8 +34,9 @@ class AiSeasonSettingPolicyTest {
     void audience와_연령대() {
         assertEquals("minor", AiSeasonSettingPolicy.audience(19));
         assertEquals("adult", AiSeasonSettingPolicy.audience(20));
-        assertEquals("teen", AiSeasonSettingPolicy.ageBand(17));
-        assertEquals("early_twenties", AiSeasonSettingPolicy.ageBand(23));
-        assertEquals("mid_twenties_or_older", AiSeasonSettingPolicy.ageBand(24));
+        assertEquals("10대 후반", AiSeasonSettingPolicy.ageGroup(17));
+        assertEquals("20대 초반", AiSeasonSettingPolicy.ageGroup(23));
+        assertEquals("20대 중후반", AiSeasonSettingPolicy.ageGroup(24));
+        assertEquals("30대 이상", AiSeasonSettingPolicy.ageGroup(31));
     }
 }

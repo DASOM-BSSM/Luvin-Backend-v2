@@ -1,6 +1,5 @@
 package com.luvin.ai.service.story;
 
-import com.luvin.ai.domain.AiCastRole;
 import com.luvin.ai.domain.AiSeasonSetting;
 
 import java.util.List;
@@ -53,17 +52,26 @@ public final class AiStoryCatalog {
             3, "오늘 밤, 누구에게 마음을 전해볼까?",
             4, "누구와 먼저 이야기해볼까?");
 
-    /** 기존 본편 5화를 참고 줄거리로 넣는 회차. 값은 AI 서비스가 아는 기존 회차 번호다. */
-    private static final Map<Integer, Integer> LEGACY_REFERENCE_EPISODE = Map.of(1, 1, 2, 2, 3, 3, 6, 4, 10, 5);
+    /**
+     * 기존 본편 5화를 참고 줄거리로 넣는 회차와 그 줄거리 텍스트(FastAPI 입력 referencePlot).
+     * 줄거리 텍스트를 기획/AI 쪽에서 받기 전이라 비어 있다 — 받으면 회차별로 채운다(비어 있으면 null을 보낸다).
+     */
+    private static final Map<Integer, String> REFERENCE_PLOTS = Map.of(1, "", 2, "", 3, "", 6, "", 10, "");
 
-    /** 출연진 정의를 팀에게 받기 전까지 쓰는 placeholder 이름. */
-    private static final Map<AiCastRole, String> PLACEHOLDER_NAMES = Map.of(
-            AiCastRole.MY_BREAD, "나의 빵",
-            AiCastRole.AVOIDANT, "회피형 빵",
-            AiCastRole.ANXIOUS, "불안형 빵",
-            AiCastRole.SECURE, "안정형 빵",
-            AiCastRole.FRIEND, "친구 빵",
-            AiCastRole.MOOD_MAKER, "분위기 메이커 빵");
+    /**
+     * 출연진 이름의 형용사("형용사 + 빵 종류"). 성향이 드러나지 않는 중립적인 말만 쓴다(차가운·예민한 같은 말 금지).
+     * 서비스의 기존 형용사 목록을 받으면 교체한다.
+     */
+    public static final List<String> NEUTRAL_ADJECTIVES = List.of(
+            "느긋한", "포근한", "산뜻한", "말랑한", "고소한", "반짝이는", "동그란", "보송한",
+            "새콤한", "따끈한", "바삭한", "몽글한");
+
+    /** 그룹 메신저 방 이름(배경별). */
+    private static final Map<AiSeasonSetting, String> GROUP_ROOM_NAMES = Map.of(
+            AiSeasonSetting.SCHOOL, "우리 반 단톡",
+            AiSeasonSetting.CAMPUS, "과 동기 단톡",
+            AiSeasonSetting.OFFICE, "입사 동기 단톡",
+            AiSeasonSetting.CAFE, "매장 근무 단톡");
 
     private AiStoryCatalog() {
     }
@@ -97,12 +105,13 @@ public final class AiStoryCatalog {
         return QUESTION_BY_POINT.get(pointId);
     }
 
-    /** 참고 줄거리로 쓸 기존 회차 번호. 없으면 null. */
-    public static Integer legacyReferenceEpisode(int order) {
-        return LEGACY_REFERENCE_EPISODE.get(order);
+    /** 참고 줄거리 텍스트. 참고 회차가 아니거나 아직 텍스트가 없으면 null. */
+    public static String referencePlot(int order) {
+        String plot = REFERENCE_PLOTS.get(order);
+        return plot == null || plot.isBlank() ? null : plot;
     }
 
-    public static String placeholderName(AiCastRole role) {
-        return PLACEHOLDER_NAMES.get(role);
+    public static String groupRoomName(AiSeasonSetting setting) {
+        return GROUP_ROOM_NAMES.get(setting);
     }
 }

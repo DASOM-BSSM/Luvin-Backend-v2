@@ -1,5 +1,6 @@
 package com.luvin.ai.service.story;
 
+import com.luvin.ai.client.story.StoryTypes;
 import com.luvin.ai.domain.AiCastRole;
 import com.luvin.ai.domain.AiSceneBlockType;
 import com.luvin.ai.domain.AiSeasonSetting;
@@ -9,8 +10,10 @@ import com.luvin.ai.service.story.AiEpisodePlan.ChoicePlan;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -40,7 +43,7 @@ public final class AiEpisodePlanner {
      */
     public record Input(int order, AiSeasonSetting setting, AiStoryRoute route, UUID romancePartnerId,
                         List<AiStoryCastMember> cast, Map<UUID, Integer> affinity,
-                        Map<UUID, List<String>> openThreads, Map<Integer, ChoiceRecord> choicesByPoint) {
+                        Map<UUID, List<StoryTypes.Thread>> openThreads, Map<Integer, ChoiceRecord> choicesByPoint) {
     }
 
     public record ChoiceRecord(UUID breadId, boolean accepted) {
@@ -58,7 +61,7 @@ public final class AiEpisodePlanner {
             blocks.add(block("b1", AiSceneBlockType.PAIR, pairParticipants, null, partner));
             blocks.add(block("b2", AiSceneBlockType.TRANSITION, List.of(), null, null));
             blocks.add(block("b3", AiSceneBlockType.GROUP, everyone, null, null));
-            blocks.add(messenger("b4", order, me, partner, everyone));
+            blocks.add(messenger("b4", order, input, me, partner, everyone));
         } else {
             blocks.add(block("b1", AiSceneBlockType.GROUP, everyone, null, null));
             blocks.add(block("b2", AiSceneBlockType.TRANSITION, List.of(), null, null));
@@ -72,41 +75,32 @@ public final class AiEpisodePlanner {
                     }
                 }
             } else {
-                blocks.add(messenger("b4", order, me, partner, everyone));
+                blocks.add(messenger("b4", order, input, me, partner, everyone));
             }
         }
 
         Integer pointId = AiStoryCatalog.pointOf(order);
         if (pointId != null) {
             ChoicePlan choice = new ChoicePlan(pointId, AiStoryCatalog.question(pointId), candidates(input, pointId));
-            blocks.add(new BlockPlan("b" + (blocks.size() + 1), AiSceneBlockType.CHOICE, List.of(), null, choice, null, false));
+            blocks.add(new BlockPlan("b" + (blocks.size() + 1), AiSceneBlockType.CHOICE, List.of(), null, null, choice,
+                    null, false));
         }
 
         return new AiEpisodePlan(order, input.setting(), AiStoryCatalog.commonEvent(order),
                 AiStoryCatalog.settingScene(input.setting(), order), order >= 7 ? input.route() : null,
-                AiStoryCatalog.legacyReferenceEpisode(order), openThreads(input, partner), List.copyOf(blocks));
+                AiStoryCatalog.referencePlot(order), openThreads(input, partner), List.copyOf(blocks));
     }
 
     /**
-     * 선택 직후 보여줄 결과 장면. 수락이면 고른 빵과의 장면 하나, 거절이면 반응 장면 뒤에 대체 장면(②는 내 빵 혼자,
-     * 나머지는 친구 빵)을 붙인다. 혼자 있기면 내 빵 혼자인 장면 하나다.
+     * 선택 직후 보여줄 반응 장면(choice_result) 하나. 거절이면 FastAPI가 대체 장면(fallbackBlocks)을 함께 돌려주고
+     * Spring이 그 뒤에 pair 블록으로 붙인다(5-3). 혼자 있기면 FastAPI를 부르지 않는다.
      */
-    public static List<BlockPlan> planChoiceResult(int pointId, UUID breadId, AiChoiceJudge.Decision decision,
-                                                   List<AiStoryCastMember> cast) {
+    public static BlockPlan planChoiceReaction(int pointId, UUID breadId, AiChoiceJudge.Decision decision,
+                                               List<AiStoryCastMember> cast) {
         AiStoryCastMember me = member(cast, AiCastRole.MY_BREAD);
-        String prefix = "c" + pointId + "-";
-        List<UUID> reactionParticipants = breadId == null ? List.of(me.breadId()) : List.of(me.breadId(), breadId);
-        List<BlockPlan> blocks = new ArrayList<>();
-        blocks.add(new BlockPlan(prefix + "1", AiSceneBlockType.CHOICE_RESULT, reactionParticipants, null, null,
-                breadId, decision.shortReply()));
-        if (breadId != null && !decision.accepted()) {
-            UUID alternative = pointId == 2 ? null : member(cast, AiCastRole.FRIEND).breadId();
-            List<UUID> alternativeParticipants = alternative == null
-                    ? List.of(me.breadId()) : List.of(me.breadId(), alternative);
-            blocks.add(block(prefix + "2", AiSceneBlockType.TRANSITION, List.of(), null, null));
-            blocks.add(block(prefix + "3", AiSceneBlockType.PAIR, alternativeParticipants, null, alternative));
-        }
-        return List.copyOf(blocks);
+        List<UUID> participants = breadId == null ? List.of(me.breadId()) : List.of(me.breadId(), breadId);
+        return new BlockPlan("c" + pointId + "-1", AiSceneBlockType.CHOICE_RESULT, participants, null, null, null,
+                breadId, decision.shortReply());
     }
 
     private static UUID pairPartner(Input input) {
@@ -157,29 +151,38 @@ public final class AiEpisodePlanner {
                 .toList();
     }
 
-    /** pair 상대의 떡밥을 먼저, 모자라면 다른 빵의 떡밥으로 채운다. */
-    private static List<String> openThreads(Input input, UUID partner) {
-        List<String> picked = new ArrayList<>();
+    /** pair 상대의 떡밥을 먼저, 모자라면 다른 빵의 떡밥으로 채운다. 같은 id는 한 번만. */
+    private static List<StoryTypes.Thread> openThreads(Input input, UUID partner) {
+        List<StoryTypes.Thread> picked = new ArrayList<>();
         if (partner != null) {
             picked.addAll(input.openThreads().getOrDefault(partner, List.of()));
         }
         input.cast().stream()
                 .filter(c -> !c.isMe() && !c.breadId().equals(partner))
                 .forEach(c -> picked.addAll(input.openThreads().getOrDefault(c.breadId(), List.of())));
-        return picked.stream().distinct().limit(OPEN_THREAD_LIMIT).toList();
+        Set<String> seen = new HashSet<>();
+        return picked.stream().filter(t -> seen.add(t.id())).limit(OPEN_THREAD_LIMIT).toList();
     }
 
-    /** 2화는 단톡방이 생기는 회차라 그룹 메신저, 혼자인 회차도 그룹 메신저, 그 외에는 pair 상대와 1:1. */
-    private static BlockPlan messenger(String id, int order, AiStoryCastMember me, UUID partner, List<UUID> everyone) {
+    /**
+     * 2화는 단톡방이 생기는 회차라 그룹 메신저, 혼자인 회차도 그룹 메신저, 그 외에는 pair 상대와 1:1.
+     * 방 이름은 Spring이 정한다(1:1은 상대 이름, 그룹은 배경별 단톡방 이름).
+     */
+    private static BlockPlan messenger(String id, int order, Input input, AiStoryCastMember me, UUID partner,
+                                       List<UUID> everyone) {
         if (order == 2 || partner == null) {
-            return block(id, AiSceneBlockType.MESSENGER, everyone, MESSENGER_GROUP, null);
+            return new BlockPlan(id, AiSceneBlockType.MESSENGER, everyone, MESSENGER_GROUP,
+                    AiStoryCatalog.groupRoomName(input.setting()), null, null, false);
         }
-        return block(id, AiSceneBlockType.MESSENGER, List.of(me.breadId(), partner), MESSENGER_DIRECT, partner);
+        String partnerName = input.cast().stream().filter(c -> c.breadId().equals(partner))
+                .map(AiStoryCastMember::name).findFirst().orElseThrow();
+        return new BlockPlan(id, AiSceneBlockType.MESSENGER, List.of(me.breadId(), partner), MESSENGER_DIRECT,
+                partnerName, null, partner, false);
     }
 
     private static BlockPlan block(String id, AiSceneBlockType type, List<UUID> participants, String messengerKind,
                                    UUID focus) {
-        return new BlockPlan(id, type, participants, messengerKind, null, focus, false);
+        return new BlockPlan(id, type, participants, messengerKind, null, null, focus, false);
     }
 
     private static AiStoryCastMember member(List<AiStoryCastMember> cast, AiCastRole role) {

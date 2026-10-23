@@ -27,7 +27,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SurveyDefinitionV2SeedLoader implements ApplicationRunner {
 
-    private static final String RESOURCE_PATH = "surveys/bread_survey.v1-draft/survey_config.json";
+    public static final String RESOURCE_PATH = "surveys/bread_survey.v1-draft/survey_config.json";
 
     private final SurveyDefinitionV2Repository surveyDefinitionV2Repository;
 
