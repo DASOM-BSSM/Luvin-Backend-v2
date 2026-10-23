@@ -29,7 +29,7 @@
         },
         {
             "name": "\ub7ec\ube48\uc9c0\uc625 \ud68c\ucc28",
-            "description": "\uc7a5\uba74 \ube14\ub85d \ud68c\ucc28(1~10\ud654) \ucf58\ud150\uce20, \uc120\ud0dd, \uc644\ub8cc"
+            "description": "\uc7a5\uba74 \ube14\ub85d \ud68c\ucc28(1~10\ud654) \ucf58\ud150\uce20, \uc120\ud0dd, \uc644\ub8cc, 1:1 \uc7a5\uba74 \ud53c\ub4dc\ubc31\u00b7\uc88b\uc544\uc694"
         }
     ],
     "paths": {
@@ -2983,6 +2983,92 @@
                     }
                 }
             }
+        },
+        "/api/ai/seasons/episodes/{order}/scene-likes": {
+            "post": {
+                "tags": [
+                    "\ub7ec\ube48\uc9c0\uc625 \ud68c\ucc28"
+                ],
+                "summary": "1:1 \uc7a5\uba74 \uc88b\uc544\uc694",
+                "description": "1:1 \uc7a5\uba74(\uc0c1\ub300\uac00 \uc788\ub294 `pair` \ube14\ub85d) \uba54\uc2dc\uc9c0 \uc88b\uc544\uc694\ub97c \ucf1c\uace0 \ub048\ub2e4(`liked`). \ub0b4 \ube75\u00b7\uc0c1\ub300 \ub300\uc0ac \ubaa8\ub450 \uac00\ub2a5\ud558\uace0 \ub0b4\ub808\uc774\uc158\uc740 \uc548 \ub41c\ub2e4.\n\ub0b4 \ube75\uc758 \ub300\uc0ac\uc5d0 \ub204\ub978 \uc88b\uc544\uc694\ub294 \ub2e4\uc74c \ud68c\ucc28 \uc0dd\uc131 \uc785\ub825(learnedProfile.likedMessages)\uc73c\ub85c \uc4f0\uc778\ub2e4.\n",
+                "operationId": "setLike",
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AiStoryLikeHttpRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiMessageLikeView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ai/seasons/episodes/{order}/scene-feedback": {
+            "post": {
+                "tags": [
+                    "\ub7ec\ube48\uc9c0\uc625 \ud68c\ucc28"
+                ],
+                "summary": "1:1 \uc7a5\uba74 \ud53c\ub4dc\ubc31",
+                "description": "1:1 \uc7a5\uba74(\uc0c1\ub300\uac00 \uc788\ub294 `pair` \ube14\ub85d)\uc5d0\uc11c \ub0b4 \ube75\uc758 \ub300\uc0ac \ud558\ub098\uc5d0 \ud53c\ub4dc\ubc31\uc744 \ub0a8\uae34\ub2e4. \ud68c\ucc28 \ubcf8\ubb38 pair \ube14\ub85d\uacfc \uc120\ud0dd \uac70\uc808 \ub4a4\n\ub300\uccb4 pair \ube14\ub85d(`choices` \uc751\ub2f5\uc758 blocks)\uc5d0 \ub0a8\uae38 \uc218 \uc788\uace0, \ud63c\uc790\uc778 \ub3c5\ubc31 \uc7a5\uba74\u00b7\uadf8\ub8f9\u00b7\uba54\uc2e0\uc800\u00b7\uc778\ud130\ubdf0\u00b7\uc120\ud0dd \uacb0\uacfc\uc5d0\ub294 \uc548 \ub41c\ub2e4.\n\uba54\uc2dc\uc9c0\ub2f9 \ud558\ub098\uc774\uace0 \ub2e4\uc2dc \ubcf4\ub0b4\uba74 \uae00\uc744 \ubc14\uafbc\ub2e4. body\uc758 `order`\ub294 \uc0dd\ub7b5\ud574\ub3c4 \ub418\uace0, \ubcf4\ub0b4\uba74 \uacbd\ub85c\uc758 order\uc640 \uac19\uc544\uc57c \ud55c\ub2e4.\n\ub0a8\uae34 \ud53c\ub4dc\ubc31\uc740 \ub2e4\uc74c \ud68c\ucc28 \uc0dd\uc131 \uc785\ub825(learnedProfile.feedbacks)\uc73c\ub85c \uc4f0\uc778\ub2e4.\n\n**\uc624\ub958**: 400 pair \ube14\ub85d\uc774 \uc544\ub2c8\uac70\ub098 \ub0b4 \ube75\uc758 \ub300\uc0ac\uac00 \uc544\ub2d8\u00b7text 200\uc790 \ucd08\uacfc / 409 `CONTENT_NOT_READY`, `STORY_NOT_STARTED`\n",
+                "operationId": "submitFeedback",
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AiStoryFeedbackHttpRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseAiStoryFeedbackView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -5170,6 +5256,19 @@
                     },
                     "completed": {
                         "type": "boolean"
+                    },
+                    "feedbacks": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/AiStoryFeedbackView"
+                        }
+                    },
+                    "likedMessageIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "format": "uuid"
+                        }
                     }
                 }
             },
@@ -5208,6 +5307,9 @@
                         "type": "string",
                         "format": "uuid"
                     },
+                    "kind": {
+                        "type": "string"
+                    },
                     "fromRepresentative": {
                         "type": "boolean"
                     },
@@ -5245,6 +5347,9 @@
                         "format": "uuid"
                     },
                     "name": {
+                        "type": "string"
+                    },
+                    "breadType": {
                         "type": "string"
                     },
                     "role": {
@@ -5517,6 +5622,97 @@
                     },
                     "isMe": {
                         "type": "boolean"
+                    },
+                    "breadType": {
+                        "type": "string"
+                    },
+                    "stageRole": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiStoryLikeHttpRequest": {
+                "type": "object",
+                "properties": {
+                    "order": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "blockId": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "messageId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "liked": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "liked",
+                    "messageId"
+                ]
+            },
+            "AiStoryFeedbackView": {
+                "type": "object",
+                "properties": {
+                    "order": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "blockId": {
+                        "type": "string"
+                    },
+                    "messageId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "text": {
+                        "type": "string"
+                    }
+                }
+            },
+            "AiStoryFeedbackHttpRequest": {
+                "type": "object",
+                "properties": {
+                    "order": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "blockId": {
+                        "type": "string",
+                        "minLength": 1
+                    },
+                    "messageId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "text": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "minLength": 0
+                    }
+                },
+                "required": [
+                    "messageId"
+                ]
+            },
+            "ApiResponseAiStoryFeedbackView": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AiStoryFeedbackView"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             }

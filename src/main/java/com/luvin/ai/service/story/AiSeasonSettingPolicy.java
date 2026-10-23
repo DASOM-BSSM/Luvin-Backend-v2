@@ -37,14 +37,20 @@ public final class AiSeasonSettingPolicy {
         return age <= MINOR_MAX_AGE ? AUDIENCE_MINOR : AUDIENCE_ADULT;
     }
 
-    /** 출연 빵 나이대를 사용자와 비슷하게 맞추라고 AI에 넘기는 연령대. */
-    public static String ageBand(int age) {
+    /** 출연 빵 나이대를 사용자와 비슷하게 맞추라고 AI에 넘기는 연령대(계약 GenerationContext.ageGroup). */
+    public static String ageGroup(int age) {
+        if (age <= 16) {
+            return "10대 중반";
+        }
         if (age <= SCHOOL_MAX_AGE) {
-            return "teen";
+            return "10대 후반";
         }
         if (age <= YOUNG_ADULT_MAX_AGE) {
-            return "early_twenties";
+            return "20대 초반";
         }
-        return "mid_twenties_or_older";
+        if (age <= 29) {
+            return "20대 중후반";
+        }
+        return "30대 이상";
     }
 }

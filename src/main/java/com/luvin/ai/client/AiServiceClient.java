@@ -169,17 +169,18 @@ public class AiServiceClient {
 
     /**
      * 장면 블록 회차 생성 endpoint(AiStoryHttpClient) 전용 POST. 생성 호출은 일반 호출보다 오래 걸려 timeout이 긴
-     * 별도 RestClient로 보내지만, 헤더 규칙과 오류 변환은 다른 endpoint와 똑같이 이 클래스가 맡는다.
+     * 별도 RestClient로 보내고, 공통 데이터 계약대로 camelCase(responseMapper)로 읽는다. 헤더 규칙과 오류 변환은
+     * 다른 endpoint와 똑같이 이 클래스가 맡는다.
      */
-    public <T> T post(RestClient client, String path, String ownerSubject, UUID idempotencyKey,
-                      Object request, Class<T> type) {
+    public <T> T post(RestClient client, ObjectMapper responseMapper, String path, String ownerSubject,
+                      UUID idempotencyKey, Object request, Class<T> type) {
         String opName = "POST " + path;
         return withNetworkErrorTranslation(opName, () -> client.post()
                 .uri(path)
                 .headers(h -> applyHeaders(h, ownerSubject, idempotencyKey))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
-                .exchange((req, resp) -> handle(resp, opName, type)));
+                .exchange((req, resp) -> handle(resp, opName, type, responseMapper)));
     }
 
     /**
@@ -250,10 +251,15 @@ public class AiServiceClient {
     }
 
     private <T> T handle(org.springframework.http.client.ClientHttpResponse response, String opName, Class<T> type) {
+        return handle(response, opName, type, aiObjectMapper);
+    }
+
+    private <T> T handle(org.springframework.http.client.ClientHttpResponse response, String opName, Class<T> type,
+                         ObjectMapper mapper) {
         try {
             HttpStatusCode status = response.getStatusCode();
             if (status.is2xxSuccessful()) {
-                return readBody(response, type);
+                return readBody(response, type, mapper);
             }
             String rawBody = readRawBody(response);
             throw toException(status.value(), opName, rawBody);
@@ -262,10 +268,10 @@ public class AiServiceClient {
         }
     }
 
-    private <T> T readBody(org.springframework.http.client.ClientHttpResponse response, Class<T> type)
-            throws java.io.IOException {
+    private <T> T readBody(org.springframework.http.client.ClientHttpResponse response, Class<T> type,
+                           ObjectMapper mapper) throws java.io.IOException {
         try (var body = response.getBody()) {
-            return aiObjectMapper.readValue(body, type);
+            return mapper.readValue(body, type);
         }
     }
 

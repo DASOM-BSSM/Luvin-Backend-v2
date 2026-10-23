@@ -1,5 +1,6 @@
 package com.luvin.ai.service.story;
 
+import com.luvin.ai.client.story.StoryTypes;
 import com.luvin.ai.domain.AiSeasonSetting;
 import com.luvin.ai.domain.AiSeasonStatus;
 import com.luvin.ai.domain.AiStoryContentStatus;
@@ -31,7 +32,8 @@ public record AiStorySnapshot(
 ) {
 
     public record Relation(UUID breadId, int affinity, int rejectCount, String statusText, String memorySummary,
-                           List<String> recentMemories, List<String> knownFacts, List<String> openThreads) {
+                           List<String> recentMemories, List<String> knownFacts, List<StoryTypes.Thread> openThreads,
+                           String choiceMemory) {
     }
 
     public record Choice(int pointId, int episodeOrder, UUID breadId, boolean accepted, String reasonCode,
@@ -65,5 +67,10 @@ public record AiStorySnapshot(
 
     public Optional<AiStoryCastMember> member(UUID breadId) {
         return cast.stream().filter(c -> c.breadId().equals(breadId)).findFirst();
+    }
+
+    /** 계약 빵 id(me, avoidant, …) → 시즌 캐릭터. */
+    public Optional<AiStoryCastMember> memberByContractId(String contractId) {
+        return cast.stream().filter(c -> c.castRole().contractId().equals(contractId)).findFirst();
     }
 }

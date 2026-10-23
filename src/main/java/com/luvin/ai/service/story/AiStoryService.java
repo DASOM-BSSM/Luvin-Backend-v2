@@ -1,39 +1,41 @@
 package com.luvin.ai.service.story;
 
 import com.fasterxml.jackson.core.type.TypeReference;
-import com.luvin.ai.client.dto.LetterResponseDto;
-import com.luvin.ai.client.dto.ReportResponseDto;
 import com.luvin.ai.client.exception.AiServiceException;
 import com.luvin.ai.client.story.AiStoryClient;
-import com.luvin.ai.client.story.ChoiceResultRequestDto;
-import com.luvin.ai.client.story.EpisodeNoteRequestDto;
-import com.luvin.ai.client.story.EpisodeWriteRequestDto;
-import com.luvin.ai.client.story.EpisodeWriteResponseDto;
-import com.luvin.ai.client.story.InterviewRequestDto;
-import com.luvin.ai.client.story.SeasonReportRequestDto;
-import com.luvin.ai.client.story.StageIntroRequestDto;
-import com.luvin.ai.client.story.StageIntroResponseDto;
-import com.luvin.ai.client.story.StoryBlockPlanDto;
-import com.luvin.ai.client.story.StoryBlocksResponseDto;
-import com.luvin.ai.client.story.StoryContextDto;
-import com.luvin.ai.client.story.StoryWrittenBlockDto;
-import com.luvin.ai.client.story.SummarizeRequestDto;
-import com.luvin.ai.client.story.SummarizeResponseDto;
+import com.luvin.ai.client.story.ChoiceResultRequest;
+import com.luvin.ai.client.story.ChoiceResultResponse;
+import com.luvin.ai.client.story.EpisodeNoteRequest;
+import com.luvin.ai.client.story.EpisodeNoteResponse;
+import com.luvin.ai.client.story.EpisodeRequest;
+import com.luvin.ai.client.story.EpisodeResponse;
+import com.luvin.ai.client.story.InterviewRequest;
+import com.luvin.ai.client.story.InterviewResponse;
+import com.luvin.ai.client.story.SeasonReportRequest;
+import com.luvin.ai.client.story.SeasonReportResponse;
+import com.luvin.ai.client.story.StageIntroRequest;
+import com.luvin.ai.client.story.StageIntroResponse;
+import com.luvin.ai.client.story.StoryTypes;
+import com.luvin.ai.client.story.SummarizeRequest;
+import com.luvin.ai.client.story.SummarizeResponse;
 import com.luvin.ai.config.AiStoryProperties;
+import com.luvin.ai.domain.AiCastRole;
 import com.luvin.ai.domain.AiSceneBlockType;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonStatus;
 import com.luvin.ai.domain.AiStoryContentStatus;
+import com.luvin.ai.domain.AiStoryFeedback;
 import com.luvin.ai.dto.AiHighlightView;
+import com.luvin.ai.dto.AiMessageLikeView;
 import com.luvin.ai.dto.AiReportHighlightsView;
 import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.story.AiChoiceOutcomeView;
 import com.luvin.ai.dto.story.AiEpisodeContentView;
 import com.luvin.ai.dto.story.AiSceneBlockView;
 import com.luvin.ai.dto.story.AiStageIntroView;
+import com.luvin.ai.dto.story.AiStoryFeedbackView;
 import com.luvin.ai.dto.story.AiStoryIntroView;
 import com.luvin.ai.dto.story.AiStoryMessageView;
-import com.luvin.ai.dto.story.AiStoryParticipantView;
 import com.luvin.ai.dto.story.AiStoryStateView;
 import com.luvin.ai.repository.AiEpisodeProgressRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
@@ -60,17 +62,20 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * 장면 블록 회차(1~10화) 흐름. 설계·판정은 코드({@link AiEpisodePlanner}, {@link AiChoiceJudge})로 하고,
- * 대사·정리·쪽지·리포트는 FastAPI({@link AiStoryClient})에 맡긴다. Spring은 Gemini를 직접 부르지 않는다.
+ * 대사·정리·쪽지·리포트는 FastAPI({@link AiStoryClient}, 공통 데이터 계약 5장)에 맡긴다. Spring은 Gemini를 직접
+ * 부르지 않는다. FastAPI와는 역할 고정 빵 id(me, avoidant, …)로, 앱과는 시즌 캐릭터 UUID로 주고받는다
+ * ({@link AiStoryContractMapper}).
  *
  * 회차 콘텐츠는 GET content가 생성을 접수하고 백그라운드에서 만든다 — 그동안 응답 status는 generating이다.
  * 선택 결과 장면과 완료 정리는 요청 안에서 바로 FastAPI를 호출한다. FastAPI 응답은 형식 검증 후 실패하면 1회
@@ -97,14 +102,15 @@ public class AiStoryService {
     private final UserRepository userRepository;
     private final OwnerSubjectProvider ownerSubjectProvider;
     private final AiLearningDataProvider learningDataProvider;
+    private final AiBreadCatalog breadCatalog;
     private final AiEpisodeReleasePolicy releasePolicy;
     private final AiStoryProperties properties;
     private final ExecutorService executor;
 
     public AiStoryService(AiStoryStateWriter stateWriter, AiStoryClient storyClient,
                           AiSeasonRepository seasonRepository, AiEpisodeProgressRepository episodeProgressRepository,
-                          UserRepository userRepository,
-                          OwnerSubjectProvider ownerSubjectProvider, AiLearningDataProvider learningDataProvider,
+                          UserRepository userRepository, OwnerSubjectProvider ownerSubjectProvider,
+                          AiLearningDataProvider learningDataProvider, AiBreadCatalog breadCatalog,
                           AiEpisodeReleasePolicy releasePolicy, AiStoryProperties properties,
                           @Qualifier("aiStoryExecutor") ExecutorService executor) {
         this.stateWriter = stateWriter;
@@ -114,6 +120,7 @@ public class AiStoryService {
         this.userRepository = userRepository;
         this.ownerSubjectProvider = ownerSubjectProvider;
         this.learningDataProvider = learningDataProvider;
+        this.breadCatalog = breadCatalog;
         this.releasePolicy = releasePolicy;
         this.properties = properties;
         this.executor = executor;
@@ -123,7 +130,7 @@ public class AiStoryService {
 
     /**
      * 저장된 회차가 있으면 그대로, 없으면 생성을 접수하고 generating으로 응답한다. 새 흐름을 아직 시작하지 않은 시즌은
-     * 1화 요청에서 시작한다(나이로 배경 결정, 출연진 배정) — 나이가 없으면 409 AGE_REQUIRED.
+     * 1화 요청에서 시작한다(나이로 배경 결정, 출연진 배정·이름 짓기) — 나이가 없으면 409 AGE_REQUIRED.
      */
     public AiEpisodeContentView getContent(Long memberId, int order) {
         validateOrder(order);
@@ -138,15 +145,18 @@ public class AiStoryService {
             if (order != AiStoryCatalog.FIRST_ORDER) {
                 throw new AiStoryConflictException(AiStoryConflictException.STORY_NOT_STARTED, "1화부터 시작해주세요.");
             }
-            int age = requireAge(memberId);
+            User user = userWithAge(memberId);
             stateWriter.startStory(season.getId(),
-                    AiSeasonSettingPolicy.decideSetting(age, ThreadLocalRandom.current()));
+                    AiSeasonSettingPolicy.decideSetting(user.getAge(), ThreadLocalRandom.current()),
+                    user.getNickname() != null ? user.getNickname() : user.getName(),
+                    breadCatalog.breadLabel(user.getPersonalityType()),
+                    breadCatalog.allBreadLabels(), ThreadLocalRandom.current());
             snapshot = stateWriter.snapshot(season.getId());
         }
 
         Optional<AiStorySnapshot.Content> existing = snapshot.content(order);
         if (existing.isPresent() && existing.get().status() == AiStoryContentStatus.READY) {
-            return toContentView(existing.get());
+            return toContentView(snapshot, existing.get());
         }
         if (snapshot.status() == AiSeasonStatus.COMPLETED) {
             throw new AiSeasonCompletedException();
@@ -173,7 +183,8 @@ public class AiStoryService {
             Long seasonPk = season.getId();
             executor.execute(() -> generate(memberId, seasonPk, order, contentPk));
         }
-        return toContentView(stateWriter.snapshot(season.getId()).content(order).orElseThrow());
+        AiStorySnapshot latest = stateWriter.snapshot(season.getId());
+        return toContentView(latest, latest.content(order).orElseThrow());
     }
 
     /** 백그라운드 생성. 어떤 오류든 FAILED로 남겨 다음 GET content가 다시 시도하게 한다(스레드 밖으로 던지지 않는다). */
@@ -181,34 +192,31 @@ public class AiStoryService {
         try {
             AiStorySnapshot snapshot = stateWriter.snapshot(seasonPk);
             String ownerSubject = ownerSubjectProvider.resolve(memberId);
-            int age = requireAge(memberId);
+            int age = userWithAge(memberId).getAge();
 
             AiStageIntroView stageIntro = order == AiStoryCatalog.FIRST_ORDER
-                    ? requestStageIntro(ownerSubject, snapshot, age, memberId)
-                    : snapshot.content(AiStoryCatalog.FIRST_ORDER)
-                            .map(c -> AiStoryJson.read(c.stageIntroJson(), AiStageIntroView.class)).orElse(null);
-            StoryContextDto context = context(snapshot, age, stageIntro, memberId);
+                    ? requestStageIntro(ownerSubject, snapshot, age)
+                    : storedStageIntro(snapshot);
+            AiStoryContractMapper mapper = new AiStoryContractMapper(snapshot, stageIntro);
+            StoryTypes.GenerationContext context = context(snapshot, mapper, age, memberId);
 
             AiEpisodePlan plan = AiEpisodePlanner.plan(planInput(snapshot, order));
-            EpisodeWriteRequestDto request = new EpisodeWriteRequestDto(context, order, plan.commonEvent(),
-                    plan.settingScene(), plan.route() == null ? null : plan.route().wireValue(),
-                    plan.referenceEpisode(), plan.openThreads(), toPlanDtos(plan.episodeBlocks()));
-            EpisodeWriteResponseDto episode = callWithRetry("episode",
+            List<BlockPlan> designed = plan.episodeBlocks();
+            EpisodeRequest request = new EpisodeRequest(context, order, plan.commonEvent(), plan.settingScene(),
+                    plan.route() == null ? null : plan.route().wireValue(),
+                    mapper.contractIdOrNull(snapshot.romancePartnerId()), plan.referencePlot(),
+                    designed.stream().map(mapper::design).toList(), plan.openThreads(), mapper.relationRecords(),
+                    mapper.choiceRecords(), usedMaterials(snapshot, order));
+            EpisodeResponse episode = callWithRetry("episode",
                     () -> storyClient.writeEpisode(ownerSubject, request),
-                    r -> AiStoryResponseValidator.validateEpisode(r, plan.episodeBlocks()));
+                    r -> AiStoryResponseValidator.validateEpisode(r, designed.stream().map(mapper::expected).toList()));
 
-            Map<String, StoryWrittenBlockDto> written = new HashMap<>();
-            episode.blocks().forEach(b -> written.put(b.id(), b));
-            if (!plan.interviewBlocks().isEmpty()) {
-                InterviewRequestDto interviewRequest = new InterviewRequestDto(context, plan.settingScene(),
-                        toPlanDtos(plan.interviewBlocks()));
-                StoryBlocksResponseDto interviews = callWithRetry("interview",
-                        () -> storyClient.writeInterview(ownerSubject, interviewRequest),
-                        r -> AiStoryResponseValidator.validateBlocks(r.blocks(), plan.interviewBlocks()));
-                interviews.blocks().forEach(b -> written.put(b.id(), b));
-            }
+            Map<String, StoryTypes.GeneratedBlock> generated = new HashMap<>();
+            episode.blocks().forEach(b -> generated.put(b.id(), b));
+            Map<String, List<StoryTypes.Message>> interviews = plan.interviewBlocks().isEmpty()
+                    ? Map.of() : requestInterviews(ownerSubject, snapshot, mapper, context);
 
-            List<AiSceneBlockView> blocks = toBlockViews(plan.blocks(), written, snapshot, null);
+            List<AiSceneBlockView> blocks = toBlockViews(plan, generated, interviews, snapshot, mapper);
             AiStoryIntroView intro = new AiStoryIntroView(episode.intro().title(), episode.intro().situation());
             stateWriter.saveGenerated(contentPk, AiStoryJson.write(intro),
                     order == AiStoryCatalog.FIRST_ORDER ? AiStoryJson.write(stageIntro) : null,
@@ -220,29 +228,59 @@ public class AiStoryService {
         }
     }
 
-    private AiStageIntroView requestStageIntro(String ownerSubject, AiStorySnapshot snapshot, int age, Long memberId) {
-        StoryContextDto context = context(snapshot, age, null, memberId);
-        StageIntroRequestDto request = new StageIntroRequestDto(context, snapshot.setting().title(),
-                snapshot.setting().subtitle());
-        List<UUID> castIds = snapshot.cast().stream().map(AiStoryCastMember::breadId).toList();
-        StageIntroResponseDto response = callWithRetry("stage-intro",
+    private AiStageIntroView requestStageIntro(String ownerSubject, AiStorySnapshot snapshot, int age) {
+        List<StageIntroRequest.Cast> cast = snapshot.cast().stream()
+                .map(m -> new StageIntroRequest.Cast(m.castRole().contractId(), m.name(), m.breadType(),
+                        m.castRole().attachmentStyle().wireValue(), m.castRole().seasonRole()))
+                .toList();
+        StageIntroRequest request = new StageIntroRequest(snapshot.setting().wireValue(),
+                AiSeasonSettingPolicy.audience(age), AiSeasonSettingPolicy.ageGroup(age), cast);
+        List<String> castIds = cast.stream().map(StageIntroRequest.Cast::breadId).toList();
+        StageIntroResponse response = callWithRetry("stage-intro",
                 () -> storyClient.stageIntro(ownerSubject, request),
                 r -> AiStoryResponseValidator.validateStageIntro(r, castIds));
-        Map<UUID, StageIntroResponseDto.CastIntro> byId = response.cast().stream()
-                .collect(Collectors.toMap(StageIntroResponseDto.CastIntro::breadId, c -> c, (a, b) -> a));
-        List<AiStageIntroView.StageCast> cast = snapshot.cast().stream()
-                .map(m -> new AiStageIntroView.StageCast(m.breadId(), m.name(),
-                        byId.get(m.breadId()).role(), byId.get(m.breadId()).description()))
+        Map<String, StageIntroResponse.Cast> byId = new HashMap<>();
+        response.cast().forEach(c -> byId.put(c.breadId(), c));
+        List<AiStageIntroView.StageCast> stageCast = snapshot.cast().stream()
+                .map(m -> {
+                    StageIntroResponse.Cast intro = byId.get(m.castRole().contractId());
+                    return new AiStageIntroView.StageCast(m.breadId(), m.name(), m.breadType(), intro.role(),
+                            m.isMe() ? null : intro.description());
+                })
                 .toList();
         return new AiStageIntroView(snapshot.setting().wireValue(), snapshot.setting().title(),
-                snapshot.setting().subtitle(), cast);
+                snapshot.setting().subtitle(), stageCast);
+    }
+
+    /** 10화 인터뷰룸(5-4). 빵별 관계 기록과 그 빵에게 한 선택(거절 사유 포함)을 보낸다. */
+    private Map<String, List<StoryTypes.Message>> requestInterviews(String ownerSubject, AiStorySnapshot snapshot,
+                                                                    AiStoryContractMapper mapper,
+                                                                    StoryTypes.GenerationContext context) {
+        List<InterviewRequest.Item> items = snapshot.relations().stream()
+                .map(r -> new InterviewRequest.Item(mapper.contractId(r.breadId()), mapper.relationRecord(r.breadId()),
+                        snapshot.choices().stream()
+                                .filter(c -> r.breadId().equals(c.breadId()))
+                                .map(c -> new InterviewRequest.ChoiceHistory(c.pointId(), c.accepted(),
+                                        AiChoiceRules.rejectReason(c.accepted(), c.reasonCode())))
+                                .toList()))
+                .toList();
+        InterviewRequest request = new InterviewRequest(context,
+                snapshot.route() == null ? null : snapshot.route().wireValue(),
+                mapper.contractIdOrNull(snapshot.romancePartnerId()), items);
+        List<String> interviewees = items.stream().map(InterviewRequest.Item::breadId).toList();
+        InterviewResponse response = callWithRetry("interview",
+                () -> storyClient.writeInterview(ownerSubject, request),
+                r -> AiStoryResponseValidator.validateInterview(r, interviewees));
+        Map<String, List<StoryTypes.Message>> byBread = new HashMap<>();
+        response.interviews().forEach(i -> byBread.put(i.breadId(), i.messages()));
+        return byBread;
     }
 
     // ---------------------------------------------------------------- 선택
 
     /**
-     * 3·5·6·8화 끝 선택. 판정은 코드 규칙으로 하고, 결과 장면만 FastAPI가 쓴다. 같은 선택을 다시 보내면 저장된 결과를
-     * 그대로 돌려주고, 다른 빵으로 다시 고르려 하면 409 CHOICE_ALREADY_MADE.
+     * 3·5·6·8화 끝 선택. 판정은 코드 규칙으로 하고, 결과 장면만 FastAPI가 쓴다(5-3). 혼자 있기는 FastAPI를 부르지 않는다.
+     * 같은 선택을 다시 보내면 저장된 결과를 그대로 돌려주고, 다른 빵으로 다시 고르려 하면 409 CHOICE_ALREADY_MADE.
      */
     public AiChoiceOutcomeView choose(Long memberId, int order, int pointId, UUID breadId) {
         validateOrder(order);
@@ -266,20 +304,43 @@ public class AiStoryService {
         }
 
         AiChoiceJudge.Decision decision = AiChoiceJudge.judge(judgeInput(snapshot, pointId, breadId));
-        List<BlockPlan> resultPlan = AiEpisodePlanner.planChoiceResult(pointId, breadId, decision, snapshot.cast());
-        String ownerSubject = ownerSubjectProvider.resolve(memberId);
-        StoryContextDto context = context(snapshot, requireAge(memberId), storedStageIntro(snapshot), memberId);
-        ChoiceResultRequestDto request = new ChoiceResultRequestDto(context, order, pointId, breadId,
-                decision.accepted(), decision.reasonCode(), decision.shortReply(),
-                AiStoryCatalog.settingScene(snapshot.setting(), order), toPlanDtos(resultPlan));
-        StoryBlocksResponseDto response = callWithRetry("choice-result",
-                () -> storyClient.writeChoiceResult(ownerSubject, request),
-                r -> AiStoryResponseValidator.validateBlocks(r.blocks(), resultPlan));
+        AiStoryContractMapper mapper = new AiStoryContractMapper(snapshot, storedStageIntro(snapshot));
+        BlockPlan reaction = AiEpisodePlanner.planChoiceReaction(pointId, breadId, decision, snapshot.cast());
+        AiSceneBlockView.SceneChoiceResult result = new AiSceneBlockView.SceneChoiceResult(pointId, breadId,
+                decision.accepted());
+        List<AiSceneBlockView> blocks = new ArrayList<>();
+        int[] sequence = {1};
 
-        Map<String, StoryWrittenBlockDto> written = response.blocks().stream()
-                .collect(Collectors.toMap(StoryWrittenBlockDto::id, b -> b));
-        AiSceneBlockView.SceneChoiceResult result = new AiSceneBlockView.SceneChoiceResult(pointId, breadId, decision.accepted());
-        List<AiSceneBlockView> blocks = toBlockViews(resultPlan, written, snapshot, result);
+        if (breadId == null) {
+            blocks.add(new AiSceneBlockView(reaction.id(), AiSceneBlockType.CHOICE_RESULT.wireValue(),
+                    mapper.participants(reaction.participantIds()), List.of(), null, null, null, result, null));
+        } else {
+            String ownerSubject = ownerSubjectProvider.resolve(memberId);
+            int age = userWithAge(memberId).getAge();
+            String friendId = AiCastRole.FRIEND.contractId();
+            ChoiceResultRequest request = new ChoiceResultRequest(context(snapshot, mapper, age, memberId), order,
+                    pointId, mapper.contractId(breadId), decision.accepted(),
+                    AiChoiceRules.rejectReason(decision.accepted(), decision.reasonCode()), decision.shortReply(),
+                    mapper.relationRecord(breadId));
+            Set<String> speakers = mapper.contractIds(reaction.participantIds());
+            ChoiceResultResponse response = callWithRetry("choice-result",
+                    () -> storyClient.writeChoiceResult(ownerSubject, request),
+                    r -> AiStoryResponseValidator.validateChoiceResult(r, speakers, decision.accepted(), friendId));
+
+            blocks.add(new AiSceneBlockView(reaction.id(), AiSceneBlockType.CHOICE_RESULT.wireValue(),
+                    mapper.participants(reaction.participantIds()), mapper.messageViews(response.messages(), sequence),
+                    null, null, null, result, null));
+            UUID me = snapshot.me().breadId();
+            List<ChoiceResultResponse.FallbackBlock> fallbacks =
+                    response.fallbackBlocks() == null ? List.of() : response.fallbackBlocks();
+            for (ChoiceResultResponse.FallbackBlock fallback : fallbacks) {
+                List<UUID> participants = StoryTypes.ALONE.equals(fallback.pairTarget())
+                        ? List.of(me) : List.of(me, mapper.uuid(friendId));
+                blocks.add(new AiSceneBlockView("c" + pointId + "-" + fallback.id(), AiSceneBlockType.PAIR.wireValue(),
+                        mapper.participants(participants), mapper.messageViews(fallback.messages(), sequence),
+                        null, null, null, null, null));
+            }
+        }
 
         try {
             stateWriter.saveChoice(season.getId(), pointId, order, breadId, decision, AiStoryJson.write(blocks));
@@ -292,7 +353,7 @@ public class AiStoryService {
 
     private AiChoiceOutcomeView existingOutcome(AiStorySnapshot.Choice choice, UUID requestedBreadId,
                                                 AiStorySnapshot snapshot) {
-        if (!java.util.Objects.equals(choice.breadId(), requestedBreadId)) {
+        if (!Objects.equals(choice.breadId(), requestedBreadId)) {
             throw new AiStoryConflictException(AiStoryConflictException.CHOICE_ALREADY_MADE, "이미 선택을 마쳤습니다.");
         }
         return new AiChoiceOutcomeView(AiStoryJson.read(choice.resultBlocksJson(), BLOCK_LIST), toStateView(snapshot));
@@ -301,8 +362,8 @@ public class AiStoryService {
     // ---------------------------------------------------------------- 회차 완료
 
     /**
-     * 회차 완료: 정리 단계(관계 기록 갱신안·호감 변화 제안) → 회차 쪽지 → (10화면) 최종 리포트를 FastAPI로 만들고
-     * 한 트랜잭션에 저장한다. 하나라도 실패하면 아무것도 저장하지 않는다. 이미 완료한 회차면 상태만 돌려준다.
+     * 회차 완료: 정리 단계(5-5) → 회차 쪽지(5-6) → (10화면) 최종 리포트(5-7)를 FastAPI로 만들고 한 트랜잭션에 저장한다.
+     * 하나라도 실패하면 아무것도 저장하지 않는다. 이미 완료한 회차면 상태만 돌려준다.
      */
     public AiStoryStateView complete(Long memberId, int order) {
         validateOrder(order);
@@ -318,40 +379,116 @@ public class AiStoryService {
         }
 
         String ownerSubject = ownerSubjectProvider.resolve(memberId);
-        StoryContextDto context = context(snapshot, requireAge(memberId), storedStageIntro(snapshot), memberId);
-        List<UUID> relationIds = snapshot.relations().stream().map(AiStorySnapshot.Relation::breadId).toList();
-        List<UUID> castIds = snapshot.cast().stream().map(AiStoryCastMember::breadId).toList();
+        AiStoryContractMapper mapper = new AiStoryContractMapper(snapshot, storedStageIntro(snapshot));
+        StoryTypes.GenerationContext context = context(snapshot, mapper, userWithAge(memberId).getAge(), memberId);
+        List<String> relationIds = mapper.relationIds();
+        List<String> castIds = mapper.castIds();
 
-        SummarizeRequestDto summarizeRequest = new SummarizeRequestDto(context, order, script(snapshot, content, pointId));
-        SummarizeResponseDto summary = callWithRetry("summarize",
+        List<AiSceneBlockView> resultBlocks = pointId == null ? List.of()
+                : AiStoryJson.read(snapshot.choice(pointId).orElseThrow().resultBlocksJson(), BLOCK_LIST);
+        SummarizeRequest summarizeRequest = new SummarizeRequest(context, order,
+                mapper.sceneBlocks(AiStoryJson.read(content.blocksJson(), BLOCK_LIST), resultBlocks),
+                mapper.relationRecords());
+        SummarizeResponse summary = callWithRetry("summarize",
                 () -> storyClient.summarize(ownerSubject, summarizeRequest),
                 r -> AiStoryResponseValidator.validateSummary(r, relationIds));
 
-        boolean finale = order == AiStoryCatalog.FINAL_ORDER;
-        EpisodeNoteRequestDto noteRequest = new EpisodeNoteRequestDto(context, order, summary.episodeSummary(), finale);
-        LetterResponseDto note = callWithRetry("episode-note",
+        String settingScene = AiStoryCatalog.settingScene(snapshot.setting(), order);
+        StoryTypes.ChoiceRecord choice = pointId == null ? null : mapper.choiceRecords().stream()
+                .filter(c -> c.pointId() == pointId).findFirst().orElse(null);
+        List<EpisodeNoteRequest.Relation> noteRelations = summary.relations().stream()
+                .map(u -> new EpisodeNoteRequest.Relation(u.breadId(), u.statusText(), u.recentMemory()))
+                .toList();
+        EpisodeNoteRequest noteRequest = new EpisodeNoteRequest(context, order, settingScene, summary.episodeSummary(),
+                choice, noteRelations);
+        EpisodeNoteResponse note = callWithRetry("episode-note",
                 () -> storyClient.writeEpisodeNote(ownerSubject, noteRequest),
                 r -> AiStoryResponseValidator.validateNote(r, castIds));
 
         String reportJson = null;
-        if (finale) {
-            List<SeasonReportRequestDto.EpisodeSummary> summaries = new ArrayList<>();
+        if (order == AiStoryCatalog.FINAL_ORDER) {
+            List<SeasonReportRequest.EpisodeSummary> summaries = new ArrayList<>();
             snapshot.contents().stream()
                     .filter(c -> c.order() < order && c.summaryJson() != null)
-                    .forEach(c -> summaries.add(new SeasonReportRequestDto.EpisodeSummary(c.order(),
+                    .forEach(c -> summaries.add(new SeasonReportRequest.EpisodeSummary(c.order(),
                             String.valueOf(AiStoryJson.read(c.summaryJson(), Map.class).get("episodeSummary")))));
-            summaries.add(new SeasonReportRequestDto.EpisodeSummary(order, summary.episodeSummary()));
-            SeasonReportRequestDto reportRequest = new SeasonReportRequestDto(context,
-                    snapshot.route() == null ? null : snapshot.route().wireValue(), snapshot.romancePartnerId(),
-                    summaries);
-            ReportResponseDto report = callWithRetry("season-report",
+            summaries.add(new SeasonReportRequest.EpisodeSummary(order, summary.episodeSummary()));
+            SeasonReportRequest reportRequest = new SeasonReportRequest(context,
+                    snapshot.route() == null ? null : snapshot.route().wireValue(),
+                    mapper.contractIdOrNull(snapshot.romancePartnerId()), summaries, mapper.choiceRecordsWithReason(),
+                    mapper.relationRecords());
+            SeasonReportResponse report = callWithRetry("season-report",
                     () -> storyClient.writeSeasonReport(ownerSubject, reportRequest),
-                    AiStoryResponseValidator::validateReport);
-            reportJson = AiStoryJson.write(toReportView(report));
+                    r -> AiStoryResponseValidator.validateReport(r, castIds));
+            reportJson = AiStoryJson.write(toReportView(report, mapper));
         }
 
-        stateWriter.completeEpisode(season.getId(), order, summary, note, reportJson);
+        List<AiStoryStateWriter.RelationChange> changes = summary.relations().stream()
+                .map(u -> new AiStoryStateWriter.RelationChange(mapper.uuid(u.breadId()), u.memorySummary(),
+                        u.recentMemory(), u.newFacts(), u.threadsAdd(), u.threadsResolved(), u.statusText(),
+                        u.affinityDelta(), u.choiceMemory()))
+                .toList();
+        stateWriter.completeEpisode(season.getId(), order, summary.episodeSummary(), changes,
+                new AiStoryStateWriter.EpisodeNote(mapper.uuidOrNull(note.finalPartnerId()), note.body(),
+                        note.renderMode()),
+                reportJson);
         return toStateView(stateWriter.snapshot(season.getId()));
+    }
+
+    // ---------------------------------------------------------------- 1:1 장면 피드백·좋아요
+
+    /**
+     * 1:1 장면(pair 블록, 상대가 있는 장면)에서 내 빵의 대사에 남기는 피드백. 메시지당 하나이고 다시 보내면 글을 바꾼다.
+     * 회차 본문의 pair 블록과 선택 거절 뒤 친구와의 대체 pair 블록에 남길 수 있다. 혼자인 독백 장면은 안 된다.
+     */
+    public AiStoryFeedbackView submitFeedback(Long memberId, int order, Integer bodyOrder, String blockId,
+                                              UUID messageId, String text) {
+        SceneMessage target = findPairMessage(memberId, order, bodyOrder, blockId, messageId);
+        if (!target.message().fromRepresentative()) {
+            throw new AiInputValidationException("내 빵의 대사에만 피드백을 남길 수 있습니다.");
+        }
+        AiStoryFeedback saved = stateWriter.saveFeedback(target.seasonPk(), order, blockId, messageId,
+                target.message().text(), text);
+        return new AiStoryFeedbackView(order, saved.getBlockId(), saved.getMessageId(), saved.getText());
+    }
+
+    /** 1:1 장면(pair 블록) 메시지 좋아요. liked로 켜고 끈다. 내레이션에는 누를 수 없다. */
+    public AiMessageLikeView setLike(Long memberId, int order, Integer bodyOrder, String blockId, UUID messageId,
+                                     boolean liked) {
+        SceneMessage target = findPairMessage(memberId, order, bodyOrder, blockId, messageId);
+        if (target.message().speakerId() == null) {
+            throw new AiInputValidationException("내레이션에는 좋아요를 누를 수 없습니다.");
+        }
+        stateWriter.setLike(target.seasonPk(), order, blockId, messageId, target.message().text(),
+                target.message().fromRepresentative(), liked);
+        return new AiMessageLikeView(messageId, liked);
+    }
+
+    private record SceneMessage(Long seasonPk, AiStoryMessageView message) {
+    }
+
+    private SceneMessage findPairMessage(Long memberId, int order, Integer bodyOrder, String blockId, UUID messageId) {
+        validateOrder(order);
+        if (bodyOrder != null && bodyOrder != order) {
+            throw new AiInputValidationException("경로의 order와 body의 order가 다릅니다.");
+        }
+        AiSeason season = currentSeason(memberId);
+        AiStorySnapshot snapshot = startedSnapshot(season);
+        AiStorySnapshot.Content content = readyContent(snapshot, order);
+        List<AiSceneBlockView> blocks = new ArrayList<>(AiStoryJson.read(content.blocksJson(), BLOCK_LIST));
+        Integer pointId = AiStoryCatalog.pointOf(order);
+        if (pointId != null) {
+            snapshot.choice(pointId).ifPresent(c -> blocks.addAll(AiStoryJson.read(c.resultBlocksJson(), BLOCK_LIST)));
+        }
+        AiSceneBlockView block = blocks.stream().filter(b -> b.id().equals(blockId)).findFirst()
+                .orElseThrow(() -> new AiInputValidationException("이 회차에 없는 blockId입니다."));
+        if (!AiSceneBlockType.PAIR.wireValue().equals(block.type()) || block.participants().size() < 2) {
+            throw new AiInputValidationException("1:1 장면(상대가 있는 pair 블록)에서만 남길 수 있습니다.");
+        }
+        AiStoryMessageView message = block.messages().stream().filter(m -> m.messageId().equals(messageId))
+                .findFirst()
+                .orElseThrow(() -> new AiInputValidationException("messageId가 이 장면의 대사에 없습니다."));
+        return new SceneMessage(season.getId(), message);
     }
 
     // ---------------------------------------------------------------- 다른 흐름에서 쓰는 조회
@@ -435,12 +572,12 @@ public class AiStoryService {
         }
     }
 
-    private int requireAge(Long memberId) {
+    private User userWithAge(Long memberId) {
         User user = userRepository.findById(memberId).orElseThrow(() -> new UserNotFoundException(memberId));
         if (user.getAge() == null) {
             throw new AiStoryConflictException(AiStoryConflictException.AGE_REQUIRED, "나이를 먼저 입력해주세요.");
         }
-        return user.getAge();
+        return user;
     }
 
     private static void validateOrder(int order) {
@@ -449,39 +586,40 @@ public class AiStoryService {
         }
     }
 
-    private AiStageIntroView storedStageIntro(AiStorySnapshot snapshot) {
+    private static AiStageIntroView storedStageIntro(AiStorySnapshot snapshot) {
         return snapshot.content(AiStoryCatalog.FIRST_ORDER)
                 .map(c -> AiStoryJson.read(c.stageIntroJson(), AiStageIntroView.class))
                 .orElse(null);
     }
 
-    private StoryContextDto context(AiStorySnapshot snapshot, int age, AiStageIntroView stageIntro, Long memberId) {
-        Map<UUID, AiStageIntroView.StageCast> intros = new HashMap<>();
-        if (stageIntro != null) {
-            stageIntro.cast().forEach(c -> intros.put(c.breadId(), c));
-        }
-        List<StoryContextDto.CastMember> cast = snapshot.cast().stream()
-                .map(m -> new StoryContextDto.CastMember(m.breadId(), m.name(), m.castRole().wireValue(),
-                        m.castRole().attachmentStyle().wireValue(), m.gender(), m.isMe(),
-                        intros.containsKey(m.breadId()) ? intros.get(m.breadId()).role() : null,
-                        intros.containsKey(m.breadId()) ? intros.get(m.breadId()).description() : null))
-                .toList();
-        List<StoryContextDto.Relation> relations = snapshot.relations().stream()
-                .map(r -> new StoryContextDto.Relation(r.breadId(), r.affinity(), r.rejectCount(), r.statusText(),
-                        r.memorySummary(), r.recentMemories(), r.knownFacts(), r.openThreads()))
-                .toList();
-        List<StoryContextDto.ChoiceRecord> choices = snapshot.choices().stream()
-                .map(c -> new StoryContextDto.ChoiceRecord(c.pointId(), c.episodeOrder(), c.breadId(), c.accepted(),
-                        c.reasonCode()))
-                .toList();
-        return new StoryContextDto(snapshot.setting().wireValue(), AiSeasonSettingPolicy.audience(age),
-                AiSeasonSettingPolicy.ageBand(age), age, cast, relations, choices,
-                learningDataProvider.load(memberId, snapshot.seasonNumber()));
+    /** 모든 FastAPI 호출에 함께 보내는 맥락(5-0). 학습 데이터에 이 시즌 1:1 장면 피드백·좋아요를 더한다. */
+    private StoryTypes.GenerationContext context(AiStorySnapshot snapshot, AiStoryContractMapper mapper, int age,
+                                                 Long memberId) {
+        StoryTypes.LearnedProfile base = learningDataProvider.load(memberId, snapshot.seasonNumber());
+        StoryTypes.LearnedProfile learned = new StoryTypes.LearnedProfile(base.summary(), base.recentAnswers(),
+                stateWriter.recentFeedbacks(snapshot.seasonPk()), stateWriter.recentLikedMyMessages(snapshot.seasonPk()));
+        return new StoryTypes.GenerationContext(snapshot.setting().wireValue(), AiSeasonSettingPolicy.audience(age),
+                AiSeasonSettingPolicy.ageGroup(age), mapper.castMembers(), learned);
+    }
+
+    /** 시즌에서 이미 쓴 장면 소재: 이전 회차의 배경 장면과 상황 소개 제목. */
+    private static List<String> usedMaterials(AiStorySnapshot snapshot, int order) {
+        List<String> materials = new ArrayList<>();
+        snapshot.contents().stream()
+                .filter(c -> c.order() < order && c.status() == AiStoryContentStatus.READY)
+                .forEach(c -> {
+                    materials.add(AiStoryCatalog.settingScene(snapshot.setting(), c.order()));
+                    AiStoryIntroView intro = AiStoryJson.read(c.introJson(), AiStoryIntroView.class);
+                    if (intro != null) {
+                        materials.add(intro.title());
+                    }
+                });
+        return materials;
     }
 
     private static AiEpisodePlanner.Input planInput(AiStorySnapshot snapshot, int order) {
         Map<UUID, Integer> affinity = new HashMap<>();
-        Map<UUID, List<String>> openThreads = new HashMap<>();
+        Map<UUID, List<StoryTypes.Thread>> openThreads = new HashMap<>();
         snapshot.relations().forEach(r -> {
             affinity.put(r.breadId(), r.affinity());
             openThreads.put(r.breadId(), r.openThreads());
@@ -514,104 +652,68 @@ public class AiStoryService {
                 .toList();
     }
 
-    /** 정리 단계 입력: 그 회차에서 재생된 대사(회차 블록 + 선택 결과 장면) 순서대로. */
-    private static List<SummarizeRequestDto.ScriptLine> script(AiStorySnapshot snapshot,
-                                                              AiStorySnapshot.Content content, Integer pointId) {
-        List<AiSceneBlockView> blocks = new ArrayList<>(AiStoryJson.read(content.blocksJson(), BLOCK_LIST));
-        if (pointId != null) {
-            snapshot.choice(pointId).ifPresent(c -> blocks.addAll(AiStoryJson.read(c.resultBlocksJson(), BLOCK_LIST)));
-        }
-        Map<UUID, String> names = snapshot.cast().stream()
-                .collect(Collectors.toMap(AiStoryCastMember::breadId, AiStoryCastMember::name));
-        List<SummarizeRequestDto.ScriptLine> lines = new ArrayList<>();
-        for (AiSceneBlockView block : blocks) {
-            if (block.messages() == null) {
-                continue;
-            }
-            for (AiStoryMessageView message : block.messages()) {
-                if (Boolean.TRUE.equals(message.deletedAfterSend())) {
-                    continue;
-                }
-                lines.add(new SummarizeRequestDto.ScriptLine(block.id(), block.type(), message.speakerId(),
-                        names.get(message.speakerId()), message.text()));
-            }
-        }
-        return lines;
-    }
-
-    private static List<StoryBlockPlanDto> toPlanDtos(List<BlockPlan> plans) {
-        return plans.stream()
-                .map(p -> new StoryBlockPlanDto(p.id(), p.type().wireValue(), p.participantIds(), p.messengerKind(),
-                        p.focusBreadId(), p.shortReply()))
-                .toList();
-    }
-
-    /** 설계 블록 순서대로 AI가 쓴 대사를 붙여 앱 응답 블록을 만든다. choice 블록은 관계 기록으로 Spring이 채운다. */
-    private static List<AiSceneBlockView> toBlockViews(List<BlockPlan> plans, Map<String, StoryWrittenBlockDto> written,
-                                                       AiStorySnapshot snapshot,
-                                                       AiSceneBlockView.SceneChoiceResult choiceResult) {
-        UUID me = snapshot.me().breadId();
-        int sequence = 1;
+    /** 설계 블록 순서대로 FastAPI가 쓴 대사를 붙여 앱 응답 블록을 만든다. 10화 인터뷰는 인터뷰 호출 결과로 채운다. */
+    private static List<AiSceneBlockView> toBlockViews(AiEpisodePlan plan, Map<String, StoryTypes.GeneratedBlock> generated,
+                                                       Map<String, List<StoryTypes.Message>> interviews,
+                                                       AiStorySnapshot snapshot, AiStoryContractMapper mapper) {
+        int[] sequence = {1};
         List<AiSceneBlockView> views = new ArrayList<>();
-        for (BlockPlan plan : plans) {
-            if (plan.type() == AiSceneBlockType.CHOICE) {
-                List<AiSceneBlockView.SceneChoiceCandidate> candidates = plan.choice().candidateIds().stream()
-                        .map(id -> new AiSceneBlockView.SceneChoiceCandidate(id, memoryLine(snapshot, id)))
-                        .toList();
-                views.add(new AiSceneBlockView(plan.id(), plan.type().wireValue(), null, null, null, null,
-                        new AiSceneBlockView.SceneChoice(plan.choice().pointId(), plan.choice().question(), candidates),
-                        null, null));
-                continue;
+        for (BlockPlan blockPlan : plan.blocks()) {
+            String type = blockPlan.type().wireValue();
+            switch (blockPlan.type()) {
+                case CHOICE -> {
+                    Map<String, String> memories = new HashMap<>();
+                    generated.get(blockPlan.id()).candidates().forEach(c -> memories.put(c.breadId(), c.memory()));
+                    List<AiSceneBlockView.SceneChoiceCandidate> candidates = blockPlan.choice().candidateIds().stream()
+                            .map(id -> new AiSceneBlockView.SceneChoiceCandidate(id,
+                                    memories.getOrDefault(mapper.contractId(id), memoryLine(snapshot, id))))
+                            .toList();
+                    views.add(new AiSceneBlockView(blockPlan.id(), type, null, null, null, null,
+                            new AiSceneBlockView.SceneChoice(blockPlan.choice().pointId(), blockPlan.choice().question(),
+                                    candidates),
+                            null, null));
+                }
+                case TRANSITION -> views.add(new AiSceneBlockView(blockPlan.id(), type, null, null,
+                        generated.get(blockPlan.id()).transitionText(), null, null, null, null));
+                case INTERVIEW -> views.add(new AiSceneBlockView(blockPlan.id(), type,
+                        mapper.participants(blockPlan.participantIds()),
+                        mapper.messageViews(interviews.get(mapper.contractId(blockPlan.focusBreadId())), sequence),
+                        null, null, null, null, new AiSceneBlockView.SceneInterview(blockPlan.focusBreadId())));
+                default -> {
+                    AiSceneBlockView.SceneMessenger messenger = blockPlan.type() == AiSceneBlockType.MESSENGER
+                            ? new AiSceneBlockView.SceneMessenger(blockPlan.messengerKind(), blockPlan.roomName()) : null;
+                    views.add(new AiSceneBlockView(blockPlan.id(), type, mapper.participants(blockPlan.participantIds()),
+                            mapper.messageViews(generated.get(blockPlan.id()).messages(), sequence), null, messenger,
+                            null, null, null));
+                }
             }
-            StoryWrittenBlockDto block = written.get(plan.id());
-            if (plan.type() == AiSceneBlockType.TRANSITION) {
-                views.add(new AiSceneBlockView(plan.id(), plan.type().wireValue(), null, null, block.transitionText(),
-                        null, null, null, null));
-                continue;
-            }
-            List<AiStoryMessageView> messages = new ArrayList<>();
-            for (StoryWrittenBlockDto.Message m : block.messages()) {
-                messages.add(new AiStoryMessageView(UUID.randomUUID(), sequence++, m.speakerId(),
-                        me.equals(m.speakerId()), m.text(), m.read(), m.typing(), m.deletedAfterSend()));
-            }
-            List<AiStoryParticipantView> participants = plan.participantIds().stream()
-                    .map(id -> participant(snapshot, id))
-                    .toList();
-            AiSceneBlockView.SceneMessenger messenger = plan.type() == AiSceneBlockType.MESSENGER
-                    ? new AiSceneBlockView.SceneMessenger(plan.messengerKind(), block.roomName()) : null;
-            AiSceneBlockView.SceneInterview interview = plan.type() == AiSceneBlockType.INTERVIEW
-                    ? new AiSceneBlockView.SceneInterview(plan.focusBreadId()) : null;
-            AiSceneBlockView.SceneChoiceResult result = plan.type() == AiSceneBlockType.CHOICE_RESULT ? choiceResult : null;
-            views.add(new AiSceneBlockView(plan.id(), plan.type().wireValue(), participants, messages, null,
-                    messenger, null, result, interview));
         }
         return views;
     }
 
-    /** 선택 카드의 "기억 한 줄": 최근 회차 주요 장면 → 관계 요약 → 기본 문구 순. */
+    /** 선택 카드의 "기억 한 줄" 대체값: 정리 단계의 선택용 기억 → 최근 장면 → 기본 문구 순. */
     private static String memoryLine(AiStorySnapshot snapshot, UUID breadId) {
         return snapshot.relation(breadId)
-                .map(r -> !r.recentMemories().isEmpty() ? r.recentMemories().get(r.recentMemories().size() - 1)
-                        : r.memorySummary() != null ? r.memorySummary() : DEFAULT_MEMORY)
+                .map(r -> r.choiceMemory() != null ? r.choiceMemory()
+                        : !r.recentMemories().isEmpty() ? r.recentMemories().get(r.recentMemories().size() - 1)
+                        : DEFAULT_MEMORY)
                 .orElse(DEFAULT_MEMORY);
     }
 
-    private static AiStoryParticipantView participant(AiStorySnapshot snapshot, UUID breadId) {
-        AiStoryCastMember member = snapshot.member(breadId).orElseThrow();
-        return new AiStoryParticipantView(breadId, member.name(), member.castRole().wireValue(),
-                member.castRole().attachmentStyle().wireValue(), member.isMe());
-    }
-
-    private static AiEpisodeContentView toContentView(AiStorySnapshot.Content content) {
+    private AiEpisodeContentView toContentView(AiStorySnapshot snapshot, AiStorySnapshot.Content content) {
         String status = content.status().name().toLowerCase();
         if (content.status() != AiStoryContentStatus.READY) {
             return new AiEpisodeContentView(content.order(), status, content.errorCode(), null, null, null,
-                    content.completed());
+                    content.completed(), List.of(), List.of());
         }
+        List<AiStoryFeedbackView> feedbacks = stateWriter.findFeedbacks(snapshot.seasonPk(), content.order()).stream()
+                .map(f -> new AiStoryFeedbackView(f.getEpisodeOrder(), f.getBlockId(), f.getMessageId(), f.getText()))
+                .toList();
         return new AiEpisodeContentView(content.order(), status, null,
                 AiStoryJson.read(content.introJson(), AiStoryIntroView.class),
                 AiStoryJson.read(content.stageIntroJson(), AiStageIntroView.class),
-                AiStoryJson.read(content.blocksJson(), BLOCK_LIST), content.completed());
+                AiStoryJson.read(content.blocksJson(), BLOCK_LIST), content.completed(), feedbacks,
+                stateWriter.findLikedMessageIds(snapshot.seasonPk(), content.order()));
     }
 
     private static AiStoryStateView toStateView(AiStorySnapshot snapshot) {
@@ -633,11 +735,11 @@ public class AiStoryService {
                 choices, breads);
     }
 
-    private static AiReportView toReportView(ReportResponseDto report) {
+    private static AiReportView toReportView(SeasonReportResponse report, AiStoryContractMapper mapper) {
         AiReportHighlightsView highlights = new AiReportHighlightsView(
                 new AiHighlightView(report.highlights().episode2().message(), report.highlights().episode2().reason()),
                 new AiHighlightView(report.highlights().episode4().message(), report.highlights().episode4().reason()));
-        return new AiReportView(report.finalPartnerId(), report.tendency(), report.feedback(), report.strengths(),
-                report.weaknesses(), highlights, report.renderMode());
+        return new AiReportView(mapper.uuidOrNull(report.finalPartnerId()), report.tendency(), report.feedback(),
+                report.strengths(), report.weaknesses(), highlights, report.renderMode());
     }
 }

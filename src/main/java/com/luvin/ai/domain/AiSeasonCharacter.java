@@ -56,9 +56,13 @@ public class AiSeasonCharacter {
     @Column(name = "attachment_style", length = 20)
     private AiAttachmentStyle attachmentStyle;
 
-    /** 출연진 표시 이름. 팀이 출연진 정의를 전달하기 전까지는 placeholder 이름이 들어간다. */
+    /** 출연진 표시 이름. 내 빵은 사용자 닉네임, 나머지는 시즌 시작 때 정한 "형용사 + 빵 종류"다. */
     @Column(name = "name", length = 50)
     private String name;
+
+    /** 빵 종류(설문 빵 타입의 한글 이름, 예: 소금빵). 시즌 안에서 출연진끼리 겹치지 않는다. */
+    @Column(name = "bread_type", length = 30)
+    private String breadType;
 
     public AiSeasonCharacter(AiSeason season, UUID characterId, AiCharacterRole role, String gender) {
         this.season = season;
@@ -68,15 +72,16 @@ public class AiSeasonCharacter {
     }
 
     /** Spring이 추가하는 출연진(친구, 분위기 메이커). AI 시즌에는 없는 캐릭터라 id도 Spring이 만든다. */
-    public AiSeasonCharacter(AiSeason season, UUID characterId, AiCastRole castRole, String name) {
+    public AiSeasonCharacter(AiSeason season, UUID characterId, AiCastRole castRole, String name, String breadType) {
         this(season, characterId, AiCharacterRole.SUPPORTING, null);
-        assignCast(castRole, name);
+        assignCast(castRole, name, breadType);
     }
 
-    public void assignCast(AiCastRole castRole, String name) {
+    public void assignCast(AiCastRole castRole, String name, String breadType) {
         this.castRole = castRole;
         this.attachmentStyle = castRole.attachmentStyle();
         this.name = name;
+        this.breadType = breadType;
     }
 
     /** 개발 전용 초기화에서 출연진 배정을 되돌린다. */
@@ -84,6 +89,7 @@ public class AiSeasonCharacter {
         this.castRole = null;
         this.attachmentStyle = null;
         this.name = null;
+        this.breadType = null;
     }
 
     public boolean isRepresentative() {

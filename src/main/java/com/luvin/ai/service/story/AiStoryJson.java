@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import com.luvin.ai.client.story.StoryTypes;
+
 import java.util.List;
 
 /**
@@ -49,5 +51,29 @@ public final class AiStoryJson {
     public static List<String> readStrings(String json) {
         List<String> values = read(json, STRING_LIST);
         return values == null ? List.of() : values;
+    }
+
+    /**
+     * 떡밥 목록. 계약 v2부터 {"id","text"} 객체로 저장하고, 그 전에 문자열 배열로 저장된 row는 순번 id를 붙여 읽는다.
+     */
+    public static List<StoryTypes.Thread> readThreads(String json) {
+        try {
+            if (json == null) {
+                return List.of();
+            }
+            List<StoryTypes.Thread> threads = new java.util.ArrayList<>();
+            int index = 1;
+            for (com.fasterxml.jackson.databind.JsonNode node : MAPPER.readTree(json)) {
+                if (node.isTextual()) {
+                    threads.add(new StoryTypes.Thread("t" + index, node.asText()));
+                } else {
+                    threads.add(new StoryTypes.Thread(node.path("id").asText("t" + index), node.path("text").asText()));
+                }
+                index++;
+            }
+            return threads;
+        } catch (Exception e) {
+            throw new IllegalStateException("저장된 떡밥 JSON을 읽을 수 없습니다.", e);
+        }
     }
 }

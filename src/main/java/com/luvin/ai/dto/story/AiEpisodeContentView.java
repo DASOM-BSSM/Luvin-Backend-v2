@@ -15,6 +15,10 @@ public record AiEpisodeContentView(
         AiStoryIntroView intro,
         AiStageIntroView stageIntro,
         List<AiSceneBlockView> blocks,
-        boolean completed
+        boolean completed,
+        /** 이 회차 1:1 장면(pair 블록)에 남긴 피드백. 선택 결과 뒤 대체 장면에 남긴 것도 포함한다. */
+        List<AiStoryFeedbackView> feedbacks,
+        /** 이 회차 1:1 장면에서 좋아요한 메시지 id. */
+        List<java.util.UUID> likedMessageIds
 ) {
 }

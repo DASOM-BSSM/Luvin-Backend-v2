@@ -1,8 +1,12 @@
 package com.luvin.ai.controller;
 
+import com.luvin.ai.dto.AiMessageLikeView;
 import com.luvin.ai.dto.story.AiChoiceHttpRequest;
 import com.luvin.ai.dto.story.AiChoiceOutcomeView;
 import com.luvin.ai.dto.story.AiEpisodeContentView;
+import com.luvin.ai.dto.story.AiStoryFeedbackHttpRequest;
+import com.luvin.ai.dto.story.AiStoryFeedbackView;
+import com.luvin.ai.dto.story.AiStoryLikeHttpRequest;
 import com.luvin.ai.dto.story.AiStoryStateView;
 import com.luvin.ai.service.story.AiStoryService;
 import com.luvin.common.response.ApiResponse;
@@ -22,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 러빈지옥 장면 블록 회차(1~10화). 시즌 상태는 기존 GET /api/ai/seasons/me 응답의 story에 담긴다.
  * 쪽지(GET /letters/unread)와 최종 리포트(GET /report)는 기존 경로·응답 형식 그대로다.
  */
-@Tag(name = "러빈지옥 회차", description = "장면 블록 회차(1~10화) 콘텐츠, 선택, 완료")
+@Tag(name = "러빈지옥 회차", description = "장면 블록 회차(1~10화) 콘텐츠, 선택, 완료, 1:1 장면 피드백·좋아요")
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/ai/seasons/episodes")
@@ -61,6 +65,34 @@ public class AiStoryController {
                                                    @Valid @RequestBody AiChoiceHttpRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(storyService.choose(memberId, order, request.pointId(), request.breadId()));
+    }
+
+    @Operation(summary = "1:1 장면 피드백", description = """
+            1:1 장면(상대가 있는 `pair` 블록)에서 내 빵의 대사 하나에 피드백을 남긴다. 회차 본문 pair 블록과 선택 거절 뒤
+            대체 pair 블록(`choices` 응답의 blocks)에 남길 수 있고, 혼자인 독백 장면·그룹·메신저·인터뷰·선택 결과에는 안 된다.
+            메시지당 하나이고 다시 보내면 글을 바꾼다. body의 `order`는 생략해도 되고, 보내면 경로의 order와 같아야 한다.
+            남긴 피드백은 다음 회차 생성 입력(learnedProfile.feedbacks)으로 쓰인다.
+
+            **오류**: 400 pair 블록이 아니거나 내 빵의 대사가 아님·text 200자 초과 / 409 `CONTENT_NOT_READY`, `STORY_NOT_STARTED`
+            """)
+    @PostMapping("/{order}/scene-feedback")
+    public ApiResponse<AiStoryFeedbackView> submitFeedback(@PathVariable("order") int order,
+                                                           @Valid @RequestBody AiStoryFeedbackHttpRequest request) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(storyService.submitFeedback(memberId, order, request.order(), request.blockId(),
+                request.messageId(), request.text()));
+    }
+
+    @Operation(summary = "1:1 장면 좋아요", description = """
+            1:1 장면(상대가 있는 `pair` 블록) 메시지 좋아요를 켜고 끈다(`liked`). 내 빵·상대 대사 모두 가능하고 내레이션은 안 된다.
+            내 빵의 대사에 누른 좋아요는 다음 회차 생성 입력(learnedProfile.likedMessages)으로 쓰인다.
+            """)
+    @PostMapping("/{order}/scene-likes")
+    public ApiResponse<AiMessageLikeView> setLike(@PathVariable("order") int order,
+                                                  @Valid @RequestBody AiStoryLikeHttpRequest request) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(storyService.setLike(memberId, order, request.order(), request.blockId(),
+                request.messageId(), request.liked()));
     }
 
     @Operation(summary = "회차 완료", description = """

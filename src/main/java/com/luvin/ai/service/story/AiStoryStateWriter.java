@@ -1,7 +1,6 @@
 package com.luvin.ai.service.story;
 
-import com.luvin.ai.client.dto.LetterResponseDto;
-import com.luvin.ai.client.story.SummarizeResponseDto;
+import com.luvin.ai.client.story.StoryTypes;
 import com.luvin.ai.domain.AiBreadRelation;
 import com.luvin.ai.domain.AiCastRole;
 import com.luvin.ai.domain.AiCharacterRole;
@@ -12,6 +11,8 @@ import com.luvin.ai.domain.AiSeasonChoice;
 import com.luvin.ai.domain.AiSeasonSetting;
 import com.luvin.ai.domain.AiSeasonStoryReport;
 import com.luvin.ai.domain.AiStoryContentStatus;
+import com.luvin.ai.domain.AiStoryFeedback;
+import com.luvin.ai.domain.AiStoryMessageLike;
 import com.luvin.ai.domain.AiStoryRoute;
 import com.luvin.ai.domain.PartnerLetter;
 import com.luvin.ai.repository.AiBreadRelationRepository;
@@ -20,6 +21,8 @@ import com.luvin.ai.repository.AiSeasonCharacterRepository;
 import com.luvin.ai.repository.AiSeasonChoiceRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.ai.repository.AiSeasonStoryReportRepository;
+import com.luvin.ai.repository.AiStoryFeedbackRepository;
+import com.luvin.ai.repository.AiStoryMessageLikeRepository;
 import com.luvin.ai.repository.PartnerLetterRepository;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -30,12 +33,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.random.RandomGenerator;
 import java.util.stream.Collectors;
 
 /**
@@ -59,6 +64,8 @@ public class AiStoryStateWriter {
     private final AiEpisodeContentRepository contentRepository;
     private final AiSeasonStoryReportRepository reportRepository;
     private final PartnerLetterRepository letterRepository;
+    private final AiStoryFeedbackRepository feedbackRepository;
+    private final AiStoryMessageLikeRepository likeRepository;
 
     /** GET content 한 번에 시작 여부를 확인하기 위해 생성 접수 결과로 돌려준다. */
     public record GenerationTicket(Long contentPk, boolean started) {
@@ -67,9 +74,13 @@ public class AiStoryStateWriter {
     /**
      * 새 흐름을 시작한다: 배경 저장, 출연진 배정(representative → 내 빵, AI candidate 3명 → 회피형/불안형/안정형,
      * 친구·분위기 메이커 추가), 출연 빵별 관계 기록 생성. 이미 시작한 시즌이면 아무것도 하지 않는다.
+     *
+     * 이름: 내 빵은 사용자 닉네임과 설문 빵 타입, 나머지는 "중립 형용사 + 빵 종류"로 시즌 동안 고정한다. 한 시즌 안에서
+     * 이름과 빵 종류가 겹치지 않는다(빵 종류 8종, 형용사 12개에서 섞어 뽑는다).
      */
     @Transactional
-    public void startStory(Long seasonPk, AiSeasonSetting setting) {
+    public void startStory(Long seasonPk, AiSeasonSetting setting, String myName, String myBreadType,
+                           List<String> breadTypes, RandomGenerator random) {
         AiSeason season = seasonRepository.findWithLockById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
         if (season.isStoryStarted()) {
             return;
@@ -85,16 +96,29 @@ public class AiStoryStateWriter {
             throw new IllegalStateException("시즌 candidate가 3명 미만입니다: " + candidates.size());
         }
 
-        representative.assignCast(AiCastRole.MY_BREAD, AiStoryCatalog.placeholderName(AiCastRole.MY_BREAD));
+        List<String> otherBreads = new ArrayList<>(breadTypes);
+        otherBreads.remove(myBreadType);
+        Collections.shuffle(otherBreads, random);
+        List<String> adjectives = new ArrayList<>(AiStoryCatalog.NEUTRAL_ADJECTIVES);
+        Collections.shuffle(adjectives, random);
+        int[] next = {0};
+        java.util.function.Supplier<String[]> nextName = () -> {
+            String bread = otherBreads.get(next[0]);
+            String adjective = adjectives.get(next[0]++);
+            return new String[]{adjective + " " + bread, bread};
+        };
+
+        representative.assignCast(AiCastRole.MY_BREAD, myName, myBreadType);
         List<AiSeasonCharacter> cast = new ArrayList<>();
         for (int i = 0; i < CANDIDATE_ROLES.size(); i++) {
-            AiCastRole role = CANDIDATE_ROLES.get(i);
-            candidates.get(i).assignCast(role, AiStoryCatalog.placeholderName(role));
+            String[] name = nextName.get();
+            candidates.get(i).assignCast(CANDIDATE_ROLES.get(i), name[0], name[1]);
             cast.add(candidates.get(i));
         }
         for (AiCastRole role : SUPPORTING_ROLES) {
+            String[] name = nextName.get();
             cast.add(characterRepository.save(new AiSeasonCharacter(
-                    season, UUID.randomUUID(), role, AiStoryCatalog.placeholderName(role))));
+                    season, UUID.randomUUID(), role, name[0], name[1])));
         }
         for (AiSeasonCharacter member : cast) {
             relationRepository.save(new AiBreadRelation(season.getMemberId(), season, member.getCharacterId(),
@@ -109,12 +133,14 @@ public class AiStoryStateWriter {
         List<AiStoryCastMember> cast = characterRepository.findAllBySeason_Id(seasonPk).stream()
                 .filter(c -> c.getCastRole() != null)
                 .sorted(Comparator.comparing(AiSeasonCharacter::getCastRole))
-                .map(c -> new AiStoryCastMember(c.getCharacterId(), c.getCastRole(), c.getName(), c.getGender()))
+                .map(c -> new AiStoryCastMember(c.getCharacterId(), c.getCastRole(), c.getName(), c.getBreadType(),
+                        c.getGender()))
                 .toList();
         List<AiStorySnapshot.Relation> relations = relationRepository.findAllBySeason_Id(seasonPk).stream()
                 .map(r -> new AiStorySnapshot.Relation(r.getTargetBreadId(), r.getAffinity(), r.getRejectCount(),
                         r.getStatusText(), r.getMemorySummary(), AiStoryJson.readStrings(r.getRecentMemoriesJson()),
-                        AiStoryJson.readStrings(r.getKnownFactsJson()), AiStoryJson.readStrings(r.getOpenThreadsJson())))
+                        AiStoryJson.readStrings(r.getKnownFactsJson()), AiStoryJson.readThreads(r.getOpenThreadsJson()),
+                        r.getChoiceMemory()))
                 .toList();
         List<AiStorySnapshot.Choice> choices = choiceRepository.findAllBySeason_IdOrderByPointIdAsc(seasonPk).stream()
                 .map(c -> new AiStorySnapshot.Choice(c.getPointId(), c.getEpisodeOrder(), c.getBreadId(),
@@ -200,13 +226,23 @@ public class AiStoryStateWriter {
         }
     }
 
+    /** 정리 단계(5-5)가 제안한 빵 하나의 관계 기록 갱신안. breadId는 서비스가 계약 id를 UUID로 바꾼 값이다. */
+    public record RelationChange(UUID breadId, String memorySummary, String recentMemory, List<String> newFacts,
+                                 List<StoryTypes.Thread> threadsAdd, List<String> threadsResolved, String statusText,
+                                 Integer affinityDelta, String choiceMemory) {
+    }
+
+    /** 회차 쪽지(5-6). partnerId는 발신 빵(계약 id를 UUID로 바꾼 값, 모르면 null). */
+    public record EpisodeNote(UUID partnerId, String body, String renderMode) {
+    }
+
     /**
      * 회차 완료: 정리 단계 결과를 관계 기록에 반영(호감 변화는 -5~+5로 잘라서), 회차 요약 저장, 회차 쪽지 저장,
      * 다음 회차로 진행. 10화면 최종 리포트를 저장하고 시즌을 완료 처리한다. 이미 완료한 회차면 아무것도 하지 않는다.
      */
     @Transactional
-    public void completeEpisode(Long seasonPk, int order, SummarizeResponseDto summary, LetterResponseDto note,
-                                String reportJson) {
+    public void completeEpisode(Long seasonPk, int order, String episodeSummary, List<RelationChange> changes,
+                                EpisodeNote note, String reportJson) {
         AiSeason season = seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
         AiEpisodeContent content = contentRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order).orElseThrow();
         if (content.isCompleted()) {
@@ -215,25 +251,26 @@ public class AiStoryStateWriter {
 
         Map<UUID, AiBreadRelation> relations = relationRepository.findAllBySeason_Id(seasonPk).stream()
                 .collect(Collectors.toMap(AiBreadRelation::getTargetBreadId, Function.identity()));
-        for (SummarizeResponseDto.RelationUpdate update : summary.relations()) {
-            AiBreadRelation relation = relations.get(update.breadId());
+        for (RelationChange change : changes) {
+            AiBreadRelation relation = relations.get(change.breadId());
             if (relation == null) {
                 continue;
             }
-            if (update.affinityDelta() != null) {
-                relation.addAffinity(AiChoiceRules.clampSummaryDelta(update.affinityDelta()));
+            if (change.affinityDelta() != null) {
+                relation.addAffinity(AiChoiceRules.clampSummaryDelta(change.affinityDelta()));
             }
             String statusText = AiChoiceRules.ROMANCE_STATUS_TEXT.equals(relation.getStatusText())
-                    ? null : update.statusText();
-            relation.applyMemory(update.memorySummary(), appendRecentMemory(relation, update.recentMemory()),
-                    update.knownFacts() == null ? null : AiStoryJson.write(update.knownFacts()),
-                    update.openThreads() == null ? null : AiStoryJson.write(update.openThreads()), statusText);
+                    ? null : change.statusText();
+            relation.applyMemory(change.memorySummary(), appendRecentMemory(relation, change.recentMemory()),
+                    appendFacts(relation, change.newFacts()),
+                    updateThreads(relation, change.threadsAdd(), change.threadsResolved()), statusText,
+                    change.choiceMemory());
         }
 
-        content.markCompleted(AiStoryJson.write(Map.of("episodeSummary", summary.episodeSummary())));
+        content.markCompleted(AiStoryJson.write(Map.of("episodeSummary", episodeSummary)));
         if (!letterRepository.existsBySeason_IdAndEpisodeOrder(seasonPk, order)) {
             letterRepository.save(PartnerLetter.forEpisode(season.getMemberId(), season, order,
-                    note.finalPartnerId(), note.body(), note.renderMode()));
+                    note.partnerId(), note.body(), note.renderMode()));
         }
 
         if (order < AiStoryCatalog.FINAL_ORDER) {
@@ -244,6 +281,60 @@ public class AiStoryStateWriter {
             reportRepository.save(new AiSeasonStoryReport(season, reportJson));
         }
         season.complete();
+    }
+
+    // ---------------------------------------------------------------- 1:1 장면 피드백·좋아요
+
+    /** 메시지당 피드백 하나. 이미 있으면 글만 바꾼다. */
+    @Transactional
+    public AiStoryFeedback saveFeedback(Long seasonPk, int order, String blockId, UUID messageId, String messageText,
+                                       String text) {
+        Optional<AiStoryFeedback> existing = feedbackRepository.findBySeason_IdAndMessageId(seasonPk, messageId);
+        if (existing.isPresent()) {
+            existing.get().rewrite(text);
+            return existing.get();
+        }
+        return feedbackRepository.save(new AiStoryFeedback(seasonRepository.getReferenceById(seasonPk), order,
+                blockId, messageId, messageText, text));
+    }
+
+    /** liked면 좋아요를 켜고(이미 켜져 있으면 그대로), 아니면 끈다. */
+    @Transactional
+    public void setLike(Long seasonPk, int order, String blockId, UUID messageId, String messageText, boolean fromMe,
+                        boolean liked) {
+        Optional<AiStoryMessageLike> existing = likeRepository.findBySeason_IdAndMessageId(seasonPk, messageId);
+        if (liked && existing.isEmpty()) {
+            likeRepository.save(new AiStoryMessageLike(seasonRepository.getReferenceById(seasonPk), order, blockId,
+                    messageId, messageText, fromMe));
+        } else if (!liked) {
+            existing.ifPresent(likeRepository::delete);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<AiStoryFeedback> findFeedbacks(Long seasonPk, int order) {
+        return feedbackRepository.findAllBySeason_IdAndEpisodeOrder(seasonPk, order);
+    }
+
+    @Transactional(readOnly = true)
+    public List<UUID> findLikedMessageIds(Long seasonPk, int order) {
+        return likeRepository.findAllBySeason_IdAndEpisodeOrder(seasonPk, order).stream()
+                .map(AiStoryMessageLike::getMessageId).toList();
+    }
+
+    /** 학습 입력(learnedProfile.feedbacks): 최근 10개. */
+    @Transactional(readOnly = true)
+    public List<StoryTypes.Feedback> recentFeedbacks(Long seasonPk) {
+        return feedbackRepository.findTop10BySeason_IdOrderByUpdatedAtDesc(seasonPk).stream()
+                .map(f -> new StoryTypes.Feedback(f.getEpisodeOrder(), f.getMessageText(), f.getText()))
+                .toList();
+    }
+
+    /** 학습 입력(learnedProfile.likedMessages): 내 빵의 대사 중 최근 10개. */
+    @Transactional(readOnly = true)
+    public List<String> recentLikedMyMessages(Long seasonPk) {
+        return likeRepository.findTop10BySeason_IdAndFromMeTrueOrderByCreatedAtDesc(seasonPk).stream()
+                .map(AiStoryMessageLike::getMessageText).toList();
     }
 
     @Transactional(readOnly = true)
@@ -259,10 +350,38 @@ public class AiStoryStateWriter {
         relationRepository.deleteAllBySeason_Id(seasonPk);
         contentRepository.deleteAllBySeason_Id(seasonPk);
         reportRepository.deleteAllBySeason_Id(seasonPk);
+        feedbackRepository.deleteAllBySeason_Id(seasonPk);
+        likeRepository.deleteAllBySeason_Id(seasonPk);
         letterRepository.deleteAllBySeason_IdAndEpisodeOrderIsNotNull(seasonPk);
         characterRepository.deleteAllBySeason_IdAndRole(seasonPk, AiCharacterRole.SUPPORTING);
         characterRepository.findAllBySeason_Id(seasonPk).forEach(AiSeasonCharacter::clearCast);
         season.resetStory();
+    }
+
+    private static String appendFacts(AiBreadRelation relation, List<String> newFacts) {
+        if (newFacts == null || newFacts.isEmpty()) {
+            return null;
+        }
+        java.util.LinkedHashSet<String> facts = new java.util.LinkedHashSet<>(
+                AiStoryJson.readStrings(relation.getKnownFactsJson()));
+        facts.addAll(newFacts);
+        return AiStoryJson.write(List.copyOf(facts));
+    }
+
+    /** 풀린 떡밥(id)은 빼고 새 떡밥은 더한다. 같은 id가 다시 오면 문구를 바꾼다. */
+    private static String updateThreads(AiBreadRelation relation, List<StoryTypes.Thread> added, List<String> resolved) {
+        if ((added == null || added.isEmpty()) && (resolved == null || resolved.isEmpty())) {
+            return null;
+        }
+        Map<String, StoryTypes.Thread> threads = new java.util.LinkedHashMap<>();
+        AiStoryJson.readThreads(relation.getOpenThreadsJson()).forEach(t -> threads.put(t.id(), t));
+        if (resolved != null) {
+            resolved.forEach(threads::remove);
+        }
+        if (added != null) {
+            added.forEach(t -> threads.put(t.id(), t));
+        }
+        return AiStoryJson.write(List.copyOf(threads.values()));
     }
 
     private static String appendRecentMemory(AiBreadRelation relation, String recentMemory) {

@@ -5,13 +5,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.UUID;
 
 /**
- * 블록 안 대사 한 줄. 기존 AiMessageView(InfernoChatMessage)와 같은 필드에, messenger 연출용 옵셔널 필드를 더했다.
- * read/typing/deletedAfterSend는 messenger 블록에서만 값이 있고 그 외에는 응답에서 빠진다.
+ * 블록 안 대사 한 줄. 기존 AiMessageView 필드에 공통 데이터 계약의 kind와 messenger 연출용 옵셔널 필드를 더했다.
+ * kind가 narration이면 내레이션이라 speakerId가 null이다. read/typing/deletedAfterSend는 messenger 블록에서만 온다.
  */
 public record AiStoryMessageView(
         UUID messageId,
         Integer sequence,
+        /** 말한 빵(participant의 breadId). 내레이션이면 null */
         UUID speakerId,
+        /** chat | monologue | narration */
+        String kind,
         boolean fromRepresentative,
         String text,
         /** 상대가 읽었는지 */

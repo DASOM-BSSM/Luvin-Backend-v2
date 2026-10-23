@@ -288,6 +288,8 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 | GET | `/api/ai/seasons/episodes/{order}/content` | 회차 블록. 처음 요청이면 생성을 시작하고 `status: generating` |
 | POST | `/api/ai/seasons/episodes/{order}/choices` | `{ pointId, breadId \| null }` → choice_result 블록 + 시즌 상태 |
 | POST | `/api/ai/seasons/episodes/{order}/complete` | 관계 기록 갱신 + 회차 쪽지. 10화면 최종 리포트 + 시즌 완료 |
+| POST | `/api/ai/seasons/episodes/{order}/scene-feedback` | 1:1 장면(상대가 있는 pair 블록)에서 내 빵 대사에 피드백. `{ blockId, messageId, text }`, 메시지당 1개 |
+| POST | `/api/ai/seasons/episodes/{order}/scene-likes` | 1:1 장면 메시지 좋아요. `{ blockId, messageId, liked }` |
 
 - 블록 JSON 형식과 오류 code는 `openapi.json`(`AiEpisodeContentView`, `AiSceneBlockView`)을 따릅니다.
 - 생성 중에는 jobId가 없어 job SSE를 쓰지 않습니다. `status`가 `ready`가 될 때까지 GET content를 1~3초 간격으로
@@ -303,26 +305,37 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 - 기존 5화 흐름 API(generations, 1화/3화 selection, 메시지 페이지 조회, 피드백, 좋아요)는 @Deprecated이고 동작은
   그대로입니다. 프론트 전환 후 별도 작업으로 지웁니다.
 
-### FastAPI story endpoint (계약 합의 전)
+### FastAPI story endpoint (공통 데이터 계약 5장)
 
-`app.ai.story.client`가 `stub`(기본)이면 Spring 안의 stub이 정해진 문구로 응답하고, `http`면 아래 임시 경로로 보냅니다.
-경로와 필드는 AI 문서(luvin_에피소드_재구성_AI_프롬프트.md)를 기준으로 AI 쪽과 합의해 확정합니다.
-요청 DTO는 `com.luvin.ai.client.story` 패키지에 있습니다.
+Spring ↔ FastAPI 형식은 「러빈지옥 에피소드 재구성: 공통 데이터 계약」 5장이 기준입니다(바뀌면 Spring과 AI가 같이
+계약 문서를 고칩니다). 요청·응답 타입은 `com.luvin.ai.client.story` 패키지에 계약 이름 그대로 있습니다.
 
-| 경로(임시) | 호출 시점 | 응답 |
+- JSON은 camelCase입니다(`AiStoryConfig.STORY_OBJECT_MAPPER`, 기존 AI 호출의 snake_case와 별개).
+- 빵 id는 UUID가 아니라 역할 고정 id(`me`, `avoidant`, `anxious`, `secure`, `friend`, `maker`)이고, Spring이 시즌
+  캐릭터 UUID와 바꿉니다. 앱 응답은 계속 UUID입니다.
+- `app.ai.story.client`가 `stub`(기본)이면 Spring 안의 stub이 정해진 문구로 응답하고, `http`면 아래 경로로 보냅니다.
+
+| 경로 | 호출 시점 | 응답 |
 |---|---|---|
-| `POST /v1/story/stage-intro` | 1화 생성 전 | 출연진 배경별 역할·소개 |
-| `POST /v1/story/episode` | 회차 생성 | intro + 블록 대사 |
-| `POST /v1/story/interview` | 10화 생성 | 인터뷰 블록 대사 |
-| `POST /v1/story/choice-result` | 선택 | 결과 장면(+ 거절이면 대체 장면) 대사 |
-| `POST /v1/story/summarize` | 회차 완료 | 회차 요약, 빵별 관계 기록 갱신안, 호감 변화 제안(-5~+5) |
-| `POST /v1/story/episode-note` | 회차 완료 | 기존 쪽지 형식(`LetterResponseDto`) |
-| `POST /v1/story/season-report` | 10화 완료 | 기존 리포트 형식(`ReportResponseDto`) |
+| `POST /luvin/stage-intro` (5-1) | 1화 생성 전 | 출연진 배경별 역할·소개 |
+| `POST /luvin/episode` (5-2) | 회차 생성 | intro + 설계 블록별 대사, choice 후보별 기억 한 줄 |
+| `POST /luvin/interview` (5-4) | 10화 생성 | 빵별 인터뷰 대사 |
+| `POST /luvin/choice-result` (5-3) | 선택(혼자 있기는 호출 안 함) | 반응 대사 + 거절이면 대체 장면 |
+| `POST /luvin/summarize` (5-5) | 회차 완료 | 회차 요약, 빵별 관계 기록 갱신안(떡밥 id 추가·해결), 호감 변화(-5~+5) |
+| `POST /luvin/episode-note` (5-6) | 회차 완료 | 쪽지(부록 A — AI 쪽 확정 전, 기존 쪽지 필드를 camelCase로) |
+| `POST /luvin/season-report` (5-7) | 10화 완료 | 리포트(부록 B — AI 쪽 확정 전, 기존 리포트 필드를 camelCase로) |
 
-- 모든 호출에 `context`(setting, audience `minor|adult`, ageBand, 출연진·무대 소개, 관계 기록, 선택 기록과 사유 코드,
-  내 빵 학습 데이터)를 함께 보냅니다.
-- 응답은 Spring에서 다시 검증하고(`AiStoryResponseValidator`: 요청한 블록 id·참여 빵 일치, 빈 대사·길이 초과 금지),
-  실패하면 1회 재시도, 그래도 실패하면 저장하지 않고 오류를 돌려줍니다(502 `STORY_GENERATION_FAILED`).
+- 모든 호출에 `context`(setting, audience `minor|adult`, ageGroup, 출연진, 내 빵 학습 데이터)를 보냅니다.
+  - 학습 데이터(`learnedProfile`): summary는 설문 빵 타입과 두드러진 성향 점수로 Spring이 만든 문장, recentAnswers는
+    최근 매시간 질문 답변 5개, feedbacks·likedMessages는 이 시즌 1:1 장면 피드백·내 빵 대사 좋아요(각 최근 10개).
+    감정일기 원문은 보내지 않습니다.
+  - 관계 기록의 호감은 숫자 대신 구간(`low` < 35 ≤ `mid` < 65 ≤ `high`)만 넘깁니다.
+- 출연진 이름: 내 빵은 닉네임, 나머지는 "중립 형용사 + 빵 종류"(설문 빵 8종에서 내 빵 타입 제외)로 시즌 시작 때 정해
+  고정합니다. 형용사 목록(`AiStoryCatalog.NEUTRAL_ADJECTIVES`)은 서비스 목록을 받으면 교체합니다.
+- `referencePlot`(1·2·3·6·10화 참고 줄거리)은 텍스트를 받기 전이라 null입니다(`AiStoryCatalog.REFERENCE_PLOTS`).
+- 응답은 Spring에서 다시 검증하고(`AiStoryResponseValidator`: 설계 블록 id·참여 빵, 계약 길이 제한 — intro 제목 8자,
+  기억 한 줄 20자, 역할 10자, 소개 25자), 실패하면 1회 재시도, 그래도 실패하면 저장하지 않고 오류를 돌려줍니다
+  (502 `STORY_GENERATION_FAILED`).
 - 생성 호출 timeout은 `app.ai.story.read-timeout`(기본 60초)입니다.
 
 ### 개발 전용
