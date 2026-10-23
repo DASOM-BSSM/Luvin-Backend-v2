@@ -52,6 +52,10 @@ public final class StoryTypes {
     public record ChoiceCandidate(String breadId, String memory) {
     }
 
+    /** 회차 요약 하나(5-7 episodeSummaries, 10화 쪽지의 episodeSummaries). */
+    public record EpisodeSummary(int order, String summary) {
+    }
+
     /** 5-0 GenerationContext. */
     public record GenerationContext(String setting, String audience, String ageGroup, List<CastMember> cast,
                                     LearnedProfile learnedProfile) {

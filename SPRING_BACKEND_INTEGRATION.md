@@ -288,8 +288,8 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 | GET | `/api/ai/seasons/episodes/{order}/content` | 회차 블록. 처음 요청이면 생성을 시작하고 `status: generating` |
 | POST | `/api/ai/seasons/episodes/{order}/choices` | `{ pointId, breadId \| null }` → choice_result 블록 + 시즌 상태 |
 | POST | `/api/ai/seasons/episodes/{order}/complete` | 관계 기록 갱신 + 회차 쪽지. 10화면 최종 리포트 + 시즌 완료 |
-| POST | `/api/ai/seasons/episodes/{order}/scene-feedback` | 1:1 장면(상대가 있는 pair 블록)에서 내 빵 대사에 피드백. `{ blockId, messageId, text }`, 메시지당 1개 |
-| POST | `/api/ai/seasons/episodes/{order}/scene-likes` | 1:1 장면 메시지 좋아요. `{ blockId, messageId, liked }` |
+| POST | `/api/ai/seasons/episodes/{order}/scene-feedback` | 1:1 장면(상대가 있는 pair 블록)에서 내 빵 대사(독백 제외)에 피드백. `{ blockId, messageId, text }`, 메시지당 1개 |
+| POST | `/api/ai/seasons/episodes/{order}/scene-likes` | 1:1 장면에서 내 빵 대사(독백 제외) 좋아요. `{ blockId, messageId, liked }` |
 
 - 블록 JSON 형식과 오류 code는 `openapi.json`(`AiEpisodeContentView`, `AiSceneBlockView`)을 따릅니다.
 - 생성 중에는 jobId가 없어 job SSE를 쓰지 않습니다. `status`가 `ready`가 될 때까지 GET content를 1~3초 간격으로
@@ -329,7 +329,10 @@ Spring ↔ FastAPI 형식은 「러빈지옥 에피소드 재구성: 공통 데�
   - 학습 데이터(`learnedProfile`): summary는 설문 빵 타입과 두드러진 성향 점수로 Spring이 만든 문장, recentAnswers는
     최근 매시간 질문 답변 5개, feedbacks·likedMessages는 이 시즌 1:1 장면 피드백·내 빵 대사 좋아요(각 최근 10개).
     감정일기 원문은 보내지 않습니다.
-  - 관계 기록의 호감은 숫자 대신 구간(`low` < 35 ≤ `mid` < 65 ≤ `high`)만 넘깁니다.
+  - 관계 기록의 호감은 숫자 대신 구간(0~39 `low`, 40~69 `mid`, 70~100 `high`)만 넘깁니다.
+- 혼자 있기는 FastAPI를 부르지 않고 `accepted: true`, 대사·대체 장면 없이 결과를 만듭니다(5-3).
+- 10화 episode-note에는 1~10화 요약 목록(`episodeSummaries`)을 함께 보냅니다(AI 문서 P6, 계약 5-6에 추가 필요).
+- endpoint별 실제 요청 예시: `docs/story-contract-examples/`
 - 출연진 이름: 내 빵은 닉네임, 나머지는 "중립 형용사 + 빵 종류"(설문 빵 8종에서 내 빵 타입 제외)로 시즌 시작 때 정해
   고정합니다. 형용사 목록(`AiStoryCatalog.NEUTRAL_ADJECTIVES`)은 서비스 목록을 받으면 교체합니다.
 - `referencePlot`(1·2·3·6·10화 참고 줄거리)은 텍스트를 받기 전이라 null입니다(`AiStoryCatalog.REFERENCE_PLOTS`).

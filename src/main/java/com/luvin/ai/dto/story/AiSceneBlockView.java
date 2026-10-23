@@ -38,7 +38,7 @@ public record AiSceneBlockView(
     public record SceneChoiceCandidate(UUID breadId, String memory) {
     }
 
-    /** breadId가 null이면 혼자 있기를 고른 결과다. */
+    /** breadId가 null이면 혼자 있기를 고른 결과이고, 그때 accepted는 true다(공통 데이터 계약 3-2). */
     public record SceneChoiceResult(int pointId, UUID breadId, boolean accepted) {
     }
 

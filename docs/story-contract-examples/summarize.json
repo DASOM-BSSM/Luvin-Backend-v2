@@ -1,0 +1,241 @@
+{
+  "context" : {
+    "setting" : "cafe",
+    "audience" : "adult",
+    "ageGroup" : "20대 초반",
+    "cast" : [ {
+      "breadId" : "me",
+      "name" : "빵",
+      "breadType" : "소금빵",
+      "role" : "같은 매장 새 얼굴",
+      "description" : null
+    }, {
+      "breadId" : "avoidant",
+      "name" : "새콤한 팥빵",
+      "breadType" : "팥빵",
+      "role" : "같은 매장 친구",
+      "description" : "새콤한 팥빵와 함께 지내요"
+    }, {
+      "breadId" : "anxious",
+      "name" : "말랑한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 친구",
+      "description" : "말랑한 바게트와 함께 지내요"
+    }, {
+      "breadId" : "secure",
+      "name" : "동그란 카스테라",
+      "breadType" : "카스테라",
+      "role" : "같은 매장 친구",
+      "description" : "동그란 카스테라와 함께 지내요"
+    }, {
+      "breadId" : "friend",
+      "name" : "느긋한 프레첼",
+      "breadType" : "프레첼",
+      "role" : "같은 매장 단짝",
+      "description" : "느긋한 프레첼와 함께 지내요"
+    }, {
+      "breadId" : "maker",
+      "name" : "따끈한 도넛",
+      "breadType" : "도넛",
+      "role" : "같은 매장 분위기 ",
+      "description" : "따끈한 도넛와 함께 지내요"
+    } ],
+    "learnedProfile" : {
+      "summary" : "소금빵 타입.",
+      "recentAnswers" : [ ],
+      "feedbacks" : [ ],
+      "likedMessages" : [ ]
+    }
+  },
+  "order" : 1,
+  "blocks" : [ {
+    "id" : "b1",
+    "type" : "group",
+    "participants" : [ {
+      "breadId" : "me",
+      "name" : "빵",
+      "breadType" : "소금빵",
+      "role" : "같은 매장 새 얼굴"
+    }, {
+      "breadId" : "avoidant",
+      "name" : "새콤한 팥빵",
+      "breadType" : "팥빵",
+      "role" : "같은 매장 친구"
+    }, {
+      "breadId" : "anxious",
+      "name" : "말랑한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 친구"
+    }, {
+      "breadId" : "secure",
+      "name" : "동그란 카스테라",
+      "breadType" : "카스테라",
+      "role" : "같은 매장 친구"
+    }, {
+      "breadId" : "friend",
+      "name" : "느긋한 프레첼",
+      "breadType" : "프레첼",
+      "role" : "같은 매장 단짝"
+    }, {
+      "breadId" : "maker",
+      "name" : "따끈한 도넛",
+      "breadType" : "도넛",
+      "role" : "같은 매장 분위기 "
+    } ],
+    "messages" : [ {
+      "id" : "b3ea9506-5298-4a85-8650-f9fb24fc2dfc",
+      "speakerId" : "narrator",
+      "text" : "첫 출근",
+      "kind" : "narration"
+    }, {
+      "id" : "4039ff0a-8896-4998-9f42-8afb8eeea842",
+      "speakerId" : "me",
+      "text" : "빵: 첫 출근 이야기 1",
+      "kind" : "chat"
+    }, {
+      "id" : "20925328-1d47-48fa-a9ed-9f768ccd2028",
+      "speakerId" : "avoidant",
+      "text" : "새콤한 팥빵: 첫 출근 이야기 2",
+      "kind" : "chat"
+    }, {
+      "id" : "f96c7c2a-9736-4f28-bf2c-258347cb0687",
+      "speakerId" : "anxious",
+      "text" : "말랑한 바게트: 첫 출근 이야기 3",
+      "kind" : "chat"
+    }, {
+      "id" : "a09ee20d-afd1-435f-9da6-36f10241ba1c",
+      "speakerId" : "secure",
+      "text" : "동그란 카스테라: 첫 출근 이야기 4",
+      "kind" : "chat"
+    }, {
+      "id" : "c4a8956b-3093-469b-a375-7b144d16f95d",
+      "speakerId" : "friend",
+      "text" : "느긋한 프레첼: 첫 출근 이야기 5",
+      "kind" : "chat"
+    }, {
+      "id" : "3c490615-5d28-478a-af5a-652609571001",
+      "speakerId" : "maker",
+      "text" : "따끈한 도넛: 첫 출근 이야기 6",
+      "kind" : "chat"
+    } ]
+  }, {
+    "id" : "b2",
+    "type" : "transition",
+    "transitionText" : "그날 저녁"
+  }, {
+    "id" : "b3",
+    "type" : "pair",
+    "participants" : [ {
+      "breadId" : "me",
+      "name" : "빵",
+      "breadType" : "소금빵",
+      "role" : "같은 매장 새 얼굴"
+    }, {
+      "breadId" : "anxious",
+      "name" : "말랑한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 친구"
+    } ],
+    "messages" : [ {
+      "id" : "b7f568a2-72be-4c6e-af81-95219f3a3db9",
+      "speakerId" : "narrator",
+      "text" : "첫 출근",
+      "kind" : "narration"
+    }, {
+      "id" : "a9730f03-4b4a-4319-b1aa-8b8b8d3bdc40",
+      "speakerId" : "me",
+      "text" : "빵: 첫 출근 이야기 1",
+      "kind" : "chat"
+    }, {
+      "id" : "367f8672-7aa6-491c-8cfb-d265a828a87b",
+      "speakerId" : "anxious",
+      "text" : "말랑한 바게트: 첫 출근 이야기 2",
+      "kind" : "chat"
+    }, {
+      "id" : "4badd6cb-a4c9-45e0-ba81-ad353715abec",
+      "speakerId" : "me",
+      "text" : "빵: 첫 출근 이야기 3",
+      "kind" : "chat"
+    } ]
+  }, {
+    "id" : "b4",
+    "type" : "messenger",
+    "participants" : [ {
+      "breadId" : "me",
+      "name" : "빵",
+      "breadType" : "소금빵",
+      "role" : "같은 매장 새 얼굴"
+    }, {
+      "breadId" : "anxious",
+      "name" : "말랑한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 친구"
+    } ],
+    "messages" : [ {
+      "id" : "473188b5-dd80-4942-b785-ade91c27160c",
+      "speakerId" : "me",
+      "text" : "빵: 첫 출근 이야기 1",
+      "kind" : "chat",
+      "read" : true,
+      "deletedAfterSend" : true
+    }, {
+      "id" : "2ecef947-7889-4aad-aa2b-343f6a029a86",
+      "speakerId" : "anxious",
+      "text" : "말랑한 바게트: 첫 출근 이야기 2",
+      "kind" : "chat",
+      "read" : true
+    }, {
+      "id" : "0592163b-6e89-49e4-bf93-8d2a8e431288",
+      "speakerId" : "me",
+      "text" : "빵: 첫 출근 이야기 3",
+      "kind" : "chat",
+      "read" : false,
+      "typing" : true
+    } ],
+    "messenger" : {
+      "kind" : "direct",
+      "roomName" : "말랑한 바게트"
+    }
+  } ],
+  "relations" : [ {
+    "breadId" : "avoidant",
+    "affinityLevel" : "low",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  }, {
+    "breadId" : "anxious",
+    "affinityLevel" : "low",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  }, {
+    "breadId" : "secure",
+    "affinityLevel" : "low",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  }, {
+    "breadId" : "friend",
+    "affinityLevel" : "mid",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  }, {
+    "breadId" : "maker",
+    "affinityLevel" : "mid",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  } ]
+}
