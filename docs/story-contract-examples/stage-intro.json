@@ -1,5 +1,5 @@
 {
-  "setting" : "campus",
+  "setting" : "cafe",
   "audience" : "adult",
   "ageGroup" : "20대 초반",
   "cast" : [ {
@@ -11,36 +11,36 @@
     "seasonRole" : "내 빵"
   }, {
     "breadId" : "avoidant",
-    "name" : "반짝이는 바게트",
-    "breadType" : "바게트",
+    "name" : "느긋한 도넛",
+    "breadType" : "도넛",
     "gender" : "MALE",
     "attachmentStyle" : "avoidant",
     "seasonRole" : "중심 후보"
   }, {
     "breadId" : "anxious",
-    "name" : "고소한 프레첼",
+    "name" : "산뜻한 프레첼",
     "breadType" : "프레첼",
     "gender" : "MALE",
     "attachmentStyle" : "anxious",
     "seasonRole" : "중심 후보"
   }, {
     "breadId" : "secure",
-    "name" : "바삭한 팥빵",
+    "name" : "포근한 팥빵",
     "breadType" : "팥빵",
     "gender" : "MALE",
     "attachmentStyle" : "secure",
     "seasonRole" : "중심 후보"
   }, {
     "breadId" : "friend",
-    "name" : "새콤한 도넛",
-    "breadType" : "도넛",
+    "name" : "몽글한 바게트",
+    "breadType" : "바게트",
     "gender" : "FEMALE",
     "attachmentStyle" : "none",
     "seasonRole" : "내 빵의 친구"
   }, {
     "breadId" : "maker",
-    "name" : "동그란 카스테라",
-    "breadType" : "카스테라",
+    "name" : "고소한 크림빵",
+    "breadType" : "크림빵",
     "gender" : "MALE",
     "attachmentStyle" : "none",
     "seasonRole" : "분위기 메이커"

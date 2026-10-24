@@ -125,6 +125,7 @@ class AiStoryFlowIntegrationTest {
         assertEquals(6, stageIntro.get("cast").size());
         assertFalse(ep1.get("intro").get("title").asText().isBlank());
         assertEquals(List.of("group", "transition", "pair", "messenger"), blockTypes(ep1));
+        String ep1Transition = ep1.get("blocks").get(1).get("transitionText").asText();
         // 출연진 이름: 내 빵은 닉네임, 나머지는 "형용사 빵종류"이고 이름·빵 종류가 겹치지 않는다.
         Set<String> names = new HashSet<>();
         Set<String> breadTypes = new HashSet<>();
@@ -153,7 +154,9 @@ class AiStoryFlowIntegrationTest {
         assertEquals("PREVIOUS_EPISODE_NOT_COMPLETED", error(get(user, "/episodes/2/content")).get("code").asText());
         complete(user, 1);
 
-        readyContent(user, 2);
+        // 전환 카드 문구는 회차마다 다르다.
+        JsonNode ep2 = readyContent(user, 2);
+        assertFalse(ep1Transition.equals(ep2.get("blocks").get(1).get("transitionText").asText()));
         complete(user, 2);
 
         // 3화: 선택 전에는 완료할 수 없고, choice 후보는 연애 후보 3명이다.
@@ -309,6 +312,19 @@ class AiStoryFlowIntegrationTest {
                 seasonRepository.findById(season.pk()).orElseThrow(), 1, UUID.randomUUID()));
 
         assertEquals("blocks", data(get(user, "/me")).get("episodeFormat").asText());
+        assertEquals("ready", readyContent(user, 1).get("status").asText());
+    }
+
+    @Test
+    void 성별이_없어도_AGE_REQUIRED이고_성별은_MALE_FEMALE만_받는다() throws Exception {
+        TestUser user = createUser(25);
+        jdbcTemplate.update("UPDATE users SET gender = NULL WHERE user_id = ?", user.id());
+        createSeason(user);
+
+        assertEquals("AGE_REQUIRED", error(get(user, "/episodes/1/content")).get("code").asText());
+        assertEquals(400, send(user, "PUT", "/api/users/me", "{\"gender\":\"OTHER\"}").statusCode());
+        assertEquals(200, send(user, "PUT", "/api/users/me", "{\"age\":25,\"gender\":\"male\"}").statusCode());
+        assertEquals("MALE", userRepository.findById(user.id()).orElseThrow().getGender());
         assertEquals("ready", readyContent(user, 1).get("status").asText());
     }
 

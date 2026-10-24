@@ -40,7 +40,7 @@ public class AiStoryController {
             `failed`면 다시 요청할 때 생성을 다시 시도한다. 1화 요청이 새 흐름의 시작이다(나이로 배경 결정, 1화에 stageIntro 포함).
 
             **409 code**
-            - `AGE_REQUIRED`: 나이가 없다 — 나이 입력 후 다시 요청
+            - `AGE_REQUIRED`: 나이 또는 성별이 없다 — 둘 다 입력(PUT /api/users/me `{ age, gender }`) 후 다시 요청
             - `STORY_NOT_STARTED`: 1화부터 요청해야 한다
             - `PREVIOUS_EPISODE_NOT_COMPLETED`: 이전 회차를 먼저 완료해야 한다(선택 회차는 선택 후 완료)
             - `EPISODE_NOT_RELEASED`: 아직 공개 전

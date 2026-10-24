@@ -283,7 +283,7 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 
 | 메서드 | 경로 | 내용 |
 |---|---|---|
-| PUT | `/api/users/me` | 기존 프로필 수정에 `age` 추가(1~120). 입력 전이면 `GET /api/users/me`의 `age`가 null |
+| PUT | `/api/users/me` | 기존 프로필 수정에 `age` 추가(1~120). `gender`는 `MALE`/`FEMALE`만(대소문자 무관, 대문자로 저장). 입력 전이면 `GET /api/users/me`의 `age`가 null |
 | GET | `/api/ai/seasons/me` | 기존 응답에 `episodeFormat`(항상 `blocks`)과 `story`(setting, currentOrder, completedOrders, route, romancePartnerId, choices, breads[].statusText, unlockedOrders, episodeTokenCost) 추가 |
 | POST | `/api/ai/seasons/episodes/{order}/unlock` | 회차 열기. 1~3화 무료, 4~10화는 처음 열 때만 토큰 차감. `{ order, unlocked, tokenBalance }` |
 | GET | `/api/ai/seasons/episodes/{order}/content` | 회차 블록. 처음 요청이면 생성을 시작하고 `status: generating` |
@@ -300,7 +300,7 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
   그래서 4화는 ①, 6화는 ②, 7화는 ③, 9화는 ④ 이후에만 생성됩니다.
 - 시즌 정책(계약 0장): 사용자마다 시즌은 1개입니다. 시즌 생성(`from-survey`)은 무료이고, 그때 나이로 배경을 정하고
   (19세 이하 school, 20~23세 campus/cafe 랜덤, 24세 이상 office) 출연진(이름·성별·후보 순서)을 배정해 끝까지 고정합니다.
-  나이가 없으면 시즌 생성이 409 `AGE_REQUIRED`입니다. 10화를 마치면 시즌이 끝나고 `POST /next`는 409 `SEASON_COMPLETED`
+  나이 또는 성별이 없으면 시즌 생성(과 1화)이 409 `AGE_REQUIRED`입니다. 성별은 `MALE`/`FEMALE`만 받습니다. 10화를 마치면 시즌이 끝나고 `POST /next`는 409 `SEASON_COMPLETED`
   (진행 중이면 `SEASON_IN_PROGRESS`)입니다. 기존 5화 시즌은 V10에서 모두 지웠고 `episodeFormat`은 항상 `blocks`입니다.
 - 회차 열기(토큰): 1~3화 무료, 4~10화는 처음 열 때 `app.ai.story.episode-token-cost`(기본 1)만큼 차감하고 다시 볼 때는
   무료입니다. 차감은 생성 전에 하며, 생성이 실패해도 열린 상태로 남습니다. 토큰이 모자라면 409 `INSUFFICIENT_TOKENS`

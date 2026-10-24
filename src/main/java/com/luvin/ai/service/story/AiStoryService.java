@@ -603,10 +603,11 @@ public class AiStoryService {
                         order + "화가 아직 준비되지 않았습니다."));
     }
 
+    /** 나이와 성별은 함께 정해야 한다(계약 7장). 둘 중 하나라도 없으면 409 AGE_REQUIRED. */
     private User userWithAge(Long memberId) {
         User user = userRepository.findById(memberId).orElseThrow(() -> new UserNotFoundException(memberId));
-        if (user.getAge() == null) {
-            throw new AiStoryConflictException(AiStoryConflictException.AGE_REQUIRED, "나이를 먼저 입력해주세요.");
+        if (user.getAge() == null || user.getGender() == null) {
+            throw new AiStoryConflictException(AiStoryConflictException.AGE_REQUIRED, "나이와 성별을 먼저 입력해주세요.");
         }
         return user;
     }
@@ -645,7 +646,7 @@ public class AiStoryService {
         return summaries;
     }
 
-    /** 시즌에서 이미 쓴 장면 소재: 이전 회차의 배경 장면과 상황 소개 제목. */
+    /** 시즌에서 이미 쓴 장면 소재: 이전 회차의 배경 장면, 상황 소개 제목, 전환 카드 문구. 같은 소재를 반복하지 않게 한다. */
     private static List<String> usedMaterials(AiStorySnapshot snapshot, int order) {
         List<String> materials = new ArrayList<>();
         snapshot.contents().stream()
@@ -656,8 +657,12 @@ public class AiStoryService {
                     if (intro != null) {
                         materials.add(intro.title());
                     }
+                    AiStoryJson.read(c.blocksJson(), BLOCK_LIST).stream()
+                            .map(AiSceneBlockView::transitionText)
+                            .filter(Objects::nonNull)
+                            .forEach(materials::add);
                 });
-        return materials;
+        return materials.stream().distinct().toList();
     }
 
     private static AiEpisodePlanner.Input planInput(AiStorySnapshot snapshot, int order) {

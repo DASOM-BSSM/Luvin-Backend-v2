@@ -20,6 +20,11 @@ import java.util.Map;
 @ConditionalOnProperty(name = "app.ai.story.client", havingValue = "stub", matchIfMissing = true)
 public class AiStoryStubClient implements AiStoryClient {
 
+    /** 회차마다 다른 전환 카드 문구(1~10화). */
+    private static final List<String> TRANSITIONS = List.of(
+            "모두 흩어진 저녁", "다음 날 아침", "둘만 남은 오후", "준비가 끝난 밤", "조용해진 오후",
+            "행사가 끝난 뒤", "며칠이 지나고", "말다툼 다음 날", "다시 모인 저녁", "마지막 날 밤");
+
     @Override
     public StageIntroResponse stageIntro(String ownerSubject, StageIntroRequest request) {
         String place = switch (request.setting()) {
@@ -40,7 +45,7 @@ public class AiStoryStubClient implements AiStoryClient {
     public EpisodeResponse writeEpisode(String ownerSubject, EpisodeRequest request) {
         Map<String, String> names = names(request.context());
         List<GeneratedBlock> blocks = request.design().stream().map(design -> switch (design.type()) {
-            case "transition" -> new GeneratedBlock(design.id(), null, "그날 저녁", null);
+            case "transition" -> new GeneratedBlock(design.id(), null, TRANSITIONS.get(request.order() - 1), null);
             case "choice" -> new GeneratedBlock(design.id(), null, null, design.candidateIds().stream()
                     .map(id -> new ChoiceCandidate(id, cut(request.order() + "화에 함께한 순간", 20)))
                     .toList());

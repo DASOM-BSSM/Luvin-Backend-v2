@@ -1,49 +1,49 @@
 {
   "context" : {
-    "setting" : "campus",
+    "setting" : "cafe",
     "audience" : "adult",
     "ageGroup" : "20대 초반",
     "cast" : [ {
       "breadId" : "me",
       "name" : "빵",
       "breadType" : "소금빵",
-      "role" : "같은 과 새 얼굴",
+      "role" : "같은 매장 새 얼굴",
       "description" : null,
       "gender" : "FEMALE"
     }, {
       "breadId" : "avoidant",
-      "name" : "반짝이는 바게트",
-      "breadType" : "바게트",
-      "role" : "같은 과 친구",
-      "description" : "반짝이는 바게트와 함께 지내요",
+      "name" : "느긋한 도넛",
+      "breadType" : "도넛",
+      "role" : "같은 매장 친구",
+      "description" : "느긋한 도넛와 함께 지내요",
       "gender" : "MALE"
     }, {
       "breadId" : "anxious",
-      "name" : "고소한 프레첼",
+      "name" : "산뜻한 프레첼",
       "breadType" : "프레첼",
-      "role" : "같은 과 친구",
-      "description" : "고소한 프레첼와 함께 지내요",
+      "role" : "같은 매장 친구",
+      "description" : "산뜻한 프레첼와 함께 지내요",
       "gender" : "MALE"
     }, {
       "breadId" : "secure",
-      "name" : "바삭한 팥빵",
+      "name" : "포근한 팥빵",
       "breadType" : "팥빵",
-      "role" : "같은 과 친구",
-      "description" : "바삭한 팥빵와 함께 지내요",
+      "role" : "같은 매장 친구",
+      "description" : "포근한 팥빵와 함께 지내요",
       "gender" : "MALE"
     }, {
       "breadId" : "friend",
-      "name" : "새콤한 도넛",
-      "breadType" : "도넛",
-      "role" : "같은 과 단짝",
-      "description" : "새콤한 도넛와 함께 지내요",
+      "name" : "몽글한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 단짝",
+      "description" : "몽글한 바게트와 함께 지내요",
       "gender" : "FEMALE"
     }, {
       "breadId" : "maker",
-      "name" : "동그란 카스테라",
-      "breadType" : "카스테라",
-      "role" : "같은 과 분위기 담",
-      "description" : "동그란 카스테라와 함께 지내요",
+      "name" : "고소한 크림빵",
+      "breadType" : "크림빵",
+      "role" : "같은 매장 분위기 ",
+      "description" : "고소한 크림빵와 함께 지내요",
       "gender" : "MALE"
     } ],
     "learnedProfile" : {
@@ -55,7 +55,7 @@
   },
   "order" : 1,
   "commonEvent" : "무리에 처음 합류",
-  "settingScene" : "동아리 신입 환영회",
+  "settingScene" : "첫 출근",
   "route" : null,
   "romancePartnerId" : null,
   "referencePlot" : null,
@@ -70,22 +70,22 @@
   }, {
     "id" : "b3",
     "type" : "pair",
-    "participantIds" : [ "me", "secure" ],
-    "pairTarget" : "secure",
+    "participantIds" : [ "me", "anxious" ],
+    "pairTarget" : "anxious",
     "short" : false
   }, {
     "id" : "b4",
     "type" : "messenger",
-    "participantIds" : [ "me", "secure" ],
+    "participantIds" : [ "me", "anxious" ],
     "messenger" : {
       "kind" : "direct",
-      "roomName" : "바삭한 팥빵"
+      "roomName" : "산뜻한 프레첼"
     }
   } ],
   "threads" : [ ],
   "relations" : [ {
-    "breadId" : "friend",
-    "affinityLevel" : "mid",
+    "breadId" : "anxious",
+    "affinityLevel" : "low",
     "statusText" : "처음 만남",
     "memorySummary" : "",
     "recentMemories" : [ ],
@@ -100,14 +100,6 @@
     "knownFacts" : [ ],
     "openThreads" : [ ]
   }, {
-    "breadId" : "maker",
-    "affinityLevel" : "mid",
-    "statusText" : "처음 만남",
-    "memorySummary" : "",
-    "recentMemories" : [ ],
-    "knownFacts" : [ ],
-    "openThreads" : [ ]
-  }, {
     "breadId" : "avoidant",
     "affinityLevel" : "low",
     "statusText" : "처음 만남",
@@ -116,8 +108,16 @@
     "knownFacts" : [ ],
     "openThreads" : [ ]
   }, {
-    "breadId" : "anxious",
-    "affinityLevel" : "low",
+    "breadId" : "friend",
+    "affinityLevel" : "mid",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ]
+  }, {
+    "breadId" : "maker",
+    "affinityLevel" : "mid",
     "statusText" : "처음 만남",
     "memorySummary" : "",
     "recentMemories" : [ ],

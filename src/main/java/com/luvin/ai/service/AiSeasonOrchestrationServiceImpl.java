@@ -182,8 +182,8 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         // 배경은 시즌을 만들 때 나이로 정해 끝까지 고정한다 — AI 시즌을 만들기 전에 나이부터 확인한다.
         User user = userRepository.findById(memberId)
                 .orElseThrow(() -> new com.luvin.common.exception.UserNotFoundException(memberId));
-        if (user.getAge() == null) {
-            throw new AiStoryConflictException(AiStoryConflictException.AGE_REQUIRED, "나이를 먼저 입력해주세요.");
+        if (user.getAge() == null || user.getGender() == null) {
+            throw new AiStoryConflictException(AiStoryConflictException.AGE_REQUIRED, "나이와 성별을 먼저 입력해주세요.");
         }
         AiSeasonCreationInput creationInput = stateWriter.findCreationInput(memberId).orElse(null);
         if (creationInput == null) {
