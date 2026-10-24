@@ -24,6 +24,8 @@ public class UserServiceImpl implements UserService {
     private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
     private static final int MIN_AGE = 1;
     private static final int MAX_AGE = 120;
+    /** 러빈지옥 출연진 성별(친구는 같게, 나머지는 반대로)을 정하려면 둘 중 하나여야 한다. "선택 안 함"은 없다. */
+    private static final java.util.Set<String> GENDERS = java.util.Set.of("MALE", "FEMALE");
 
     private final UserRepository userRepository;
     private final AiCloneRepository aiCloneRepository;
@@ -64,8 +66,21 @@ public class UserServiceImpl implements UserService {
         if (request.getAge() != null && (request.getAge() < MIN_AGE || request.getAge() > MAX_AGE)) {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
-        user.updateProfile(request.getNickname(), request.getGender(), request.getAge(), request.getJob(), request.getBio());
+        user.updateProfile(request.getNickname(), normalizeGender(request.getGender()), request.getAge(),
+                request.getJob(), request.getBio());
         // JPA 변경 감지(dirty checking)로 트랜잭션 종료 시 자동 반영 -> save() 호출 불필요
+    }
+
+    /** 성별은 MALE/FEMALE만 받고(대소문자 무관) 대문자로 저장한다. 보내지 않으면(null) 기존 값을 유지한다. */
+    private static String normalizeGender(String gender) {
+        if (gender == null) {
+            return null;
+        }
+        String normalized = gender.trim().toUpperCase();
+        if (!GENDERS.contains(normalized)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        return normalized;
     }
 
     /**

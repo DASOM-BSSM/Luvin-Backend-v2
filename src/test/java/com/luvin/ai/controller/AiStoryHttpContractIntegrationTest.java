@@ -154,6 +154,9 @@ class AiStoryHttpContractIntegrationTest {
         assertTrue(last("/luvin/episode-note").has("settingScene"));
 
         readyContent(2);
+        // 이전 회차의 전환 카드 문구는 usedMaterials로 보낸다.
+        String ep1Transition = ep1.get("blocks").get(1).get("transitionText").asText();
+        assertTrue(texts(last("/luvin/episode").get("usedMaterials")).contains(ep1Transition));
         JsonNode feedbacks = last("/luvin/episode").get("context").get("learnedProfile").get("feedbacks");
         assertEquals(1, feedbacks.size());
         assertEquals("말투가 어색해", feedbacks.get(0).get("text").asText());
@@ -354,6 +357,12 @@ class AiStoryHttpContractIntegrationTest {
             }
         }
         throw new AssertionError(field + "=" + value + " 항목이 없습니다.");
+    }
+
+    private static List<String> texts(JsonNode array) {
+        List<String> values = new ArrayList<>();
+        array.forEach(n -> values.add(n.asText()));
+        return values;
     }
 
     private static List<String> texts(JsonNode array, String field) {
