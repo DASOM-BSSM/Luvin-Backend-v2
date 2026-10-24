@@ -729,12 +729,13 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     }
 
     private AiSeasonStatusView toStatusView(AiSeason season, List<AiSeasonCharacter> characters) {
+        java.util.Map<UUID, String> descriptions = storyService.castDescriptions(season.getId());
         List<AiCharacterView> characterViews = characters.stream()
                 .map(c -> new AiCharacterView(
                         c.getCharacterId(), c.getRole().name(), c.getGender(),
                         c.getCastRole() == null ? null : c.getCastRole().wireValue(),
                         c.getAttachmentStyle() == null ? null : c.getAttachmentStyle().wireValue(),
-                        c.getName()))
+                        c.getName(), descriptions.get(c.getCharacterId())))
                 .collect(Collectors.toList());
         return new AiSeasonStatusView(
                 season.getSeasonId(), season.getRevision(), season.getCurrentEpisode(),
