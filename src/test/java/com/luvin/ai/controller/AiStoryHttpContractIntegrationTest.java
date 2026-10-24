@@ -135,8 +135,6 @@ class AiStoryHttpContractIntegrationTest {
         JsonNode pairDesign = find(episode.get("design"), "type", "pair");
         assertEquals("me", pairDesign.get("participantIds").get(0).asText());
         assertTrue(pairDesign.has("pairTarget") && pairDesign.has("short"));
-        JsonNode messengerDesign = find(episode.get("design"), "type", "messenger");
-        assertFalse(messengerDesign.get("messenger").get("roomName").asText().isBlank());
 
         // 1화 1:1 장면의 내 빵 대사에 피드백 → 2화 생성 입력 learnedProfile.feedbacks로 들어간다.
         JsonNode pair = ep1.get("blocks").get(2);
@@ -154,6 +152,9 @@ class AiStoryHttpContractIntegrationTest {
         assertTrue(last("/luvin/episode-note").has("settingScene"));
 
         readyContent(2);
+        JsonNode messengerDesign = find(last("/luvin/episode").get("design"), "type", "messenger");
+        assertEquals("group", messengerDesign.get("messenger").get("kind").asText());
+        assertFalse(messengerDesign.get("messenger").get("roomName").asText().isBlank());
         // 이전 회차의 전환 카드 문구는 usedMaterials로 보낸다.
         String ep1Transition = ep1.get("blocks").get(1).get("transitionText").asText();
         assertTrue(texts(last("/luvin/episode").get("usedMaterials")).contains(ep1Transition));

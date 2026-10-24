@@ -124,7 +124,7 @@ class AiStoryFlowIntegrationTest {
         assertTrue(stageIntro.get("title").asText().startsWith("IN "));
         assertEquals(6, stageIntro.get("cast").size());
         assertFalse(ep1.get("intro").get("title").asText().isBlank());
-        assertEquals(List.of("group", "transition", "pair", "messenger"), blockTypes(ep1));
+        assertEquals(List.of("group", "transition", "pair"), blockTypes(ep1));
         String ep1Transition = ep1.get("blocks").get(1).get("transitionText").asText();
         // 출연진 이름: 내 빵은 닉네임, 나머지는 "형용사 빵종류"이고 이름·빵 종류가 겹치지 않는다.
         Set<String> names = new HashSet<>();
@@ -145,18 +145,18 @@ class AiStoryFlowIntegrationTest {
         JsonNode firstLine = ep1.get("blocks").get(0).get("messages").get(0);
         assertEquals("narration", firstLine.get("kind").asText());
         assertTrue(firstLine.get("speakerId").isNull());
-        JsonNode messenger = ep1.get("blocks").get(3);
-        assertEquals("direct", messenger.get("messenger").get("kind").asText());
-        assertTrue(messenger.get("messages").get(0).has("read"));
         assertFalse(ep1.get("blocks").get(0).get("messages").get(0).has("read"));
 
         // 1화를 완료하기 전에는 2화를 만들지 않는다.
         assertEquals("PREVIOUS_EPISODE_NOT_COMPLETED", error(get(user, "/episodes/2/content")).get("code").asText());
         complete(user, 1);
 
-        // 전환 카드 문구는 회차마다 다르다.
+        // 전환 카드 문구는 회차마다 다르다. 2화는 1:1 장면 뒤에 단톡방(group 메신저)이 있다.
         JsonNode ep2 = readyContent(user, 2);
         assertFalse(ep1Transition.equals(ep2.get("blocks").get(1).get("transitionText").asText()));
+        JsonNode groupChat = ep2.get("blocks").get(3);
+        assertEquals("group", groupChat.get("messenger").get("kind").asText());
+        assertTrue(groupChat.get("messages").get(0).has("read"));
         complete(user, 2);
 
         // 3화: 선택 전에는 완료할 수 없고, choice 후보는 연애 후보 3명이다.
@@ -294,6 +294,14 @@ class AiStoryFlowIntegrationTest {
         assertTrue(fresh.get("story").isNull());
 
         readyContent(user, 1);
+        // 1화 무대 소개 뒤에는 시즌 상태 characters[]에도 소개 한 줄이 있다(내 빵은 null).
+        for (JsonNode character : data(get(user, "/me")).get("characters")) {
+            if ("my_bread".equals(character.get("castRole").asText())) {
+                assertTrue(character.get("description").isNull());
+            } else {
+                assertFalse(character.get("description").asText().isBlank(), character.toString());
+            }
+        }
         complete(user, 1);
         readyContent(user, 2);
         JsonNode story = data(get(user, "/me")).get("story");
