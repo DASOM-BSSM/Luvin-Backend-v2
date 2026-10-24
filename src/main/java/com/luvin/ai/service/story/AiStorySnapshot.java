@@ -28,7 +28,9 @@ public record AiStorySnapshot(
         List<AiStoryCastMember> cast,
         List<Relation> relations,
         List<Choice> choices,
-        List<Content> contents
+        List<Content> contents,
+        /** 토큰을 써서 연 4~10화(1~3화는 무료라 들어 있지 않다). */
+        List<Integer> unlockedOrders
 ) {
 
     public record Relation(UUID breadId, int affinity, int rejectCount, String statusText, String memorySummary,

@@ -111,6 +111,25 @@ public final class AiStoryCatalog {
         return plot == null || plot.isBlank() ? null : plot;
     }
 
+    /** 1~3화는 열기 없이 무료로 볼 수 있다. 4화부터는 처음 열 때 토큰을 쓴다. */
+    public static final int LAST_FREE_ORDER = 3;
+
+    public static boolean isFree(int order) {
+        return order <= LAST_FREE_ORDER;
+    }
+
+    /** 사용자 성별(MALE/FEMALE, 대소문자 무관)의 반대. 알 수 없는 값이면 null. 결과는 대문자 형식이다. */
+    public static String oppositeGender(String gender) {
+        if (gender == null) {
+            return null;
+        }
+        return switch (gender.trim().toUpperCase()) {
+            case "MALE" -> "FEMALE";
+            case "FEMALE" -> "MALE";
+            default -> null;
+        };
+    }
+
     public static String groupRoomName(AiSeasonSetting setting) {
         return GROUP_ROOM_NAMES.get(setting);
     }

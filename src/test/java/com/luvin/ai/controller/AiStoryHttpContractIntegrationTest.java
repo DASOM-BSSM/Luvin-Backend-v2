@@ -19,6 +19,8 @@ import com.luvin.ai.repository.AiSeasonCharacterRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.common.security.AuthenticatedUser;
 import com.luvin.common.security.JwtTokenProvider;
+import com.luvin.token.domain.UserToken;
+import com.luvin.token.repository.UserTokenRepository;
 import com.luvin.user.domain.User;
 import com.luvin.user.repository.UserRepository;
 import com.sun.net.httpserver.HttpExchange;
@@ -89,6 +91,8 @@ class AiStoryHttpContractIntegrationTest {
     private JwtTokenProvider jwtTokenProvider;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private UserTokenRepository userTokenRepository;
 
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
     private final ObjectMapper json = new ObjectMapper();
@@ -101,7 +105,10 @@ class AiStoryHttpContractIntegrationTest {
         List.of("ai_season_choices", "ai_bread_relations", "ai_episode_contents", "ai_season_story_reports",
                 "partner_letters", "ai_story_feedbacks", "ai_story_message_likes", "ai_season_characters")
                 .forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
+        jdbcTemplate.update("DELETE FROM ai_episode_unlocks WHERE season_id = ?", seasonPk);
         jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
+        jdbcTemplate.update("DELETE FROM user_tokens WHERE member_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM token_histories WHERE member_id = ?", userId);
         userRepository.deleteById(userId);
         RECEIVED.clear();
     }
@@ -116,11 +123,14 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals("adult", stageIntro.get("audience").asText());
         assertEquals(List.of("me", "avoidant", "anxious", "secure", "friend", "maker"),
                 texts(stageIntro.get("cast"), "breadId"));
+        // 성별(계약 5-0·5-1·7장): 친구만 사용자와 같고 나머지는 다르다.
+        assertEquals(List.of("FEMALE", "MALE", "MALE", "MALE", "FEMALE", "MALE"), texts(stageIntro.get("cast"), "gender"));
 
         JsonNode episode = last("/luvin/episode");
         assertTrue(episode.has("commonEvent") && episode.has("usedMaterials") && episode.has("referencePlot"));
         assertFalse(episode.has("common_event"));
         JsonNode context = episode.get("context");
+        assertEquals("FEMALE", context.get("cast").get(0).get("gender").asText());
         assertTrue(context.get("learnedProfile").has("recentAnswers"));
         JsonNode pairDesign = find(episode.get("design"), "type", "pair");
         assertEquals("me", pairDesign.get("participantIds").get(0).asText());
@@ -207,6 +217,41 @@ class AiStoryHttpContractIntegrationTest {
         }
     }
 
+    @Test
+    void 사화부터는_회차를_열어야_하고_처음_열_때만_토큰을_쓴다() throws Exception {
+        setUpUserAndSeason();
+        for (int order = 1; order <= 3; order++) {
+            // 1~3화는 무료: 열기를 불러도 차감 없이 열린 응답이다.
+            JsonNode free = json.readTree(send("POST", "/api/ai/seasons/episodes/" + order + "/unlock", null).body())
+                    .get("data");
+            assertTrue(free.get("unlocked").asBoolean());
+            readyContent(order);
+            if (order == 3) {
+                send("POST", "/api/ai/seasons/episodes/3/choices", "{\"pointId\":1,\"breadId\":null}");
+            }
+            send("POST", "/api/ai/seasons/episodes/" + order + "/complete", null);
+        }
+
+        HttpResponse<String> locked = send("GET", "/api/ai/seasons/episodes/4/content", null);
+        assertEquals(409, locked.statusCode());
+        assertEquals("EPISODE_NOT_UNLOCKED", json.readTree(locked.body()).get("code").asText());
+
+        HttpResponse<String> poor = send("POST", "/api/ai/seasons/episodes/4/unlock", null);
+        assertEquals(409, poor.statusCode());
+        assertEquals("INSUFFICIENT_TOKENS", json.readTree(poor.body()).get("code").asText());
+
+        userTokenRepository.save(new UserToken(userId, 3, 0));
+        JsonNode opened = json.readTree(send("POST", "/api/ai/seasons/episodes/4/unlock", null).body()).get("data");
+        assertEquals(2, opened.get("tokenBalance").asInt());
+        // 이미 연 회차는 다시 차감하지 않는다.
+        JsonNode again = json.readTree(send("POST", "/api/ai/seasons/episodes/4/unlock", null).body()).get("data");
+        assertEquals(2, again.get("tokenBalance").asInt());
+        assertEquals(1, jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM token_histories WHERE member_id = ? AND reason = '러빈지옥 4화 열기'",
+                Integer.class, userId));
+        assertEquals("ready", readyContent(4).get("status").asText());
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private void setUpUserAndSeason() {
@@ -225,6 +270,12 @@ class AiStoryHttpContractIntegrationTest {
     }
 
     private JsonNode readyContent(int order) throws Exception {
+        if (order > 3 && userTokenRepository.findByMemberId(userId).isEmpty()) {
+            userTokenRepository.save(new UserToken(userId, 20, 0));
+        }
+        if (order > 3) {
+            send("POST", "/api/ai/seasons/episodes/" + order + "/unlock", null);
+        }
         long deadline = System.currentTimeMillis() + 10_000;
         while (true) {
             HttpResponse<String> res = send("GET", "/api/ai/seasons/episodes/" + order + "/content", null);

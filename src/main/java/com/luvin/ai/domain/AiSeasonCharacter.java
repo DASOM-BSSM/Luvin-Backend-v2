@@ -64,6 +64,10 @@ public class AiSeasonCharacter {
     @Column(name = "bread_type", length = 30)
     private String breadType;
 
+    /** 연애 후보 셋의 순서(1~3). 시즌 시작 때 랜덤으로 정하고, 1~3화 1:1 상대가 이 순서를 따른다. 그 외 출연진은 null. */
+    @Column(name = "candidate_order")
+    private Integer candidateOrder;
+
     public AiSeasonCharacter(AiSeason season, UUID characterId, AiCharacterRole role, String gender) {
         this.season = season;
         this.characterId = characterId;
@@ -72,16 +76,20 @@ public class AiSeasonCharacter {
     }
 
     /** Spring이 추가하는 출연진(친구, 분위기 메이커). AI 시즌에는 없는 캐릭터라 id도 Spring이 만든다. */
-    public AiSeasonCharacter(AiSeason season, UUID characterId, AiCastRole castRole, String name, String breadType) {
-        this(season, characterId, AiCharacterRole.SUPPORTING, null);
-        assignCast(castRole, name, breadType);
+    public AiSeasonCharacter(AiSeason season, UUID characterId, AiCastRole castRole, String name, String breadType,
+                             String gender) {
+        this(season, characterId, AiCharacterRole.SUPPORTING, gender);
+        assignCast(castRole, name, breadType, gender, null);
     }
 
-    public void assignCast(AiCastRole castRole, String name, String breadType) {
+    /** 성별은 사용자 성별 형식(MALE/FEMALE)으로 저장한다: 친구는 사용자와 같게, 나머지 후보·분위기 메이커는 다르게. */
+    public void assignCast(AiCastRole castRole, String name, String breadType, String gender, Integer candidateOrder) {
         this.castRole = castRole;
         this.attachmentStyle = castRole.attachmentStyle();
         this.name = name;
         this.breadType = breadType;
+        this.gender = gender;
+        this.candidateOrder = candidateOrder;
     }
 
     /** 개발 전용 초기화에서 출연진 배정을 되돌린다. */
@@ -90,6 +98,7 @@ public class AiSeasonCharacter {
         this.attachmentStyle = null;
         this.name = null;
         this.breadType = null;
+        this.candidateOrder = null;
     }
 
     public boolean isRepresentative() {

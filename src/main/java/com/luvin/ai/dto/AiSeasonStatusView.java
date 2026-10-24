@@ -13,10 +13,7 @@ public record AiSeasonStatusView(
         UUID sourceSurveyResultId,
         /** 그 사용자의 몇 번째 시즌인지(1부터). */
         Integer seasonNumber,
-        /**
-         * legacy(기존 5화 흐름, generations·메시지 조회 API) | blocks(장면 블록 1~10화, content API).
-         * 새로 만든 시즌은 1화 요청 전에도 blocks다.
-         */
+        /** 항상 blocks(장면 블록 1~10화). 기존 5화(legacy) 시즌은 V10에서 지웠다 — 응답 호환을 위해 남긴 필드. */
         String episodeFormat,
         /** 장면 블록 회차(1~10화) 상태. 새 흐름을 시작하기 전이면 null. */
         com.luvin.ai.dto.story.AiStoryStateView story

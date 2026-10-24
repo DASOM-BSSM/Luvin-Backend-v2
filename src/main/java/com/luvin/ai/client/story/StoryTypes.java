@@ -28,8 +28,9 @@ public final class StoryTypes {
                           Boolean deletedAfterSend) {
     }
 
-    /** 3-3 CastMember. description은 me면 null. */
-    public record CastMember(String breadId, String name, String breadType, String role, String description) {
+    /** 5-0 GenerationContext.cast: 3-3 CastMember + gender(사용자 성별 형식). description은 me면 null. */
+    public record CastMember(String breadId, String name, String breadType, String role, String description,
+                             String gender) {
     }
 
     public record Thread(String id, String text) {

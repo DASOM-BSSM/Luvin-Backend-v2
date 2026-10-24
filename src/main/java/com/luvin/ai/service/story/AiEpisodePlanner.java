@@ -20,16 +20,19 @@ import java.util.UUID;
  * 설계 단계: 회차 공통 사건·배경 장면, 블록 순서, 블록별 참여 빵, pair 상대, 다룰 열린 떡밥을 코드로 정한다.
  *
  * 기본 순서는 group → transition → pair → messenger (→ 3·5·6·8화 choice). 9화는 ④ 결과 장면(pair)으로 시작하고,
- * 10화는 group → transition → pair → interview × 출연 빵 수다.
+ * 10화는 group → transition → pair → interview × 출연 빵 수다. 5화는 후보 셋이 각자 연락하는 1:1 메신저가 셋이다.
  *
- * pair 상대:
- * - 4화 = ①에서 수락한 빵, 아니면 친구 빵 / 6화 = ②에서 수락한 빵, 아니면 혼자 / 9화 = ④에서 수락한 빵, 아니면 혼자
- * - 7·8·10화 = romance면 연인, solo면 친구 빵
- * - 그 외(1·2·3·5화) = 연애 후보 중 호감이 가장 높은 빵(같으면 회차마다 돌아가며)
+ * pair 상대(공통 데이터 계약 7장):
+ * - 1·2·3화 = 시즌 시작 때 랜덤으로 정한 후보 순서의 첫째·둘째·셋째
+ * - 4화 = ①에서 수락한 빵, 아니면(혼자 있기·거절) 친구 / 5화 = 친구 / 6화 = ②에서 수락한 빵, 아니면 친구
+ * - 7·10화 = romance면 연인, solo면 친구 / 8화 = romance면 연인, solo면 호감이 가장 높은 후보
+ * - 9화 = ④에서 수락한 빵(다툰 상대 또는 친구), 아니면 혼자
  */
 public final class AiEpisodePlanner {
 
     private static final int OPEN_THREAD_LIMIT = 2;
+    /** 후보 셋이 같은 회차 메신저에서 각자 다르게 연락하는 회차(나를 대하는 방식이 갈림). */
+    private static final int CANDIDATES_CONTACT_ORDER = 5;
     private static final String MESSENGER_DIRECT = "direct";
     private static final String MESSENGER_GROUP = "group";
 
@@ -74,6 +77,11 @@ public final class AiEpisodePlanner {
                                 List.of(member.breadId()), null, member.breadId()));
                     }
                 }
+            } else if (order == CANDIDATES_CONTACT_ORDER) {
+                int index = 4;
+                for (AiStoryCastMember candidate : romanceCandidates(input.cast())) {
+                    blocks.add(directMessenger("b" + index++, me, candidate));
+                }
             } else {
                 blocks.add(messenger("b4", order, input, me, partner, everyone));
             }
@@ -105,13 +113,15 @@ public final class AiEpisodePlanner {
 
     private static UUID pairPartner(Input input) {
         UUID friend = member(input.cast(), AiCastRole.FRIEND).breadId();
+        boolean romance = input.route() == AiStoryRoute.ROMANCE && input.romancePartnerId() != null;
         return switch (input.order()) {
+            case 1, 2, 3 -> romanceCandidates(input.cast()).get(input.order() - 1).breadId();
             case 4 -> acceptedBreadOr(input.choicesByPoint().get(1), friend);
-            case 6 -> acceptedBreadOr(input.choicesByPoint().get(2), null);
+            case 5 -> friend;
+            case 6 -> acceptedBreadOr(input.choicesByPoint().get(2), friend);
+            case 8 -> romance ? input.romancePartnerId() : favoriteCandidate(input);
             case 9 -> acceptedBreadOr(input.choicesByPoint().get(4), null);
-            case 7, 8, 10 -> input.route() == AiStoryRoute.ROMANCE && input.romancePartnerId() != null
-                    ? input.romancePartnerId() : friend;
-            default -> favoriteCandidate(input);
+            default -> romance ? input.romancePartnerId() : friend;
         };
     }
 
@@ -135,19 +145,25 @@ public final class AiEpisodePlanner {
         return romanceCandidates(input.cast()).stream().map(AiStoryCastMember::breadId).toList();
     }
 
+    /** 호감이 가장 높은 후보. 같으면 먼저 만난 후보. */
     private static UUID favoriteCandidate(Input input) {
         List<AiStoryCastMember> candidates = romanceCandidates(input.cast());
-        int rotation = input.order() % candidates.size();
         return candidates.stream()
                 .max(Comparator.<AiStoryCastMember>comparingInt(c -> input.affinity().getOrDefault(c.breadId(), 0))
-                        .thenComparingInt(c -> -Math.floorMod(candidates.indexOf(c) - rotation, candidates.size())))
+                        .thenComparingInt(c -> -candidates.indexOf(c)))
                 .map(AiStoryCastMember::breadId)
                 .orElseThrow();
     }
 
+    /**
+     * 연애 후보 셋을 만난 순서(candidateOrder)대로. 이 순서가 생기기 전에 시작한 시즌(candidateOrder null)은
+     * 출연진 역할 순서를 쓴다.
+     */
     private static List<AiStoryCastMember> romanceCandidates(List<AiStoryCastMember> cast) {
         return cast.stream().filter(c -> c.castRole().isRomanceCandidate())
-                .sorted(Comparator.comparing(AiStoryCastMember::castRole))
+                .sorted(Comparator.comparing(AiStoryCastMember::candidateOrder,
+                                Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(AiStoryCastMember::castRole))
                 .toList();
     }
 
@@ -178,6 +194,11 @@ public final class AiEpisodePlanner {
                 .map(AiStoryCastMember::name).findFirst().orElseThrow();
         return new BlockPlan(id, AiSceneBlockType.MESSENGER, List.of(me.breadId(), partner), MESSENGER_DIRECT,
                 partnerName, null, partner, false);
+    }
+
+    private static BlockPlan directMessenger(String id, AiStoryCastMember me, AiStoryCastMember partner) {
+        return new BlockPlan(id, AiSceneBlockType.MESSENGER, List.of(me.breadId(), partner.breadId()), MESSENGER_DIRECT,
+                partner.name(), null, partner.breadId(), false);
     }
 
     private static BlockPlan block(String id, AiSceneBlockType type, List<UUID> participants, String messengerKind,

@@ -30,11 +30,8 @@ public interface AiSeasonOrchestrationService {
      */
     AiSeasonStatusView createSeasonFromSurvey(Long memberId, java.util.UUID surveyResultId);
 
-    /**
-     * 현재 시즌이 COMPLETED일 때만 다음 시즌을 생성한다. 무료 횟수가 남아있으면 그걸, 없으면 토큰
-     * 1개를 시즌 생성과 같은 트랜잭션에서 차감한다. 아직 진행 중인 시즌이 있으면 409(SEASON_IN_PROGRESS),
-     * 토큰/무료횟수가 부족하면 409(INSUFFICIENT_TOKENS)를 던진다.
-     */
+    /** 사용자당 시즌은 1개라 다음 시즌을 만들지 않는다. 진행 중이면 409 SEASON_IN_PROGRESS, 끝났으면 409 SEASON_COMPLETED. */
+    @Deprecated // 공통 데이터 계약 0장 시즌 정책: 다음 시즌 없음.
     AiSeasonStatusView startNextSeason(Long memberId, StartNextSeasonRequest request);
 
     /** 이 사용자의 모든 시즌을 seasonNumber 오름차순으로 반환한다(지난 시즌 포함). */
