@@ -54,13 +54,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = LuvinBackendV2Application.class)
 @TestPropertySource(properties = {
         "app.ai.story.client=stub",
+        "app.ai.story.token-charge-enabled=false",
         "app.dev-tools.enabled=true"
 })
 class AiStoryFlowIntegrationTest {
 
     private static final List<String> SEASON_TABLES = List.of(
             "ai_season_choices", "ai_bread_relations", "ai_episode_contents", "ai_season_story_reports",
-            "partner_letters", "ai_story_feedbacks", "ai_story_message_likes", "ai_season_characters",
+            "partner_letters", "ai_story_feedbacks", "ai_story_message_likes", "ai_episode_unlocks",
+            "ai_season_characters",
             "ai_episode_progresses");
 
     private static final HttpServer FAKE_AI = startFakeAi();
@@ -233,10 +235,22 @@ class AiStoryFlowIntegrationTest {
     }
 
     @Test
-    void 시즌_종료_후_최종_리포트와_다음_시즌_시작() throws Exception {
+    void 설문으로_만든_시즌은_바로_시작되고_10화_뒤에는_다음_시즌이_없다() throws Exception {
         TestUser user = createUser(26);
-        createSeason(user);
-        submitSurvey(user);
+        String surveyResultId = submitSurvey(user);
+
+        // 시즌을 만들 때 나이로 배경을 정하고 출연진(이름·성별·후보 순서)을 배정한다.
+        JsonNode created = data(post(user, "/from-survey", "{\"surveyResultId\":\"" + surveyResultId + "\"}"));
+        seasonIds.add(seasonRepository.findByMemberIdAndSeasonId(user.id(),
+                UUID.fromString(created.get("seasonId").asText())).orElseThrow().getId());
+        assertEquals("office", created.get("story").get("setting").asText());
+        assertEquals(List.of(1, 2, 3), intList(created.get("story").get("unlockedOrders")));
+        for (JsonNode character : created.get("characters")) {
+            String castRole = character.get("castRole").asText();
+            String expected = castRole.equals("my_bread") || castRole.equals("friend") ? "FEMALE" : "MALE";
+            assertEquals(expected, character.get("gender").asText(), character.toString());
+        }
+
         for (int order = 1; order <= 10; order++) {
             readyContent(user, order);
             Integer point = switch (order) {
@@ -252,18 +266,19 @@ class AiStoryFlowIntegrationTest {
             complete(user, order);
         }
         assertFalse(data(get(user, "/report")).get("feedback").asText().isBlank());
-        // 끝난 시즌의 회차는 계속 다시 볼 수 있다.
+        // 끝난 시즌의 회차는 계속 다시 볼 수 있고, 다음 시즌은 만들지 않는다.
         assertEquals("ready", data(get(user, "/episodes/10/content")).get("status").asText());
+        assertEquals("SEASON_COMPLETED", error(post(user, "/next", "{}")).get("code").asText());
+    }
 
-        JsonNode next = data(post(user, "/next", "{}"));
-        assertEquals(2, next.get("seasonNumber").asInt());
-        assertTrue(next.get("story").isNull());
-        seasonIds.add(seasonRepository.findByMemberIdAndSeasonId(user.id(),
-                UUID.fromString(next.get("seasonId").asText())).orElseThrow().getId());
+    @Test
+    void 나이가_없으면_시즌을_만들_때_AGE_REQUIRED() throws Exception {
+        TestUser user = createUser(null);
+        String surveyResultId = submitSurvey(user);
 
-        // 새 시즌도 1화부터 다시 시작한다.
-        JsonNode ep1 = readyContent(user, 1);
-        assertEquals("office", ep1.get("stageIntro").get("setting").asText());
+        assertEquals("AGE_REQUIRED", error(post(user, "/from-survey",
+                "{\"surveyResultId\":\"" + surveyResultId + "\"}")).get("code").asText());
+        assertEquals(0, seasonRepository.findAllByMemberIdOrderBySeasonNumberAsc(user.id()).size());
     }
 
     @Test
@@ -281,20 +296,20 @@ class AiStoryFlowIntegrationTest {
         JsonNode story = data(get(user, "/me")).get("story");
         assertEquals(2, story.get("currentOrder").asInt());
         assertEquals(List.of(1), intList(story.get("completedOrders")));
+        assertEquals(List.of(1, 2, 3), intList(story.get("unlockedOrders")));
+        assertEquals(1, story.get("episodeTokenCost").asInt());
         assertEquals("blocks", data(get(user, "")).get(0).get("episodeFormat").asText());
     }
 
     @Test
-    void 기존_5화로_진행_중인_시즌은_legacy이고_새_흐름_API를_막는다() throws Exception {
+    void 회차_구성은_항상_blocks다() throws Exception {
         TestUser user = createUser(21);
         Season season = createSeason(user);
         progressRepository.save(new AiEpisodeProgress(
                 seasonRepository.findById(season.pk()).orElseThrow(), 1, UUID.randomUUID()));
 
-        assertEquals("legacy", data(get(user, "/me")).get("episodeFormat").asText());
-        assertEquals("LEGACY_SEASON", error(get(user, "/episodes/1/content")).get("code").asText());
-        assertEquals("LEGACY_SEASON", error(post(user, "/episodes/3/choices",
-                "{\"pointId\":1,\"breadId\":null}")).get("code").asText());
+        assertEquals("blocks", data(get(user, "/me")).get("episodeFormat").asText());
+        assertEquals("ready", readyContent(user, 1).get("status").asText());
     }
 
     @Test
@@ -329,9 +344,9 @@ class AiStoryFlowIntegrationTest {
 
         JsonNode ep6 = readyContent(user, 6);
         assertEquals("office", data(get(user, "/episodes/1/content")).get("stageIntro").get("setting").asText());
-        // ② 혼자 있기 → 6화는 아무에게도 연락하지 않는 장면
+        // ② 혼자 있기 → 6화 1:1 상대는 친구
         JsonNode pair = ep6.get("blocks").get(2);
-        assertEquals(1, pair.get("participants").size());
+        assertEquals(breadOf(user, "friend"), pair.get("participants").get(1).get("breadId").asText());
 
         // 초기 호감(25)으로는 ③(기준 60)이 거절된다 → solo, 대체 장면 포함
         UUID anxious = candidateOf(user, "anxious");
@@ -420,7 +435,12 @@ class AiStoryFlowIntegrationTest {
 
     // ------------------------------------------------------------------ helpers
 
+    /** 4화부터는 회차 열기를 먼저 한다(이 클래스는 토큰 차감을 꺼 둔다). */
     private JsonNode readyContent(TestUser user, int order) throws Exception {
+        if (order > 3) {
+            HttpResponse<String> unlocked = post(user, "/episodes/" + order + "/unlock", null);
+            assertEquals(200, unlocked.statusCode(), unlocked.body());
+        }
         long deadline = System.currentTimeMillis() + 10_000;
         while (true) {
             HttpResponse<String> res = get(user, "/episodes/" + order + "/content");
@@ -511,8 +531,8 @@ class AiStoryFlowIntegrationTest {
         return http.send(request.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
-    /** 다음 시즌 생성에 필요한 설문 v2 결과를 실제 제출 API로 만든다. */
-    private void submitSurvey(TestUser user) throws Exception {
+    /** 시즌 생성에 필요한 설문 v2 결과를 실제 제출 API로 만들고 그 id를 돌려준다. */
+    private String submitSurvey(TestUser user) throws Exception {
         JsonNode definition = data(send(user, "GET", "/api/surveys/v2/definition", null));
         StringBuilder answers = new StringBuilder();
         for (int i = 1; i <= 20; i++) {
@@ -525,6 +545,7 @@ class AiStoryFlowIntegrationTest {
                 + "\",\"clientSubmissionId\":\"" + UUID.randomUUID() + "\",\"answers\":[" + answers + "]}";
         HttpResponse<String> res = send(user, "POST", "/api/surveys/v2/submissions", body);
         assertTrue(res.statusCode() == 201 || res.statusCode() == 200, res.body());
+        return objectMapper.readTree(res.body()).get("data").get("resultId").asText();
     }
 
     /**

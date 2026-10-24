@@ -75,7 +75,7 @@ final class AiStoryContractMapper {
             AiStageIntroView.StageCast intro = stageCast.get(m.breadId());
             return new StoryTypes.CastMember(m.castRole().contractId(), m.name(), m.breadType(),
                     intro != null ? intro.role() : m.castRole().seasonRole(),
-                    intro != null ? intro.description() : null);
+                    intro != null ? intro.description() : null, m.gender());
         }).toList();
     }
 

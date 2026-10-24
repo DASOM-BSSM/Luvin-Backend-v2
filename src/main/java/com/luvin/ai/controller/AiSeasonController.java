@@ -75,10 +75,10 @@ public class AiSeasonController {
         return ApiResponse.ok(orchestrationService.getStatus(memberId));
     }
 
-    /**
-     * 현재 시즌이 COMPLETED일 때만 다음 시즌을 생성한다(첫 시즌은 /from-survey, 2번째부터는 이 경로).
-     * 무료 횟수가 남아있으면 그걸, 없으면 토큰 1개를 시즌 생성과 같은 트랜잭션에서 차감한다.
-     */
+    /** 사용자당 시즌은 1개라 다음 시즌을 만들지 않는다(진행 중이면 SEASON_IN_PROGRESS, 끝났으면 SEASON_COMPLETED). */
+    @Deprecated
+    @Operation(deprecated = true, description = "사용자당 시즌은 1개뿐이라 다음 시즌을 만들지 않는다. "
+            + "진행 중이면 409 SEASON_IN_PROGRESS, 10화를 마쳤으면 409 SEASON_COMPLETED.")
     @PostMapping("/next")
     public ApiResponse<AiSeasonStatusView> startNextSeason(
             @RequestBody(required = false) StartNextSeasonRequest request) {

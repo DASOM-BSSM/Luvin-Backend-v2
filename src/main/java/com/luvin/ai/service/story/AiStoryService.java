@@ -31,13 +31,13 @@ import com.luvin.ai.dto.AiReportHighlightsView;
 import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.story.AiChoiceOutcomeView;
 import com.luvin.ai.dto.story.AiEpisodeContentView;
+import com.luvin.ai.dto.story.AiEpisodeUnlockView;
 import com.luvin.ai.dto.story.AiSceneBlockView;
 import com.luvin.ai.dto.story.AiStageIntroView;
 import com.luvin.ai.dto.story.AiStoryFeedbackView;
 import com.luvin.ai.dto.story.AiStoryIntroView;
 import com.luvin.ai.dto.story.AiStoryMessageView;
 import com.luvin.ai.dto.story.AiStoryStateView;
-import com.luvin.ai.repository.AiEpisodeProgressRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.ai.security.OwnerSubjectProvider;
 import com.luvin.ai.service.exception.AiCandidateInvalidException;
@@ -90,7 +90,6 @@ public class AiStoryService {
     private static final Logger log = LoggerFactory.getLogger(AiStoryService.class);
     private static final int MAX_ATTEMPTS = 2;
     private static final String DEFAULT_MEMORY = "아직 함께한 기억이 없어요";
-    public static final String FORMAT_LEGACY = "legacy";
     public static final String FORMAT_BLOCKS = "blocks";
     private static final TypeReference<List<AiSceneBlockView>> BLOCK_LIST = new TypeReference<>() {
     };
@@ -98,7 +97,6 @@ public class AiStoryService {
     private final AiStoryStateWriter stateWriter;
     private final AiStoryClient storyClient;
     private final AiSeasonRepository seasonRepository;
-    private final AiEpisodeProgressRepository episodeProgressRepository;
     private final UserRepository userRepository;
     private final OwnerSubjectProvider ownerSubjectProvider;
     private final AiLearningDataProvider learningDataProvider;
@@ -108,15 +106,14 @@ public class AiStoryService {
     private final ExecutorService executor;
 
     public AiStoryService(AiStoryStateWriter stateWriter, AiStoryClient storyClient,
-                          AiSeasonRepository seasonRepository, AiEpisodeProgressRepository episodeProgressRepository,
-                          UserRepository userRepository, OwnerSubjectProvider ownerSubjectProvider,
+                          AiSeasonRepository seasonRepository, UserRepository userRepository,
+                          OwnerSubjectProvider ownerSubjectProvider,
                           AiLearningDataProvider learningDataProvider, AiBreadCatalog breadCatalog,
                           AiEpisodeReleasePolicy releasePolicy, AiStoryProperties properties,
                           @Qualifier("aiStoryExecutor") ExecutorService executor) {
         this.stateWriter = stateWriter;
         this.storyClient = storyClient;
         this.seasonRepository = seasonRepository;
-        this.episodeProgressRepository = episodeProgressRepository;
         this.userRepository = userRepository;
         this.ownerSubjectProvider = ownerSubjectProvider;
         this.learningDataProvider = learningDataProvider;
@@ -141,16 +138,11 @@ public class AiStoryService {
             if (season.getStatus() == AiSeasonStatus.COMPLETED) {
                 throw new AiSeasonCompletedException();
             }
-            assertNotLegacy(season);
             if (order != AiStoryCatalog.FIRST_ORDER) {
                 throw new AiStoryConflictException(AiStoryConflictException.STORY_NOT_STARTED, "1화부터 시작해주세요.");
             }
-            User user = userWithAge(memberId);
-            stateWriter.startStory(season.getId(),
-                    AiSeasonSettingPolicy.decideSetting(user.getAge(), ThreadLocalRandom.current()),
-                    user.getNickname() != null ? user.getNickname() : user.getName(),
-                    breadCatalog.breadLabel(user.getPersonalityType()),
-                    breadCatalog.allBreadLabels(), ThreadLocalRandom.current());
+            // 시즌 생성 때 시작하지 못한 시즌(이 정책 전에 만든 시즌)만 여기서 시작한다.
+            startStoryForNewSeason(memberId, season.getId());
             snapshot = stateWriter.snapshot(season.getId());
         }
 
@@ -170,6 +162,10 @@ public class AiStoryService {
             throw new AiStoryConflictException(AiStoryConflictException.EPISODE_NOT_RELEASED,
                     order + "화는 아직 공개되지 않았습니다.");
         }
+        if (!AiStoryCatalog.isFree(order) && !snapshot.unlockedOrders().contains(order)) {
+            throw new AiStoryConflictException(AiStoryConflictException.EPISODE_NOT_UNLOCKED,
+                    order + "화를 먼저 열어주세요.");
+        }
 
         AiStoryStateWriter.GenerationTicket ticket;
         try {
@@ -187,13 +183,59 @@ public class AiStoryService {
         return toContentView(latest, latest.content(order).orElseThrow());
     }
 
+    /**
+     * 새 시즌의 회차 흐름을 시작한다: 나이로 배경 결정(시즌 동안 고정), 출연진 배정·이름·성별·후보 순서. 시즌 생성 직후
+     * 부른다. 이미 시작한 시즌이면 아무것도 하지 않는다. 나이가 없으면 409 AGE_REQUIRED.
+     */
+    public void startStoryForNewSeason(Long memberId, Long seasonPk) {
+        User user = userWithAge(memberId);
+        stateWriter.startStory(seasonPk,
+                AiSeasonSettingPolicy.decideSetting(user.getAge(), ThreadLocalRandom.current()),
+                user.getNickname() != null ? user.getNickname() : user.getName(),
+                breadCatalog.breadLabel(user.getPersonalityType()), user.getGender(),
+                breadCatalog.allBreadLabels(), ThreadLocalRandom.current());
+    }
+
+    // ---------------------------------------------------------------- 회차 열기
+
+    /**
+     * 회차 열기. 1~3화는 무료라 차감 없이 열린 응답이고, 4~10화는 처음 열 때만 토큰을 쓴다(이미 연 회차는 같은 응답).
+     * 차감은 생성 전에 하고, 열린 뒤 생성이 실패해도 열린 상태로 남는다. 이전 회차를 완료해야 열 수 있다.
+     * 토큰이 모자라면 409 INSUFFICIENT_TOKENS.
+     */
+    public AiEpisodeUnlockView unlock(Long memberId, int order) {
+        validateOrder(order);
+        AiSeason season = currentSeason(memberId);
+        if (AiStoryCatalog.isFree(order)) {
+            return new AiEpisodeUnlockView(order, true, stateWriter.tokenBalance(memberId));
+        }
+        AiStorySnapshot snapshot = startedSnapshot(season);
+        boolean opened = snapshot.unlockedOrders().contains(order)
+                || snapshot.content(order).map(c -> c.status() == AiStoryContentStatus.READY).orElse(false);
+        if (!opened) {
+            if (snapshot.status() == AiSeasonStatus.COMPLETED) {
+                throw new AiSeasonCompletedException();
+            }
+            if (snapshot.content(order - 1).map(c -> !c.completed()).orElse(true)) {
+                throw new AiStoryConflictException(AiStoryConflictException.PREVIOUS_EPISODE_NOT_COMPLETED,
+                        (order - 1) + "화를 먼저 완료해주세요.");
+            }
+            try {
+                stateWriter.unlockEpisode(season.getId(), memberId, order, properties.episodeTokenCost(),
+                        properties.tokenChargeEnabled());
+            } catch (DataIntegrityViolationException concurrentUnlock) {
+                // 같은 회차를 동시에 연 다른 요청이 이겼다 — 그쪽에서 이미 열렸다.
+            }
+        }
+        return new AiEpisodeUnlockView(order, true, stateWriter.tokenBalance(memberId));
+    }
+
     /** 백그라운드 생성. 어떤 오류든 FAILED로 남겨 다음 GET content가 다시 시도하게 한다(스레드 밖으로 던지지 않는다). */
     void generate(Long memberId, Long seasonPk, int order, Long contentPk) {
         try {
             AiStorySnapshot snapshot = stateWriter.snapshot(seasonPk);
             String ownerSubject = ownerSubjectProvider.resolve(memberId);
             int age = userWithAge(memberId).getAge();
-
             AiStageIntroView stageIntro = order == AiStoryCatalog.FIRST_ORDER
                     ? requestStageIntro(ownerSubject, snapshot, age)
                     : storedStageIntro(snapshot);
@@ -230,7 +272,7 @@ public class AiStoryService {
 
     private AiStageIntroView requestStageIntro(String ownerSubject, AiStorySnapshot snapshot, int age) {
         List<StageIntroRequest.Cast> cast = snapshot.cast().stream()
-                .map(m -> new StageIntroRequest.Cast(m.castRole().contractId(), m.name(), m.breadType(),
+                .map(m -> new StageIntroRequest.Cast(m.castRole().contractId(), m.name(), m.breadType(), m.gender(),
                         m.castRole().attachmentStyle().wireValue(), m.castRole().seasonRole()))
                 .toList();
         StageIntroRequest request = new StageIntroRequest(snapshot.setting().wireValue(),
@@ -495,14 +537,11 @@ public class AiStoryService {
     // ---------------------------------------------------------------- 다른 흐름에서 쓰는 조회
 
     /**
-     * 시즌이 어느 회차 흐름인지. 새 흐름을 시작했으면 blocks, 기존 5화 흐름으로 회차 생성을 요청한 적이 있으면
-     * legacy, 둘 다 아니면(새 시즌) blocks다 — 앱은 이 값으로 회차 화면과 API를 고른다.
+     * 시즌의 회차 흐름. 기존 5화(legacy) 시즌은 V10에서 모두 지웠고 새 시즌은 장면 블록 회차뿐이라 항상 blocks다.
+     * 응답 호환을 위해 필드는 남긴다.
      */
     public String formatOf(AiSeason season) {
-        if (season.isStoryStarted()) {
-            return FORMAT_BLOCKS;
-        }
-        return episodeProgressRepository.existsBySeason_Id(season.getId()) ? FORMAT_LEGACY : FORMAT_BLOCKS;
+        return FORMAT_BLOCKS;
     }
 
     /** 시즌 상태 응답(GET /api/ai/seasons/me)의 story. 새 흐름을 시작하지 않은 시즌이면 null. */
@@ -552,7 +591,6 @@ public class AiStoryService {
     private AiStorySnapshot startedSnapshot(AiSeason season) {
         AiStorySnapshot snapshot = stateWriter.snapshot(season.getId());
         if (!snapshot.isStarted()) {
-            assertNotLegacy(season);
             throw new AiStoryConflictException(AiStoryConflictException.STORY_NOT_STARTED, "1화부터 시작해주세요.");
         }
         return snapshot;
@@ -563,14 +601,6 @@ public class AiStoryService {
                 .filter(c -> c.status() == AiStoryContentStatus.READY)
                 .orElseThrow(() -> new AiStoryConflictException(AiStoryConflictException.CONTENT_NOT_READY,
                         order + "화가 아직 준비되지 않았습니다."));
-    }
-
-    /** 기존 5화 흐름으로 진행 중인 시즌을 새 흐름으로 섞어 진행하지 않는다. */
-    private void assertNotLegacy(AiSeason season) {
-        if (FORMAT_LEGACY.equals(formatOf(season))) {
-            throw new AiStoryConflictException(AiStoryConflictException.LEGACY_SEASON,
-                    "기존 5화 구성으로 진행 중인 시즌입니다. 다음 시즌부터 10화 구성으로 진행됩니다.");
-        }
     }
 
     private User userWithAge(Long memberId) {
@@ -729,7 +759,7 @@ public class AiStoryService {
                 stateWriter.findLikedMessageIds(snapshot.seasonPk(), content.order()));
     }
 
-    private static AiStoryStateView toStateView(AiStorySnapshot snapshot) {
+    private AiStoryStateView toStateView(AiStorySnapshot snapshot) {
         List<AiStoryStateView.ChoiceHistory> choices = snapshot.choices().stream()
                 .map(c -> new AiStoryStateView.ChoiceHistory(c.pointId(), c.episodeOrder(), c.breadId(), c.accepted()))
                 .toList();
@@ -743,9 +773,15 @@ public class AiStoryService {
                 .map(AiStorySnapshot.Content::order)
                 .sorted()
                 .toList();
+        java.util.TreeSet<Integer> unlocked = new java.util.TreeSet<>(snapshot.unlockedOrders());
+        for (int order = AiStoryCatalog.FIRST_ORDER; order <= AiStoryCatalog.LAST_FREE_ORDER; order++) {
+            unlocked.add(order);
+        }
+        snapshot.contents().stream().filter(c -> c.status() == AiStoryContentStatus.READY)
+                .forEach(c -> unlocked.add(c.order()));
         return new AiStoryStateView(snapshot.setting().wireValue(), snapshot.currentOrder(), completedOrders,
                 snapshot.route() == null ? null : snapshot.route().wireValue(), snapshot.romancePartnerId(),
-                choices, breads);
+                choices, breads, List.copyOf(unlocked), properties.episodeTokenCost());
     }
 
     private static AiReportView toReportView(SeasonReportResponse report, AiStoryContractMapper mapper) {

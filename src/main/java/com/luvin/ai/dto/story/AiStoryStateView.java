@@ -14,7 +14,11 @@ public record AiStoryStateView(
         String route,
         UUID romancePartnerId,
         List<ChoiceHistory> choices,
-        List<BreadStatus> breads
+        List<BreadStatus> breads,
+        /** 지금 볼 수 있는 회차(오름차순). 1~3화는 항상 들어 있고, 4~10화는 연 회차만. */
+        List<Integer> unlockedOrders,
+        /** 4~10화를 처음 열 때 쓰는 토큰 수. */
+        int episodeTokenCost
 ) {
 
     public record ChoiceHistory(int pointId, int episodeOrder, UUID breadId, boolean accepted) {

@@ -4,6 +4,7 @@ import com.luvin.ai.dto.AiMessageLikeView;
 import com.luvin.ai.dto.story.AiChoiceHttpRequest;
 import com.luvin.ai.dto.story.AiChoiceOutcomeView;
 import com.luvin.ai.dto.story.AiEpisodeContentView;
+import com.luvin.ai.dto.story.AiEpisodeUnlockView;
 import com.luvin.ai.dto.story.AiStoryFeedbackHttpRequest;
 import com.luvin.ai.dto.story.AiStoryFeedbackView;
 import com.luvin.ai.dto.story.AiStoryLikeHttpRequest;
@@ -44,12 +45,26 @@ public class AiStoryController {
             - `PREVIOUS_EPISODE_NOT_COMPLETED`: 이전 회차를 먼저 완료해야 한다(선택 회차는 선택 후 완료)
             - `EPISODE_NOT_RELEASED`: 아직 공개 전
             - `SEASON_COMPLETED`: 끝난 시즌에서 생성하지 않은 회차
-            - `LEGACY_SEASON`: 기존 5화 구성으로 진행 중인 시즌(`GET /me`의 episodeFormat이 legacy) — 기존 API로 진행
+            - `EPISODE_NOT_UNLOCKED`: 열지 않은 4~10화 — 회차 열기(POST /{order}/unlock) 후 다시 요청
             """)
     @GetMapping("/{order}/content")
     public ApiResponse<AiEpisodeContentView> getContent(@PathVariable("order") int order) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(storyService.getContent(memberId, order));
+    }
+
+    @Operation(summary = "회차 열기", description = """
+            1~3화는 무료라 차감 없이 열린 응답이다. 4~10화는 처음 열 때만 토큰(`story.episodeTokenCost`)을 쓰고, 이미 연 회차는
+            차감 없이 같은 응답이다. 차감은 생성 전에 하고, 열린 뒤 생성이 실패해도 열린 상태로 남는다.
+            순서: 이전 회차 완료 → 회차 열기 → content 요청. 열지 않은 4~10화의 content는 409 `EPISODE_NOT_UNLOCKED`.
+
+            **오류**: 409 `INSUFFICIENT_TOKENS`(data: required, balance — 미니게임으로 안내), `PREVIOUS_EPISODE_NOT_COMPLETED`,
+            `STORY_NOT_STARTED`, `SEASON_COMPLETED`
+            """)
+    @PostMapping("/{order}/unlock")
+    public ApiResponse<AiEpisodeUnlockView> unlock(@PathVariable("order") int order) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(storyService.unlock(memberId, order));
     }
 
     @Operation(summary = "선택 처리 (3·5·6·8화)", description = """
@@ -58,7 +73,7 @@ public class AiStoryController {
             같은 선택을 다시 보내면 저장된 결과를 그대로 돌려준다.
 
             **오류**: 400 회차와 pointId 불일치·후보가 아닌 breadId / 409 `CONTENT_NOT_READY`, `CHOICE_ALREADY_MADE`,
-            `STORY_NOT_STARTED`, `LEGACY_SEASON` / 502 `STORY_GENERATION_FAILED`(결과 장면 생성 실패, 다시 요청 가능)
+            `STORY_NOT_STARTED` / 502 `STORY_GENERATION_FAILED`(결과 장면 생성 실패, 다시 요청 가능)
             """)
     @PostMapping("/{order}/choices")
     public ApiResponse<AiChoiceOutcomeView> choose(@PathVariable("order") int order,
@@ -99,7 +114,7 @@ public class AiStoryController {
             관계 기록을 갱신하고(정리 단계) 회차 쪽지를 만든다. 10화면 최종 리포트를 만들고 시즌을 완료한다.
             이미 완료한 회차면 상태만 돌려준다.
 
-            **오류**: 409 `CONTENT_NOT_READY`, `CHOICE_REQUIRED`(선택 회차인데 선택 전), `STORY_NOT_STARTED`, `LEGACY_SEASON`
+            **오류**: 409 `CONTENT_NOT_READY`, `CHOICE_REQUIRED`(선택 회차인데 선택 전), `STORY_NOT_STARTED`
             / 502 `STORY_GENERATION_FAILED`(아무것도 저장되지 않음, 다시 요청 가능)
             """)
     @PostMapping("/{order}/complete")

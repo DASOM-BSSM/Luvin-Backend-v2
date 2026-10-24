@@ -19,16 +19,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AiEpisodePlannerTest {
 
-    private final AiStoryCastMember me = member(AiCastRole.MY_BREAD);
-    private final AiStoryCastMember avoidant = member(AiCastRole.AVOIDANT);
-    private final AiStoryCastMember anxious = member(AiCastRole.ANXIOUS);
-    private final AiStoryCastMember secure = member(AiCastRole.SECURE);
-    private final AiStoryCastMember friend = member(AiCastRole.FRIEND);
-    private final AiStoryCastMember moodMaker = member(AiCastRole.MOOD_MAKER);
+    // 만나는 순서: 안정형(1) → 회피형(2) → 불안형(3)
+    private final AiStoryCastMember me = member(AiCastRole.MY_BREAD, null);
+    private final AiStoryCastMember avoidant = member(AiCastRole.AVOIDANT, 2);
+    private final AiStoryCastMember anxious = member(AiCastRole.ANXIOUS, 3);
+    private final AiStoryCastMember secure = member(AiCastRole.SECURE, 1);
+    private final AiStoryCastMember friend = member(AiCastRole.FRIEND, null);
+    private final AiStoryCastMember moodMaker = member(AiCastRole.MOOD_MAKER, null);
     private final List<AiStoryCastMember> cast = List.of(me, avoidant, anxious, secure, friend, moodMaker);
 
-    private static AiStoryCastMember member(AiCastRole role) {
-        return new AiStoryCastMember(UUID.randomUUID(), role, role.name(), "소금빵", null);
+    private static AiStoryCastMember member(AiCastRole role, Integer candidateOrder) {
+        return new AiStoryCastMember(UUID.randomUUID(), role, role.name(), "소금빵", null, candidateOrder);
     }
 
     private AiEpisodePlan plan(int order, AiStoryRoute route, UUID partner,
@@ -70,12 +71,27 @@ class AiEpisodePlannerTest {
         assertEquals(AiSceneBlockType.CHOICE, plan.blocks().get(plan.blocks().size() - 1).type());
         BlockPlan choice = first(plan, AiSceneBlockType.CHOICE);
         assertEquals(1, choice.choice().pointId());
-        assertEquals(List.of(avoidant.breadId(), anxious.breadId(), secure.breadId()), choice.choice().candidateIds());
+        assertEquals(List.of(secure.breadId(), avoidant.breadId(), anxious.breadId()), choice.choice().candidateIds());
     }
 
     @Test
-    void 기본_pair_상대는_호감이_가장_높은_연애_후보다() {
-        assertEquals(secure.breadId(), first(plan(5, null, null, Map.of()), AiSceneBlockType.PAIR).focusBreadId());
+    void 일화부터_삼화는_후보를_만나는_순서대로_일대일_상대가_된다() {
+        assertEquals(secure.breadId(), first(plan(1, null, null, Map.of()), AiSceneBlockType.PAIR).focusBreadId());
+        assertEquals(avoidant.breadId(), first(plan(2, null, null, Map.of()), AiSceneBlockType.PAIR).focusBreadId());
+        assertEquals(anxious.breadId(), first(plan(3, null, null, Map.of()), AiSceneBlockType.PAIR).focusBreadId());
+    }
+
+    @Test
+    void 오화는_친구와_일대일이고_후보_셋이_각자_메신저로_연락한다() {
+        AiEpisodePlan plan = plan(5, null, null, Map.of());
+
+        assertEquals(friend.breadId(), first(plan, AiSceneBlockType.PAIR).focusBreadId());
+        List<BlockPlan> messengers = plan.blocks().stream()
+                .filter(b -> b.type() == AiSceneBlockType.MESSENGER).toList();
+        assertEquals(List.of(secure.breadId(), avoidant.breadId(), anxious.breadId()),
+                messengers.stream().map(BlockPlan::focusBreadId).toList());
+        assertTrue(messengers.stream().allMatch(m -> "direct".equals(m.messengerKind())));
+        assertEquals(AiSceneBlockType.CHOICE, plan.blocks().get(plan.blocks().size() - 1).type());
     }
 
     @Test
@@ -88,14 +104,21 @@ class AiEpisodePlannerTest {
     }
 
     @Test
-    void 육화는_2번_선택에서_혼자_있기면_아무에게도_연락하지_않는_장면() {
-        AiEpisodePlan alone = plan(6, null, null, Map.of(2, new AiEpisodePlanner.ChoiceRecord(null, false)));
+    void 육화는_2번_선택의_빵이고_혼자_있기면_친구() {
+        AiEpisodePlan accepted = plan(6, null, null, Map.of(2, new AiEpisodePlanner.ChoiceRecord(anxious.breadId(), true)));
+        AiEpisodePlan alone = plan(6, null, null, Map.of(2, new AiEpisodePlanner.ChoiceRecord(null, true)));
 
-        BlockPlan pair = first(alone, AiSceneBlockType.PAIR);
-        assertNull(pair.focusBreadId());
-        assertEquals(List.of(me.breadId()), pair.participantIds());
-        assertEquals("group", first(alone, AiSceneBlockType.MESSENGER).messengerKind());
+        assertEquals(anxious.breadId(), first(accepted, AiSceneBlockType.PAIR).focusBreadId());
+        assertEquals(friend.breadId(), first(alone, AiSceneBlockType.PAIR).focusBreadId());
         assertEquals(3, first(alone, AiSceneBlockType.CHOICE).choice().pointId());
+    }
+
+    @Test
+    void 팔화_혼자_흐름은_호감이_가장_높은_후보와_일대일() {
+        assertEquals(secure.breadId(), first(plan(8, AiStoryRoute.SOLO, null, Map.of()), AiSceneBlockType.PAIR)
+                .focusBreadId());
+        assertEquals(avoidant.breadId(), first(plan(8, AiStoryRoute.ROMANCE, avoidant.breadId(), Map.of()),
+                AiSceneBlockType.PAIR).focusBreadId());
     }
 
     @Test
@@ -146,7 +169,7 @@ class AiEpisodePlannerTest {
     @Test
     void pair_상대의_열린_떡밥을_다룬다() {
         assertEquals(List.of(new StoryTypes.Thread("t1", "같이 떡볶이 먹기로 한 약속")),
-                plan(5, null, null, Map.of()).openThreads());
+                plan(1, null, null, Map.of()).openThreads());
     }
 
     @Test

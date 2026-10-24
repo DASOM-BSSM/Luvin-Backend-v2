@@ -284,7 +284,8 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 | 메서드 | 경로 | 내용 |
 |---|---|---|
 | PUT | `/api/users/me` | 기존 프로필 수정에 `age` 추가(1~120). 입력 전이면 `GET /api/users/me`의 `age`가 null |
-| GET | `/api/ai/seasons/me` | 기존 응답에 `episodeFormat`(`legacy` \| `blocks`)과 `story`(setting, currentOrder, completedOrders, route, romancePartnerId, choices, breads[].statusText) 추가. story는 1화 요청 전이면 null |
+| GET | `/api/ai/seasons/me` | 기존 응답에 `episodeFormat`(항상 `blocks`)과 `story`(setting, currentOrder, completedOrders, route, romancePartnerId, choices, breads[].statusText, unlockedOrders, episodeTokenCost) 추가 |
+| POST | `/api/ai/seasons/episodes/{order}/unlock` | 회차 열기. 1~3화 무료, 4~10화는 처음 열 때만 토큰 차감. `{ order, unlocked, tokenBalance }` |
 | GET | `/api/ai/seasons/episodes/{order}/content` | 회차 블록. 처음 요청이면 생성을 시작하고 `status: generating` |
 | POST | `/api/ai/seasons/episodes/{order}/choices` | `{ pointId, breadId \| null }` → choice_result 블록 + 시즌 상태 |
 | POST | `/api/ai/seasons/episodes/{order}/complete` | 관계 기록 갱신 + 회차 쪽지. 10화면 최종 리포트 + 시즌 완료 |
@@ -294,14 +295,22 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 - 블록 JSON 형식과 오류 code는 `openapi.json`(`AiEpisodeContentView`, `AiSceneBlockView`)을 따릅니다.
 - 생성 중에는 jobId가 없어 job SSE를 쓰지 않습니다. `status`가 `ready`가 될 때까지 GET content를 1~3초 간격으로
   다시 부릅니다. `failed`면 다시 부를 때 생성을 다시 시작합니다.
-- 진행 순서: 다음 회차는 이전 회차를 완료해야 생성되고(409 `PREVIOUS_EPISODE_NOT_COMPLETED`), 선택 회차(3·5·6·8화)는
-  선택해야 완료됩니다(409 `CHOICE_REQUIRED`). 그래서 4화는 ①, 6화는 ②, 7화는 ③, 9화는 ④ 이후에만 생성됩니다.
-- `episodeFormat`: 새 흐름을 시작했거나 새로 만든 시즌은 `blocks`, 기존 5화 흐름으로 회차 생성을 요청한 적이 있는
-  시즌은 `legacy`입니다. `legacy` 시즌에 새 흐름 API를 부르면 409 `LEGACY_SEASON`입니다(목록 `GET /api/ai/seasons`에도 같은 값).
-- 나이가 없으면 1화 요청이 409 `AGE_REQUIRED`입니다. 배경은 1화를 처음 요청할 때 정해 시즌 동안 고정합니다
-  (19세 이하 school, 20~23세 campus/cafe 랜덤, 24세 이상 office). 도중에 나이를 바꾸면 다음 시즌부터 반영됩니다.
+- 진행 순서: 이전 회차 완료(409 `PREVIOUS_EPISODE_NOT_COMPLETED`) → (4화 이상이면) 회차 열기(열지 않았으면 409
+  `EPISODE_NOT_UNLOCKED`) → content. 선택 회차(3·5·6·8화)는 선택해야 완료됩니다(409 `CHOICE_REQUIRED`).
+  그래서 4화는 ①, 6화는 ②, 7화는 ③, 9화는 ④ 이후에만 생성됩니다.
+- 시즌 정책(계약 0장): 사용자마다 시즌은 1개입니다. 시즌 생성(`from-survey`)은 무료이고, 그때 나이로 배경을 정하고
+  (19세 이하 school, 20~23세 campus/cafe 랜덤, 24세 이상 office) 출연진(이름·성별·후보 순서)을 배정해 끝까지 고정합니다.
+  나이가 없으면 시즌 생성이 409 `AGE_REQUIRED`입니다. 10화를 마치면 시즌이 끝나고 `POST /next`는 409 `SEASON_COMPLETED`
+  (진행 중이면 `SEASON_IN_PROGRESS`)입니다. 기존 5화 시즌은 V10에서 모두 지웠고 `episodeFormat`은 항상 `blocks`입니다.
+- 회차 열기(토큰): 1~3화 무료, 4~10화는 처음 열 때 `app.ai.story.episode-token-cost`(기본 1)만큼 차감하고 다시 볼 때는
+  무료입니다. 차감은 생성 전에 하며, 생성이 실패해도 열린 상태로 남습니다. 토큰이 모자라면 409 `INSUFFICIENT_TOKENS`
+  (data: required, balance). 개발 서버는 `app.ai.story.token-charge-enabled=false`(`APP_AI_STORY_TOKENCHARGEENABLED`)로
+  차감을 끌 수 있습니다.
+- 출연진 성별(계약 7장): 친구만 사용자와 같은 성별, 후보 셋과 분위기 메이커는 다른 성별로 `characters[].gender`에 저장합니다.
+- 1:1 상대(계약 7장): 1·2·3화는 시즌 시작 때 랜덤으로 정한 후보 순서대로, 4화 ①의 빵(아니면 친구), 5화 친구(후보 셋은
+  각자 1:1 메신저로 연락), 6화 ②의 빵(아니면 친구), 7·10화 연인/친구, 8화 연인/호감이 가장 높은 후보, 9화 ④ 결과.
 - 쪽지(`GET /letters/unread`)와 최종 리포트(`GET /report`)는 경로·응답 형식이 그대로입니다. 회차마다 쪽지가 하나씩
-  생기고 10화 쪽지가 시즌 종료 쪽지입니다. 시즌이 완료되면 기존처럼 `POST /next`로 다음 시즌을 시작합니다.
+  생기고 10화 쪽지가 시즌 종료 쪽지입니다.
 - 기존 5화 흐름 API(generations, 1화/3화 selection, 메시지 페이지 조회, 피드백, 좋아요)는 @Deprecated이고 동작은
   그대로입니다. 프론트 전환 후 별도 작업으로 지웁니다.
 

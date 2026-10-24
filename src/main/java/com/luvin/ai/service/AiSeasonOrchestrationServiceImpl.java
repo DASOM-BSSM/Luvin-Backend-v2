@@ -61,6 +61,7 @@ import com.luvin.ai.service.exception.AiInputValidationException;
 import com.luvin.ai.service.exception.AiSeasonAlreadyExistsException;
 import com.luvin.ai.service.exception.AiSeasonCompletedException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
+import com.luvin.ai.service.exception.AiStoryConflictException;
 import com.luvin.ai.dto.AiSeasonSummaryView;
 import com.luvin.ai.dto.StartNextSeasonRequest;
 import com.luvin.survey.domain.SurveyResultV2;
@@ -178,10 +179,14 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
             return toStatusView(existing, stateWriter.findCharacters(existing.getId()));
         }
 
+        // 배경은 시즌을 만들 때 나이로 정해 끝까지 고정한다 — AI 시즌을 만들기 전에 나이부터 확인한다.
+        User user = userRepository.findById(memberId)
+                .orElseThrow(() -> new com.luvin.common.exception.UserNotFoundException(memberId));
+        if (user.getAge() == null) {
+            throw new AiStoryConflictException(AiStoryConflictException.AGE_REQUIRED, "나이를 먼저 입력해주세요.");
+        }
         AiSeasonCreationInput creationInput = stateWriter.findCreationInput(memberId).orElse(null);
         if (creationInput == null) {
-            User user = userRepository.findById(memberId)
-                    .orElseThrow(() -> new com.luvin.common.exception.UserNotFoundException(memberId));
             // 요청한 surveyResultId가 본인의 "현재 최신" 결과가 아니면, 서버가 임의로 최신으로
             // 보정하지 않고 409로 재조회를 요구한다 (요구사항: 서버가 몰래 최신판으로 채점하지 않는다).
             if (user.getLatestSurveyResultId() == null || !user.getLatestSurveyResultId().equals(surveyResultId)) {
@@ -217,82 +222,23 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         AiSeason season = stateWriter.persistNewSeasonFromSurvey(
                 memberId, response, creationInput.getSurveyResult().getId());
         stateWriter.markCreationInputSucceeded(creationInput.getId());
-        return toStatusView(season, stateWriter.findCharacters(season.getId()));
+        storyService.startStoryForNewSeason(memberId, season.getId());
+        AiSeason started = seasonRepository.findById(season.getId()).orElseThrow();
+        return toStatusView(started, stateWriter.findCharacters(started.getId()));
     }
 
+    /**
+     * 사용자마다 시즌은 1개뿐이다(공통 데이터 계약 0장 시즌 정책). 10화를 마치면 시즌이 끝나고 다시 만들지 않는다 —
+     * 진행 중이면 409 SEASON_IN_PROGRESS, 끝났으면 409 SEASON_COMPLETED.
+     */
     @Override
     public AiSeasonStatusView startNextSeason(Long memberId, StartNextSeasonRequest request) {
         AiSeason current = stateWriter.findCurrentSeason(memberId)
                 .orElseThrow(AiSeasonNotFoundException::new);
         if (current.getStatus() != AiSeasonStatus.COMPLETED) {
-            // 이미 COMPLETED가 아니면(아직 진행 중) 다음 시즌을 만들 수 없다.
             throw new AiSeasonAlreadyExistsException();
         }
-        int nextSeasonNumber = current.getSeasonNumber() + 1;
-
-        // 같은 다음 시즌 시도는 "다음 시즌 번호" 자체로 자연스럽게 같은 businessKey로 수렴한다
-        // (clientRequestId를 보내면 추가로 구분해 더 보수적으로 만든다).
-        String businessKey = "season:next:" + nextSeasonNumber
-                + (request.clientRequestId() != null ? ":" + request.clientRequestId() : "");
-        UUID idempotencyKey = idempotencyKeyService.resolveOrIssue(
-                memberId, AiIdempotencyActionType.SEASON_CREATE_NEXT, businessKey);
-
-        AiSeasonCreationInput creationInput = stateWriter.findNextCreationInput(memberId, nextSeasonNumber).orElse(null);
-        if (creationInput == null) {
-            User user = userRepository.findById(memberId)
-                    .orElseThrow(() -> new com.luvin.common.exception.UserNotFoundException(memberId));
-            UUID surveyResultId = request.surveyResultId() != null ? request.surveyResultId() : user.getLatestSurveyResultId();
-            if (surveyResultId == null) {
-                throw new SurveyResultNotFoundException();
-            }
-            if (request.surveyResultId() != null
-                    && (user.getLatestSurveyResultId() == null || !user.getLatestSurveyResultId().equals(surveyResultId))) {
-                throw new SurveyResultStaleException();
-            }
-            SurveyResultV2 surveyResult = surveyResultV2Repository
-                    .findByIdAndSubmission_MemberId(surveyResultId, memberId)
-                    .orElseThrow(SurveyResultNotFoundException::new);
-            if (user.getGender() == null) {
-                throw new ProfileRequiredException("시즌을 생성하려면 먼저 gender를 설정해야 합니다.");
-            }
-
-            AiTraitsRequest traits = coreScoresToTraits(surveyResult.getCoreScoresJson());
-            AiCharacterProfileRequest representative = new AiCharacterProfileRequest(
-                    user.getGender().toLowerCase(), traits);
-            inputValidator.validateCharacterProfile(representative);
-            CharacterProfileDto clientProfile = toClientProfile(representative);
-            String profileJson = writeProfileJson(clientProfile);
-
-            // 토큰/무료횟수 차감은 여기서 하지 않는다 — AI 호출이 실패하면 아무것도 못 받고 차감만
-            // 당하는 상황을 막기 위해, 실제 시즌이 만들어지는 persistNextSeason에서만 차감한다.
-            try {
-                creationInput = stateWriter.persistPendingNextCreationInput(
-                        memberId, nextSeasonNumber, surveyResultId, profileJson, sha256Hex(profileJson));
-            } catch (org.springframework.dao.DataIntegrityViolationException raceLoser) {
-                // 동시 요청 중 진 쪽: (member_id, season_number) 유니크 제약 위반 — 이긴 쪽이 먼저
-                // 저장한 걸 그대로 재사용한다(AiIdempotencyKeyService와 동일한 패턴).
-                creationInput = stateWriter.findNextCreationInput(memberId, nextSeasonNumber).orElseThrow(() -> raceLoser);
-            }
-        }
-
-        CharacterProfileDto clientProfile = readProfileJson(creationInput.getProfileJson());
-        String ownerSubject = ownerSubjectProvider.resolve(memberId);
-        CreateSeasonRequestDto seasonRequest = CreateSeasonRequestDto.of(clientProfile);
-        SeasonResponseDto response = aiServiceClient.createSeason(
-                ownerSubject, creationInput.getIdempotencyKey(), seasonRequest);
-
-        AiSeason season;
-        try {
-            season = stateWriter.persistNextSeason(
-                    memberId, nextSeasonNumber, response, creationInput.getSurveyResult().getId());
-        } catch (org.springframework.dao.DataIntegrityViolationException raceLoser) {
-            // 동시 요청 중 진 쪽: 이긴 쪽이 이미 이 seasonNumber로 시즌을 만들었다 — 토큰은 이긴 쪽에서만
-            // 차감됐으므로(이 catch에 걸렸다는 건 INSERT 자체가 실패했다는 뜻이라 consumeOneSeasonCredit까지
-            // 가지 않았다) 그 시즌을 그대로 반환한다.
-            season = stateWriter.findCurrentSeason(memberId).orElseThrow(() -> raceLoser);
-        }
-        stateWriter.markCreationInputSucceeded(creationInput.getId());
-        return toStatusView(season, stateWriter.findCharacters(season.getId()));
+        throw new AiSeasonCompletedException();
     }
 
     @Override

@@ -1,41 +1,47 @@
 {
-  "setting" : "cafe",
+  "setting" : "campus",
   "audience" : "adult",
   "ageGroup" : "20대 초반",
   "cast" : [ {
     "breadId" : "me",
     "name" : "빵",
     "breadType" : "소금빵",
+    "gender" : "FEMALE",
     "attachmentStyle" : "none",
     "seasonRole" : "내 빵"
   }, {
     "breadId" : "avoidant",
-    "name" : "새콤한 팥빵",
-    "breadType" : "팥빵",
+    "name" : "반짝이는 바게트",
+    "breadType" : "바게트",
+    "gender" : "MALE",
     "attachmentStyle" : "avoidant",
     "seasonRole" : "중심 후보"
   }, {
     "breadId" : "anxious",
-    "name" : "말랑한 바게트",
-    "breadType" : "바게트",
+    "name" : "고소한 프레첼",
+    "breadType" : "프레첼",
+    "gender" : "MALE",
     "attachmentStyle" : "anxious",
     "seasonRole" : "중심 후보"
   }, {
     "breadId" : "secure",
-    "name" : "동그란 카스테라",
-    "breadType" : "카스테라",
+    "name" : "바삭한 팥빵",
+    "breadType" : "팥빵",
+    "gender" : "MALE",
     "attachmentStyle" : "secure",
     "seasonRole" : "중심 후보"
   }, {
     "breadId" : "friend",
-    "name" : "느긋한 프레첼",
-    "breadType" : "프레첼",
+    "name" : "새콤한 도넛",
+    "breadType" : "도넛",
+    "gender" : "FEMALE",
     "attachmentStyle" : "none",
     "seasonRole" : "내 빵의 친구"
   }, {
     "breadId" : "maker",
-    "name" : "따끈한 도넛",
-    "breadType" : "도넛",
+    "name" : "동그란 카스테라",
+    "breadType" : "카스테라",
+    "gender" : "MALE",
     "attachmentStyle" : "none",
     "seasonRole" : "분위기 메이커"
   } ]

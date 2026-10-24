@@ -5,6 +5,7 @@ import com.luvin.ai.domain.AiBreadRelation;
 import com.luvin.ai.domain.AiCastRole;
 import com.luvin.ai.domain.AiCharacterRole;
 import com.luvin.ai.domain.AiEpisodeContent;
+import com.luvin.ai.domain.AiEpisodeUnlock;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonCharacter;
 import com.luvin.ai.domain.AiSeasonChoice;
@@ -17,6 +18,7 @@ import com.luvin.ai.domain.AiStoryRoute;
 import com.luvin.ai.domain.PartnerLetter;
 import com.luvin.ai.repository.AiBreadRelationRepository;
 import com.luvin.ai.repository.AiEpisodeContentRepository;
+import com.luvin.ai.repository.AiEpisodeUnlockRepository;
 import com.luvin.ai.repository.AiSeasonCharacterRepository;
 import com.luvin.ai.repository.AiSeasonChoiceRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
@@ -24,7 +26,13 @@ import com.luvin.ai.repository.AiSeasonStoryReportRepository;
 import com.luvin.ai.repository.AiStoryFeedbackRepository;
 import com.luvin.ai.repository.AiStoryMessageLikeRepository;
 import com.luvin.ai.repository.PartnerLetterRepository;
+import com.luvin.ai.service.exception.AiInsufficientTokensException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
+import com.luvin.token.domain.TokenHistory;
+import com.luvin.token.domain.TokenHistoryType;
+import com.luvin.token.domain.UserToken;
+import com.luvin.token.repository.TokenHistoryRepository;
+import com.luvin.token.repository.UserTokenRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -66,6 +74,9 @@ public class AiStoryStateWriter {
     private final PartnerLetterRepository letterRepository;
     private final AiStoryFeedbackRepository feedbackRepository;
     private final AiStoryMessageLikeRepository likeRepository;
+    private final AiEpisodeUnlockRepository unlockRepository;
+    private final UserTokenRepository userTokenRepository;
+    private final TokenHistoryRepository tokenHistoryRepository;
 
     /** GET content 한 번에 시작 여부를 확인하기 위해 생성 접수 결과로 돌려준다. */
     public record GenerationTicket(Long contentPk, boolean started) {
@@ -77,9 +88,11 @@ public class AiStoryStateWriter {
      *
      * 이름: 내 빵은 사용자 닉네임과 설문 빵 타입, 나머지는 "중립 형용사 + 빵 종류"로 시즌 동안 고정한다. 한 시즌 안에서
      * 이름과 빵 종류가 겹치지 않는다(빵 종류 8종, 형용사 12개에서 섞어 뽑는다).
+     * 성별(계약 7장): 친구만 사용자와 같고, 후보 셋과 분위기 메이커는 사용자와 다르다. 사용자 성별 형식 그대로 저장한다.
+     * 후보 셋을 만나는 순서(1~3화 1:1 상대)는 랜덤으로 정해 candidateOrder에 둔다.
      */
     @Transactional
-    public void startStory(Long seasonPk, AiSeasonSetting setting, String myName, String myBreadType,
+    public void startStory(Long seasonPk, AiSeasonSetting setting, String myName, String myBreadType, String myGender,
                            List<String> breadTypes, RandomGenerator random) {
         AiSeason season = seasonRepository.findWithLockById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
         if (season.isStoryStarted()) {
@@ -101,24 +114,23 @@ public class AiStoryStateWriter {
         Collections.shuffle(otherBreads, random);
         List<String> adjectives = new ArrayList<>(AiStoryCatalog.NEUTRAL_ADJECTIVES);
         Collections.shuffle(adjectives, random);
-        int[] next = {0};
-        java.util.function.Supplier<String[]> nextName = () -> {
-            String bread = otherBreads.get(next[0]);
-            String adjective = adjectives.get(next[0]++);
-            return new String[]{adjective + " " + bread, bread};
-        };
+        List<Integer> meetingOrder = new ArrayList<>(List.of(1, 2, 3));
+        Collections.shuffle(meetingOrder, random);
+        String otherGender = AiStoryCatalog.oppositeGender(myGender);
 
-        representative.assignCast(AiCastRole.MY_BREAD, myName, myBreadType);
+        representative.assignCast(AiCastRole.MY_BREAD, myName, myBreadType, myGender, null);
         List<AiSeasonCharacter> cast = new ArrayList<>();
-        for (int i = 0; i < CANDIDATE_ROLES.size(); i++) {
-            String[] name = nextName.get();
-            candidates.get(i).assignCast(CANDIDATE_ROLES.get(i), name[0], name[1]);
+        int nameIndex = 0;
+        for (int i = 0; i < CANDIDATE_ROLES.size(); i++, nameIndex++) {
+            candidates.get(i).assignCast(CANDIDATE_ROLES.get(i), adjectives.get(nameIndex) + " " + otherBreads.get(nameIndex),
+                    otherBreads.get(nameIndex), otherGender, meetingOrder.get(i));
             cast.add(candidates.get(i));
         }
         for (AiCastRole role : SUPPORTING_ROLES) {
-            String[] name = nextName.get();
-            cast.add(characterRepository.save(new AiSeasonCharacter(
-                    season, UUID.randomUUID(), role, name[0], name[1])));
+            String gender = role == AiCastRole.FRIEND ? myGender : otherGender;
+            cast.add(characterRepository.save(new AiSeasonCharacter(season, UUID.randomUUID(), role,
+                    adjectives.get(nameIndex) + " " + otherBreads.get(nameIndex), otherBreads.get(nameIndex), gender)));
+            nameIndex++;
         }
         for (AiSeasonCharacter member : cast) {
             relationRepository.save(new AiBreadRelation(season.getMemberId(), season, member.getCharacterId(),
@@ -134,7 +146,7 @@ public class AiStoryStateWriter {
                 .filter(c -> c.getCastRole() != null)
                 .sorted(Comparator.comparing(AiSeasonCharacter::getCastRole))
                 .map(c -> new AiStoryCastMember(c.getCharacterId(), c.getCastRole(), c.getName(), c.getBreadType(),
-                        c.getGender()))
+                        c.getGender(), c.getCandidateOrder()))
                 .toList();
         List<AiStorySnapshot.Relation> relations = relationRepository.findAllBySeason_Id(seasonPk).stream()
                 .map(r -> new AiStorySnapshot.Relation(r.getTargetBreadId(), r.getAffinity(), r.getRejectCount(),
@@ -154,7 +166,7 @@ public class AiStoryStateWriter {
                 .toList();
         return new AiStorySnapshot(season.getId(), season.getSeasonId(), season.getMemberId(), season.getSeasonNumber(),
                 season.getStatus(), season.getSetting(), season.getCurrentOrder(), season.getRoute(),
-                season.getRomancePartnerId(), cast, relations, choices, contents);
+                season.getRomancePartnerId(), cast, relations, choices, contents, findUnlockedOrders(seasonPk));
     }
 
     /**
@@ -337,6 +349,44 @@ public class AiStoryStateWriter {
                 .map(AiStoryMessageLike::getMessageText).toList();
     }
 
+    // ---------------------------------------------------------------- 회차 열기(토큰)
+
+    /**
+     * 4~10화를 연다. 처음 열 때만 토큰을 차감하고(charge=false면 차감 없이 기록만), 열린 기록과 차감을 한 트랜잭션에서 한다.
+     * 이미 연 회차면 아무것도 하지 않는다. 같은 회차를 동시에 두 번 열면 unique 제약 위반
+     * (DataIntegrityViolationException)으로 이 트랜잭션 전체가 롤백된다 — 호출부가 다시 읽어 열린 상태로 응답한다.
+     *
+     * @throws com.luvin.ai.service.exception.AiInsufficientTokensException 토큰이 부족할 때(409 INSUFFICIENT_TOKENS)
+     */
+    @Transactional
+    public void unlockEpisode(Long seasonPk, Long memberId, int order, int cost, boolean charge) {
+        if (unlockRepository.existsBySeason_IdAndEpisodeOrder(seasonPk, order)) {
+            return;
+        }
+        int spent = charge ? cost : 0;
+        unlockRepository.saveAndFlush(new AiEpisodeUnlock(seasonRepository.getReferenceById(seasonPk), order, spent));
+        if (spent == 0) {
+            return;
+        }
+        UserToken userToken = userTokenRepository.findByMemberId(memberId)
+                .orElseGet(() -> userTokenRepository.save(new UserToken(memberId, 0, 0)));
+        if (userToken.getTokenBalance() < spent) {
+            throw new AiInsufficientTokensException(spent, userToken.getTokenBalance());
+        }
+        userToken.use(spent);
+        tokenHistoryRepository.save(new TokenHistory(memberId, TokenHistoryType.USE, -spent, "러빈지옥 " + order + "화 열기"));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Integer> findUnlockedOrders(Long seasonPk) {
+        return unlockRepository.findAllBySeason_Id(seasonPk).stream().map(AiEpisodeUnlock::getEpisodeOrder).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public int tokenBalance(Long memberId) {
+        return userTokenRepository.findByMemberId(memberId).map(UserToken::getTokenBalance).orElse(0);
+    }
+
     @Transactional(readOnly = true)
     public Optional<String> findReportJson(Long seasonPk) {
         return reportRepository.findBySeason_Id(seasonPk).map(AiSeasonStoryReport::getReportJson);
@@ -352,6 +402,7 @@ public class AiStoryStateWriter {
         reportRepository.deleteAllBySeason_Id(seasonPk);
         feedbackRepository.deleteAllBySeason_Id(seasonPk);
         likeRepository.deleteAllBySeason_Id(seasonPk);
+        unlockRepository.deleteAllBySeason_Id(seasonPk);
         letterRepository.deleteAllBySeason_IdAndEpisodeOrderIsNotNull(seasonPk);
         characterRepository.deleteAllBySeason_IdAndRole(seasonPk, AiCharacterRole.SUPPORTING);
         characterRepository.findAllBySeason_Id(seasonPk).forEach(AiSeasonCharacter::clearCast);
