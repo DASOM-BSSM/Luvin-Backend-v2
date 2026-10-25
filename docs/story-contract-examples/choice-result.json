@@ -14,46 +14,46 @@
       "attachmentStyle" : "none"
     }, {
       "breadId" : "avoidant",
-      "name" : "따끈한 바게트",
-      "breadType" : "바게트",
+      "name" : "보송한 도넛",
+      "breadType" : "도넛",
       "role" : "같은 매장 친구",
-      "description" : "따끈한 바게트와 함께 지내요",
+      "description" : "보송한 도넛와 함께 지내요",
       "gender" : "MALE",
       "castRole" : "candidate",
       "attachmentStyle" : "avoidant"
     }, {
       "breadId" : "anxious",
-      "name" : "동그란 마들렌",
-      "breadType" : "마들렌",
-      "role" : "같은 매장 친구",
-      "description" : "동그란 마들렌와 함께 지내요",
-      "gender" : "MALE",
-      "castRole" : "candidate",
-      "attachmentStyle" : "anxious"
-    }, {
-      "breadId" : "secure",
       "name" : "새콤한 팥빵",
       "breadType" : "팥빵",
       "role" : "같은 매장 친구",
       "description" : "새콤한 팥빵와 함께 지내요",
       "gender" : "MALE",
       "castRole" : "candidate",
+      "attachmentStyle" : "anxious"
+    }, {
+      "breadId" : "secure",
+      "name" : "말랑한 프레첼",
+      "breadType" : "프레첼",
+      "role" : "같은 매장 친구",
+      "description" : "말랑한 프레첼와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "candidate",
       "attachmentStyle" : "secure"
     }, {
       "breadId" : "friend",
-      "name" : "말랑한 도넛",
-      "breadType" : "도넛",
+      "name" : "포근한 바게트",
+      "breadType" : "바게트",
       "role" : "같은 매장 단짝",
-      "description" : "말랑한 도넛와 함께 지내요",
+      "description" : "포근한 바게트와 함께 지내요",
       "gender" : "FEMALE",
       "castRole" : "friend",
       "attachmentStyle" : "none"
     }, {
       "breadId" : "maker",
-      "name" : "바삭한 프레첼",
-      "breadType" : "프레첼",
+      "name" : "몽글한 마들렌",
+      "breadType" : "마들렌",
       "role" : "같은 매장 분위기 ",
-      "description" : "바삭한 프레첼와 함께 지내요",
+      "description" : "몽글한 마들렌와 함께 지내요",
       "gender" : "MALE",
       "castRole" : "maker",
       "attachmentStyle" : "none"

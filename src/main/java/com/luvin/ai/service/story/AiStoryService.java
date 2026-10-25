@@ -448,8 +448,6 @@ public class AiStoryService {
         List<EpisodeNoteRequest.Relation> noteRelations = summary.relations().stream()
                 .map(u -> new EpisodeNoteRequest.Relation(u.breadId(), u.statusText(), u.recentMemory()))
                 .toList();
-        boolean finale = order == AiStoryCatalog.FINAL_ORDER;
-        List<StoryTypes.EpisodeSummary> summaries = episodeSummaries(snapshot, order, summary.episodeSummary());
         AiStoryCastMember sender = noteSender(snapshot, content, order);
         String senderStatus = summary.relations().stream()
                 .filter(u -> u.breadId().equals(sender.castRole().contractId()))
@@ -460,17 +458,16 @@ public class AiStoryService {
         EpisodeNoteRequest noteRequest = new EpisodeNoteRequest(context, order, settingScene, summary.episodeSummary(),
                 choice, noteRelations,
                 new EpisodeNoteRequest.Sender(sender.castRole().contractId(), sender.name(),
-                        sender.castRole().fastApiCastRole(), sender.castRole().attachmentStyle().wireValue(),
-                        senderStatus),
+                        sender.castRole().attachmentStyle().wireValue(), senderStatus),
                 stateWriter.findEpisodeNoteBodies(snapshot.seasonPk()).stream().map(AiStoryService::firstSentence)
-                        .toList(),
-                finale ? summaries : null);
+                        .toList());
         EpisodeNoteResponse note = callWithRetry("episode-note",
                 () -> storyClient.writeEpisodeNote(ownerSubject, noteRequest),
                 r -> AiStoryResponseValidator.validateNote(r, castIds));
 
         String reportJson = null;
-        if (finale) {
+        if (order == AiStoryCatalog.FINAL_ORDER) {
+            List<StoryTypes.EpisodeSummary> summaries = episodeSummaries(snapshot, order, summary.episodeSummary());
             SeasonReportRequest reportRequest = new SeasonReportRequest(context,
                     snapshot.route() == null ? null : snapshot.route().wireValue(),
                     mapper.contractIdOrNull(snapshot.romancePartnerId()), summaries, mapper.choiceRecordsWithReason(),

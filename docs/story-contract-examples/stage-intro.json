@@ -12,40 +12,40 @@
     "seasonRole" : "내 빵"
   }, {
     "breadId" : "avoidant",
-    "name" : "따끈한 바게트",
-    "breadType" : "바게트",
+    "name" : "보송한 도넛",
+    "breadType" : "도넛",
     "gender" : "MALE",
     "castRole" : "candidate",
     "attachmentStyle" : "avoidant",
     "seasonRole" : "중심 후보"
   }, {
     "breadId" : "anxious",
-    "name" : "동그란 마들렌",
-    "breadType" : "마들렌",
+    "name" : "새콤한 팥빵",
+    "breadType" : "팥빵",
     "gender" : "MALE",
     "castRole" : "candidate",
     "attachmentStyle" : "anxious",
     "seasonRole" : "중심 후보"
   }, {
     "breadId" : "secure",
-    "name" : "새콤한 팥빵",
-    "breadType" : "팥빵",
+    "name" : "말랑한 프레첼",
+    "breadType" : "프레첼",
     "gender" : "MALE",
     "castRole" : "candidate",
     "attachmentStyle" : "secure",
     "seasonRole" : "중심 후보"
   }, {
     "breadId" : "friend",
-    "name" : "말랑한 도넛",
-    "breadType" : "도넛",
+    "name" : "포근한 바게트",
+    "breadType" : "바게트",
     "gender" : "FEMALE",
     "castRole" : "friend",
     "attachmentStyle" : "none",
     "seasonRole" : "내 빵의 친구"
   }, {
     "breadId" : "maker",
-    "name" : "바삭한 프레첼",
-    "breadType" : "프레첼",
+    "name" : "몽글한 마들렌",
+    "breadType" : "마들렌",
     "gender" : "MALE",
     "castRole" : "maker",
     "attachmentStyle" : "none",

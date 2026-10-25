@@ -32,7 +32,7 @@ public final class AiStoryResponseValidator {
     static final int INTRO_TITLE_MAX = 8;
     static final int EPISODE_NAME_MAX = 20;
     static final int INTRO_SITUATION_MAX = 200;
-    static final int TRANSITION_MAX = 60;
+    static final int TRANSITION_MAX = 15;
     static final int MESSAGE_MAX = 500;
     static final int MESSAGES_PER_BLOCK_MAX = 60;
     static final int STAGE_ROLE_MAX = 10;
