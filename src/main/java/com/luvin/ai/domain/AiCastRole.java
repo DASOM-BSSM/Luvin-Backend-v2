@@ -29,6 +29,19 @@ public enum AiCastRole {
         return contractId;
     }
 
+    /**
+     * FastAPI로 보내는 역할 구분(계약 7장 "역할 구분"): me | friend | maker | candidate. 후보 셋은 candidate이고
+     * attachmentStyle(avoidant/anxious/secure)로 구분한다. 앱 응답의 castRole(wireValue)과는 별개다.
+     */
+    public String fastApiCastRole() {
+        return switch (this) {
+            case MY_BREAD -> "me";
+            case FRIEND -> "friend";
+            case MOOD_MAKER -> "maker";
+            default -> "candidate";
+        };
+    }
+
     /** 공통 데이터 계약 7장의 역할 이름(무대 소개 생성 입력). */
     public String seasonRole() {
         return seasonRole;

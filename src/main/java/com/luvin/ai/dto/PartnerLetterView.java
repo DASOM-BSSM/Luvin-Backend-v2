@@ -4,8 +4,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * partnerName/partnerBreadType은 현재 AI 캐릭터 계약(characterId/role/gender뿐)에 이름/빵타입
- * 데이터 자체가 없어 항상 null이다 — 데이터가 생기면 채울 자리를 미리 만들어 둔 것이다.
+ * partnerName/partnerBreadType은 발신 빵(partnerId = characters[].characterId)의 시즌 출연진 이름("형용사 + 빵 종류")과
+ * 빵 종류다. 출연진 이름이 없는 예전 시즌 쪽지는 null이다.
  */
 public record PartnerLetterView(
         Long letterId,

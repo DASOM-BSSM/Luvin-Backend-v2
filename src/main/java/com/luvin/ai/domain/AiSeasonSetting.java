@@ -7,10 +7,10 @@ import com.fasterxml.jackson.annotation.JsonValue;
  * 1화 무대 소개의 제목/부제목은 배경마다 고정 문구다.
  */
 public enum AiSeasonSetting {
-    SCHOOL("IN SCHOOL", "같은 반 친구들 사이에서 구워지는 내 반죽의 이야기"),
-    CAMPUS("IN CAMPUS", "같은 과 동기들 사이에서 부풀어 오르는 내 반죽의 이야기"),
-    CAFE("IN CAFE", "같은 매장 근무 팀 안에서 구워지는 내 반죽의 이야기"),
-    OFFICE("IN OFFICE", "같은 팀 동기들 사이에서 익어가는 내 반죽의 이야기");
+    SCHOOL("In School", "같은 반 친구들 사이에서 구워지는 내 반죽의 이야기"),
+    CAMPUS("In Campus", "같은 과 동기들 사이에서 부풀어 오르는 내 반죽의 이야기"),
+    CAFE("In Cafe", "같은 매장 근무 팀 안에서 구워지는 내 반죽의 이야기"),
+    OFFICE("In Office", "같은 팀 동기들 사이에서 익어가는 내 반죽의 이야기");
 
     private final String title;
     private final String subtitle;

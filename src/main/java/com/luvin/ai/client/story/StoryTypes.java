@@ -25,12 +25,15 @@ public final class StoryTypes {
     /** speakerId는 빵 id 또는 "narrator". read/typing/deletedAfterSend는 messenger 전용. */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Message(String id, String speakerId, String text, String kind, Boolean read, Boolean typing,
-                          Boolean deletedAfterSend) {
+                          Boolean deletedAfterSend, String sentAtLabel) {
     }
 
-    /** 5-0 GenerationContext.cast: 3-3 CastMember + gender(사용자 성별 형식). description은 me면 null. */
+    /**
+     * 5-0 GenerationContext.cast: 3-3 CastMember + gender(사용자 성별 형식) + castRole(me | friend | maker | candidate)
+     * + attachmentStyle(후보 셋은 avoidant/anxious/secure, 나머지 none). description은 me면 null.
+     */
     public record CastMember(String breadId, String name, String breadType, String role, String description,
-                             String gender) {
+                             String gender, String castRole, String attachmentStyle) {
     }
 
     public record Thread(String id, String text) {
@@ -85,7 +88,8 @@ public final class StoryTypes {
                                  List<ChoiceCandidate> candidates) {
     }
 
-    public record Intro(String title, String situation) {
+    /** episodeName은 회차 시작 화면 "Episode 01 :: {episodeName}"에 쓰는 한 줄(20자 이내). */
+    public record Intro(String title, String episodeName, String situation) {
     }
 
     /** 3-1 Participant(빵 id 기준). role은 이 배경에서의 역할. */

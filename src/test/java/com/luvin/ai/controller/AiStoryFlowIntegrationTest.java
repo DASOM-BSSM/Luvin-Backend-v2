@@ -121,10 +121,13 @@ class AiStoryFlowIntegrationTest {
         JsonNode ep1 = readyContent(user, 1);
         JsonNode stageIntro = ep1.get("stageIntro");
         assertTrue(Set.of("campus", "cafe").contains(stageIntro.get("setting").asText()), stageIntro.toString());
-        assertTrue(stageIntro.get("title").asText().startsWith("IN "));
+        assertTrue(Set.of("In Campus", "In Cafe").contains(stageIntro.get("title").asText()), stageIntro.toString());
         assertEquals(6, stageIntro.get("cast").size());
         assertFalse(ep1.get("intro").get("title").asText().isBlank());
-        assertEquals(List.of("group", "transition", "pair"), blockTypes(ep1));
+        assertEquals(List.of("group", "transition", "pair", "messenger"), blockTypes(ep1));
+        // 회차 시작 화면 이름, 무대 소개 표기(In …)와 내 빵 역할 "나", 개인톡 메시지의 이야기 속 시각
+        assertFalse(ep1.get("intro").get("episodeName").asText().isBlank());
+        assertTrue(ep1.get("blocks").get(3).get("messages").get(0).has("sentAtLabel"));
         String ep1Transition = ep1.get("blocks").get(1).get("transitionText").asText();
         // 출연진 이름: 내 빵은 닉네임, 나머지는 "형용사 빵종류"이고 이름·빵 종류가 겹치지 않는다.
         Set<String> names = new HashSet<>();
@@ -134,6 +137,7 @@ class AiStoryFlowIntegrationTest {
             breadTypes.add(cast.get("breadType").asText());
             if (cast.get("breadId").asText().equals(season.representative().toString())) {
                 assertEquals("빵", cast.get("name").asText());
+                assertEquals("나", cast.get("role").asText());
                 assertTrue(cast.get("description").isNull());
             } else {
                 assertTrue(cast.get("name").asText().endsWith(" " + cast.get("breadType").asText()), cast.toString());
@@ -151,10 +155,11 @@ class AiStoryFlowIntegrationTest {
         assertEquals("PREVIOUS_EPISODE_NOT_COMPLETED", error(get(user, "/episodes/2/content")).get("code").asText());
         complete(user, 1);
 
-        // 전환 카드 문구는 회차마다 다르다. 2화는 1:1 장면 뒤에 단톡방(group 메신저)이 있다.
+        // 전환 카드 문구는 회차마다 다르다. 2화는 transition 앞에 단톡방(group 메신저)이 있다.
         JsonNode ep2 = readyContent(user, 2);
-        assertFalse(ep1Transition.equals(ep2.get("blocks").get(1).get("transitionText").asText()));
-        JsonNode groupChat = ep2.get("blocks").get(3);
+        assertEquals(List.of("group", "messenger", "transition", "pair"), blockTypes(ep2));
+        assertFalse(ep1Transition.equals(ep2.get("blocks").get(2).get("transitionText").asText()));
+        JsonNode groupChat = ep2.get("blocks").get(1);
         assertEquals("group", groupChat.get("messenger").get("kind").asText());
         assertTrue(groupChat.get("messages").get(0).has("read"));
         complete(user, 2);
@@ -233,8 +238,17 @@ class AiStoryFlowIntegrationTest {
                 "SELECT count(*) FROM partner_letters WHERE season_id = ? AND episode_order IS NOT NULL",
                 Integer.class, season.pk());
         assertEquals(10, letters);
+        // 10화 쪽지(연애 흐름)는 연인이 보내고, 발신 빵 이름이 채워진다.
         JsonNode unread = data(get(user, "/letters/unread"));
         assertTrue(unread.get("message").asText().contains("시즌"), unread.toString());
+        assertEquals(secure.toString(), unread.get("partnerId").asText());
+        assertFalse(unread.get("partnerName").asText().isBlank());
+        // 회차 쪽지는 그 회차 1:1 상대가 보내고(4화 = ①의 빵), 문구는 회차마다 다르다.
+        assertEquals(secure, jdbcTemplate.queryForObject(
+                "SELECT partner_id FROM partner_letters WHERE season_id = ? AND episode_order = 4", UUID.class, season.pk()));
+        assertEquals(10, jdbcTemplate.queryForObject(
+                "SELECT count(DISTINCT message) FROM partner_letters WHERE season_id = ? AND episode_order IS NOT NULL",
+                Integer.class, season.pk()));
     }
 
     @Test

@@ -22,6 +22,8 @@ public record AiStoryMessageView(
         /** 입력 중 표시 */
         @JsonInclude(JsonInclude.Include.NON_NULL) Boolean typing,
         /** 보냈다 지운 메시지 연출 */
-        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean deletedAfterSend
+        @JsonInclude(JsonInclude.Include.NON_NULL) Boolean deletedAfterSend,
+        /** messenger 전용: 이야기 속 보낸 시각(예: "오후 4시 50분"). 없으면 앱이 임시 시각을 만든다. */
+        @JsonInclude(JsonInclude.Include.NON_NULL) String sentAtLabel
 ) {
 }

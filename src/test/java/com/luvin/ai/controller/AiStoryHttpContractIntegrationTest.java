@@ -123,6 +123,9 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals("adult", stageIntro.get("audience").asText());
         assertEquals(List.of("me", "avoidant", "anxious", "secure", "friend", "maker"),
                 texts(stageIntro.get("cast"), "breadId"));
+        // 역할 구분(계약 7장): me | friend | maker | candidate, 후보 셋은 attachmentStyle로 구분
+        assertEquals(List.of("me", "candidate", "candidate", "candidate", "friend", "maker"),
+                texts(stageIntro.get("cast"), "castRole"));
         // 성별(계약 5-0·5-1·7장): 친구만 사용자와 같고 나머지는 다르다.
         assertEquals(List.of("FEMALE", "MALE", "MALE", "MALE", "FEMALE", "MALE"), texts(stageIntro.get("cast"), "gender"));
 
@@ -131,6 +134,7 @@ class AiStoryHttpContractIntegrationTest {
         assertFalse(episode.has("common_event"));
         JsonNode context = episode.get("context");
         assertEquals("FEMALE", context.get("cast").get(0).get("gender").asText());
+        assertEquals("candidate", context.get("cast").get(1).get("castRole").asText());
         assertTrue(context.get("learnedProfile").has("recentAnswers"));
         JsonNode pairDesign = find(episode.get("design"), "type", "pair");
         assertEquals("me", pairDesign.get("participantIds").get(0).asText());
@@ -149,7 +153,11 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals(200, send("POST", "/api/ai/seasons/episodes/1/complete", null).statusCode());
         JsonNode summarize = last("/luvin/summarize");
         assertEquals("narrator", summarize.get("blocks").get(0).get("messages").get(0).get("speakerId").asText());
-        assertTrue(last("/luvin/episode-note").has("settingScene"));
+        JsonNode note1 = last("/luvin/episode-note");
+        assertTrue(note1.has("settingScene"));
+        // 1화 쪽지 발신 빵 = 1화 1:1 상대(첫 번째 후보), 아직 보낸 쪽지가 없다.
+        assertEquals("candidate", note1.get("sender").get("castRole").asText());
+        assertEquals(0, note1.get("previousNoteOpenings").size());
 
         readyContent(2);
         JsonNode messengerDesign = find(last("/luvin/episode").get("design"), "type", "messenger");
@@ -163,6 +171,8 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals("말투가 어색해", feedbacks.get(0).get("text").asText());
         assertEquals(1, feedbacks.get(0).get("order").asInt());
         send("POST", "/api/ai/seasons/episodes/2/complete", null);
+        // 2화 쪽지 요청에는 1화 쪽지 첫 문장이 들어간다.
+        assertEquals(1, last("/luvin/episode-note").get("previousNoteOpenings").size());
 
         // 3화 ① 혼자 있기는 FastAPI를 부르지 않는다. 결과 반응 장면의 대사는 비어 있다.
         readyContent(3);

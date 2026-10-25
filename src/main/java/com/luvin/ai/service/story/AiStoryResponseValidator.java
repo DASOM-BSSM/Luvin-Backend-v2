@@ -30,6 +30,7 @@ public final class AiStoryResponseValidator {
     }
 
     static final int INTRO_TITLE_MAX = 8;
+    static final int EPISODE_NAME_MAX = 20;
     static final int INTRO_SITUATION_MAX = 200;
     static final int TRANSITION_MAX = 60;
     static final int MESSAGE_MAX = 500;
@@ -64,6 +65,7 @@ public final class AiStoryResponseValidator {
     public static void validateEpisode(EpisodeResponse response, List<ExpectedBlock> expected) {
         require(response != null && response.intro() != null, "intro가 없습니다.");
         requireText(response.intro().title(), INTRO_TITLE_MAX, "intro title");
+        requireText(response.intro().episodeName(), EPISODE_NAME_MAX, "intro episodeName");
         requireText(response.intro().situation(), INTRO_SITUATION_MAX, "intro situation");
         require(response.blocks() != null, "blocks가 없습니다.");
         Map<String, StoryTypes.GeneratedBlock> byId = response.blocks().stream()

@@ -19,11 +19,11 @@ import java.util.UUID;
 /**
  * 설계 단계: 회차 공통 사건·배경 장면, 블록 순서, 블록별 참여 빵, pair 상대, 다룰 열린 떡밥을 코드로 정한다.
  *
- * 기본 순서는 group → transition → pair (→ 메신저) (→ 3·5·6·8화 choice). 9화는 ④ 결과 장면(pair)으로 시작하고,
- * 10화는 group → transition → pair → interview × 출연 빵 수다.
+ * 순서(계약 0-1장): group → (2화만 단톡방) → transition → 첫 pair → (개인톡) → (10화 interview × 출연 빵 수)
+ * → (3·5·6·8화 choice). transition은 첫 pair 바로 앞에 하나이고, 첫 pair 뒤에는 group이나 단톡방을 두지 않는다.
  *
- * 메신저: 2화만 단톡방(group). 개인톡(direct)은 5화(후보 셋이 각자 연락)와 4·6·7·9화(그 회차 1:1 상대)에만 있고,
- * 그 외 회차는 메신저 없이 1:1 장면이나 선택으로 끝난다.
+ * 메신저: 단톡방(group)은 2화만, transition 앞. 개인톡(direct)은 첫 pair 뒤에 1·3·4·6·7·9화는 그 회차 1:1 상대와,
+ * 5화는 후보 셋이 각자. 그 외 회차(2·8·10화)는 개인톡 없이 pair 뒤 바로 choice나 회차 끝이다.
  *
  * pair 상대(공통 데이터 계약 7장):
  * - 1·2·3화 = 시즌 시작 때 랜덤으로 정한 후보 순서의 첫째·둘째·셋째
@@ -39,7 +39,7 @@ public final class AiEpisodePlanner {
     /** 후보 셋이 같은 회차 메신저에서 각자 다르게 연락하는 회차(나를 대하는 방식이 갈림). */
     private static final int CANDIDATES_CONTACT_ORDER = 5;
     /** 그 회차 1:1 상대와 개인톡(direct 메신저)이 이어지는 회차. 상대가 없으면(혼자) 메신저도 없다. */
-    private static final Set<Integer> DIRECT_MESSAGE_ORDERS = Set.of(4, 6, 7, 9);
+    private static final Set<Integer> DIRECT_MESSAGE_ORDERS = Set.of(1, 3, 4, 6, 7, 9);
     private static final String MESSENGER_DIRECT = "direct";
     private static final String MESSENGER_GROUP = "group";
 
@@ -67,20 +67,15 @@ public final class AiEpisodePlanner {
         List<UUID> pairParticipants = partner == null ? List.of(me.breadId()) : List.of(me.breadId(), partner);
 
         List<BlockPlan> blocks = new ArrayList<>();
-        if (order == 9) {
-            blocks.add(block(nextId(blocks), AiSceneBlockType.PAIR, pairParticipants, null, partner));
-            blocks.add(block(nextId(blocks), AiSceneBlockType.TRANSITION, List.of(), null, null));
-            blocks.add(block(nextId(blocks), AiSceneBlockType.GROUP, everyone, null, null));
-        } else {
-            blocks.add(block(nextId(blocks), AiSceneBlockType.GROUP, everyone, null, null));
-            blocks.add(block(nextId(blocks), AiSceneBlockType.TRANSITION, List.of(), null, null));
-            blocks.add(block(nextId(blocks), AiSceneBlockType.PAIR, pairParticipants, null, partner));
-        }
-
+        blocks.add(block(nextId(blocks), AiSceneBlockType.GROUP, everyone, null, null));
         if (order == GROUP_CHAT_ORDER) {
             blocks.add(new BlockPlan(nextId(blocks), AiSceneBlockType.MESSENGER, everyone, MESSENGER_GROUP,
                     AiStoryCatalog.groupRoomName(input.setting()), null, null, false));
-        } else if (order == CANDIDATES_CONTACT_ORDER) {
+        }
+        blocks.add(block(nextId(blocks), AiSceneBlockType.TRANSITION, List.of(), null, null));
+        blocks.add(block(nextId(blocks), AiSceneBlockType.PAIR, pairParticipants, null, partner));
+
+        if (order == CANDIDATES_CONTACT_ORDER) {
             for (AiStoryCastMember candidate : romanceCandidates(input.cast())) {
                 blocks.add(directMessenger(nextId(blocks), me, candidate));
             }

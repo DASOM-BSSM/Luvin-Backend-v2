@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -54,35 +55,61 @@ class AiEpisodePlannerTest {
     void 기본_블록_순서와_배경_장면() {
         AiEpisodePlan plan = plan(1, null, null, Map.of());
 
-        assertEquals(List.of(AiSceneBlockType.GROUP, AiSceneBlockType.TRANSITION, AiSceneBlockType.PAIR), types(plan));
+        assertEquals(List.of(AiSceneBlockType.GROUP, AiSceneBlockType.TRANSITION, AiSceneBlockType.PAIR,
+                AiSceneBlockType.MESSENGER), types(plan));
         assertEquals("무리에 처음 합류", plan.commonEvent());
         assertEquals("새 학기 반 배정", plan.settingScene());
         assertEquals(6, first(plan, AiSceneBlockType.GROUP).participantIds().size());
-        assertEquals(List.of("b1", "b2", "b3"), plan.blocks().stream().map(BlockPlan::id).toList());
+        assertEquals(List.of("b1", "b2", "b3", "b4"), plan.blocks().stream().map(BlockPlan::id).toList());
     }
 
     @Test
-    void 단톡방은_2화에만_개인톡은_5화와_4_6_7_9화에만() {
-        // 2화: 1:1 장면 뒤 단톡방(배경별 방 이름)
-        BlockPlan groupChat = first(plan(2, null, null, Map.of()), AiSceneBlockType.MESSENGER);
-        assertEquals("group", groupChat.messengerKind());
-        assertEquals("우리 반 단톡", groupChat.roomName());
+    void 단톡방은_2화_transition_앞에만_개인톡은_1_3_4_6_7_9화와_5화에만() {
+        // 2화: group → 단톡방(배경별 방 이름) → transition → pair
+        AiEpisodePlan ep2 = plan(2, null, null, Map.of());
+        assertEquals(List.of(AiSceneBlockType.GROUP, AiSceneBlockType.MESSENGER, AiSceneBlockType.TRANSITION,
+                AiSceneBlockType.PAIR), types(ep2));
+        assertEquals("group", first(ep2, AiSceneBlockType.MESSENGER).messengerKind());
+        assertEquals("2학년 2반 단톡방ㅎㅎ", first(ep2, AiSceneBlockType.MESSENGER).roomName());
 
-        // 4·6·7·9화: 그 회차 1:1 상대와 개인톡(방 이름은 상대 이름)
+        // 1·3·4·6·7·9화: 첫 pair 뒤에 그 회차 1:1 상대와 개인톡(방 이름은 상대 이름)
         AiEpisodePlan ep4 = plan(4, null, null, Map.of(1, new AiEpisodePlanner.ChoiceRecord(anxious.breadId(), true)));
         BlockPlan direct = first(ep4, AiSceneBlockType.MESSENGER);
         assertEquals("direct", direct.messengerKind());
         assertEquals(anxious.breadId(), direct.focusBreadId());
         assertEquals(anxious.name(), direct.roomName());
+        assertEquals(secure.breadId(), first(plan(1, null, null, Map.of()), AiSceneBlockType.MESSENGER).focusBreadId());
+        assertEquals(anxious.breadId(), first(plan(3, null, null, Map.of()), AiSceneBlockType.MESSENGER).focusBreadId());
         assertEquals(friend.breadId(), first(plan(7, AiStoryRoute.SOLO, null, Map.of()), AiSceneBlockType.MESSENGER)
                 .focusBreadId());
 
-        // 그 외 회차와 혼자인 9화에는 메신저가 없다.
-        for (AiEpisodePlan noMessenger : List.of(plan(1, null, null, Map.of()), plan(3, null, null, Map.of()),
-                plan(8, AiStoryRoute.SOLO, null, Map.of()), plan(10, AiStoryRoute.SOLO, null, Map.of()),
+        // 8·10화와 혼자인 9화에는 메신저가 없다.
+        for (AiEpisodePlan noMessenger : List.of(plan(8, AiStoryRoute.SOLO, null, Map.of()),
+                plan(10, AiStoryRoute.SOLO, null, Map.of()),
                 plan(9, AiStoryRoute.SOLO, null, Map.of(4, new AiEpisodePlanner.ChoiceRecord(null, true))))) {
             assertTrue(types(noMessenger).stream().noneMatch(t -> t == AiSceneBlockType.MESSENGER),
                     noMessenger.order() + "화");
+        }
+    }
+
+    @Test
+    void 모든_회차에서_transition은_첫_pair_바로_앞이고_첫_pair_뒤에_group이나_단톡방이_없다() {
+        Map<Integer, AiEpisodePlanner.ChoiceRecord> choices = Map.of(
+                1, new AiEpisodePlanner.ChoiceRecord(secure.breadId(), true),
+                2, new AiEpisodePlanner.ChoiceRecord(secure.breadId(), true),
+                4, new AiEpisodePlanner.ChoiceRecord(secure.breadId(), true));
+        for (int order = 1; order <= 10; order++) {
+            AiEpisodePlan plan = plan(order, order >= 7 ? AiStoryRoute.ROMANCE : null,
+                    order >= 7 ? secure.breadId() : null, choices);
+            List<AiSceneBlockType> types = types(plan);
+            int firstPair = types.indexOf(AiSceneBlockType.PAIR);
+            assertEquals(AiSceneBlockType.TRANSITION, types.get(firstPair - 1), order + "화");
+            assertEquals(1, types.stream().filter(t -> t == AiSceneBlockType.TRANSITION).count(), order + "화");
+            for (BlockPlan after : plan.blocks().subList(firstPair + 1, plan.blocks().size())) {
+                assertFalse(after.type() == AiSceneBlockType.GROUP, order + "화");
+                assertFalse(after.type() == AiSceneBlockType.MESSENGER && "group".equals(after.messengerKind()),
+                        order + "화");
+            }
         }
     }
 
@@ -167,14 +194,13 @@ class AiEpisodePlannerTest {
     }
 
     @Test
-    void 구화는_4번_결과_장면으로_시작한다() {
+    void 구화_1대1_상대는_4번_결과() {
         AiEpisodePlan withPartner = plan(9, AiStoryRoute.SOLO, null,
                 Map.of(4, new AiEpisodePlanner.ChoiceRecord(secure.breadId(), true)));
         AiEpisodePlan alone = plan(9, AiStoryRoute.SOLO, null, Map.of(4, new AiEpisodePlanner.ChoiceRecord(null, false)));
 
-        assertEquals(AiSceneBlockType.PAIR, withPartner.blocks().get(0).type());
-        assertEquals(secure.breadId(), withPartner.blocks().get(0).focusBreadId());
-        assertEquals(List.of(me.breadId()), alone.blocks().get(0).participantIds());
+        assertEquals(secure.breadId(), first(withPartner, AiSceneBlockType.PAIR).focusBreadId());
+        assertEquals(List.of(me.breadId()), first(alone, AiSceneBlockType.PAIR).participantIds());
     }
 
     @Test

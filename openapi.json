@@ -3211,7 +3211,12 @@
                         "type": "string"
                     },
                     "gender": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "MALE | FEMALE. \ub300\uc18c\ubb38\uc790\ub294 \ubb34\uad00\ud558\uace0 \ub300\ubb38\uc790\ub85c \uc800\uc7a5\ub41c\ub2e4. \uadf8 \uc678 \uac12\uc740 400",
+                        "enum": [
+                            "MALE",
+                            "FEMALE"
+                        ]
                     },
                     "age": {
                         "type": "integer",
@@ -4084,7 +4089,11 @@
                         "type": "string"
                     },
                     "gender": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "MALE",
+                            "FEMALE"
+                        ]
                     },
                     "castRole": {
                         "type": "string"
@@ -4532,6 +4541,9 @@
                     },
                     "deletedAfterSend": {
                         "type": "boolean"
+                    },
+                    "sentAtLabel": {
+                        "type": "string"
                     }
                 }
             },
@@ -4829,7 +4841,12 @@
                         "type": "string"
                     },
                     "gender": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "MALE | FEMALE. \uc785\ub825 \uc804\uc774\uba74 null",
+                        "enum": [
+                            "MALE",
+                            "FEMALE"
+                        ]
                     },
                     "age": {
                         "type": "integer",
@@ -5744,6 +5761,9 @@
                 "type": "object",
                 "properties": {
                     "title": {
+                        "type": "string"
+                    },
+                    "episodeName": {
                         "type": "string"
                     },
                     "situation": {

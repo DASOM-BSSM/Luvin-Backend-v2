@@ -1,50 +1,62 @@
 {
   "context" : {
-    "setting" : "campus",
+    "setting" : "cafe",
     "audience" : "adult",
     "ageGroup" : "20대 초반",
     "cast" : [ {
       "breadId" : "me",
       "name" : "빵",
       "breadType" : "소금빵",
-      "role" : "같은 과 새 얼굴",
+      "role" : "나",
       "description" : null,
-      "gender" : "FEMALE"
+      "gender" : "FEMALE",
+      "castRole" : "me",
+      "attachmentStyle" : "none"
     }, {
       "breadId" : "avoidant",
-      "name" : "동그란 팥빵",
-      "breadType" : "팥빵",
-      "role" : "같은 과 친구",
-      "description" : "동그란 팥빵와 함께 지내요",
-      "gender" : "MALE"
+      "name" : "따끈한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 친구",
+      "description" : "따끈한 바게트와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "candidate",
+      "attachmentStyle" : "avoidant"
     }, {
       "breadId" : "anxious",
-      "name" : "보송한 카스테라",
-      "breadType" : "카스테라",
-      "role" : "같은 과 친구",
-      "description" : "보송한 카스테라와 함께 지내요",
-      "gender" : "MALE"
+      "name" : "동그란 마들렌",
+      "breadType" : "마들렌",
+      "role" : "같은 매장 친구",
+      "description" : "동그란 마들렌와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "candidate",
+      "attachmentStyle" : "anxious"
     }, {
       "breadId" : "secure",
-      "name" : "반짝이는 마들렌",
-      "breadType" : "마들렌",
-      "role" : "같은 과 친구",
-      "description" : "반짝이는 마들렌와 함께 지내요",
-      "gender" : "MALE"
+      "name" : "새콤한 팥빵",
+      "breadType" : "팥빵",
+      "role" : "같은 매장 친구",
+      "description" : "새콤한 팥빵와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "candidate",
+      "attachmentStyle" : "secure"
     }, {
       "breadId" : "friend",
-      "name" : "따끈한 크림빵",
-      "breadType" : "크림빵",
-      "role" : "같은 과 단짝",
-      "description" : "따끈한 크림빵와 함께 지내요",
-      "gender" : "FEMALE"
+      "name" : "말랑한 도넛",
+      "breadType" : "도넛",
+      "role" : "같은 매장 단짝",
+      "description" : "말랑한 도넛와 함께 지내요",
+      "gender" : "FEMALE",
+      "castRole" : "friend",
+      "attachmentStyle" : "none"
     }, {
       "breadId" : "maker",
-      "name" : "몽글한 바게트",
-      "breadType" : "바게트",
-      "role" : "같은 과 분위기 담",
-      "description" : "몽글한 바게트와 함께 지내요",
-      "gender" : "MALE"
+      "name" : "바삭한 프레첼",
+      "breadType" : "프레첼",
+      "role" : "같은 매장 분위기 ",
+      "description" : "바삭한 프레첼와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "maker",
+      "attachmentStyle" : "none"
     } ],
     "learnedProfile" : {
       "summary" : "소금빵 타입.",
@@ -62,7 +74,7 @@
   "relation" : {
     "breadId" : "secure",
     "affinityLevel" : "low",
-    "statusText" : "친해짐",
+    "statusText" : "어색함",
     "memorySummary" : "2화까지 함께한 기억이 쌓였다.",
     "recentMemories" : [ "1화: 함께 이야기를 나눴다", "2화: 함께 이야기를 나눴다" ],
     "knownFacts" : [ "1화에서 알게 된 점", "2화에서 알게 된 점" ],

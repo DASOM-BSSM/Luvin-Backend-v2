@@ -471,9 +471,16 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     @Override
     public PartnerLetterView getUnreadLetter(Long memberId) {
         return stateWriter.findUnreadLetter(memberId)
-                .map(letter -> new PartnerLetterView(
-                        letter.getId(), letter.getSeason().getSeasonId(), letter.getPartnerId(),
-                        null, null, letter.getMessage(), letter.getCreatedAt(), letter.getRenderMode()))
+                .map(letter -> {
+                    // 발신 빵 이름·빵 종류는 시즌 출연진에서 찾는다(partnerId = characterId).
+                    AiSeasonCharacter partner = letter.getPartnerId() == null ? null : seasonCharacterRepository
+                            .findBySeason_IdAndCharacterId(letter.getSeason().getId(), letter.getPartnerId())
+                            .orElse(null);
+                    return new PartnerLetterView(letter.getId(), letter.getSeason().getSeasonId(),
+                            letter.getPartnerId(), partner == null ? null : partner.getName(),
+                            partner == null ? null : partner.getBreadType(), letter.getMessage(),
+                            letter.getCreatedAt(), letter.getRenderMode());
+                })
                 .orElse(null);
     }
 

@@ -328,6 +328,15 @@ public class AiStoryStateWriter {
         return feedbackRepository.findAllBySeason_IdAndEpisodeOrder(seasonPk, order);
     }
 
+    /** 이번 시즌에 이미 보낸 회차 쪽지 본문(회차 순). */
+    @Transactional(readOnly = true)
+    public List<String> findEpisodeNoteBodies(Long seasonPk) {
+        return letterRepository.findAllBySeason_IdAndEpisodeOrderIsNotNullOrderByEpisodeOrderAsc(seasonPk).stream()
+                .map(PartnerLetter::getMessage)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+    }
+
     @Transactional(readOnly = true)
     public List<UUID> findLikedMessageIds(Long seasonPk, int order) {
         return likeRepository.findAllBySeason_IdAndEpisodeOrder(seasonPk, order).stream()

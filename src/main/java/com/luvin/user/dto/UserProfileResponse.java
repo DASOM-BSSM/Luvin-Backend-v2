@@ -1,6 +1,7 @@
 package com.luvin.user.dto;
 
 import com.luvin.user.domain.User;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.UUID;
 
@@ -9,6 +10,7 @@ public class UserProfileResponse {
     private final Long memberId;
     private final String name;
     private final String nickname;
+    @Schema(allowableValues = {"MALE", "FEMALE"}, description = "MALE | FEMALE. 입력 전이면 null")
     private final String gender;
     private final Integer age;
     private final String job;
