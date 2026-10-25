@@ -20,10 +20,20 @@ import java.util.Map;
 @ConditionalOnProperty(name = "app.ai.story.client", havingValue = "stub", matchIfMissing = true)
 public class AiStoryStubClient implements AiStoryClient {
 
-    /** 회차마다 다른 전환 카드 문구(1~10화). */
-    private static final List<String> TRANSITIONS = List.of(
-            "모두 흩어진 저녁", "다음 날 아침", "둘만 남은 오후", "준비가 끝난 밤", "조용해진 오후",
-            "행사가 끝난 뒤", "며칠이 지나고", "말다툼 다음 날", "다시 모인 저녁", "마지막 날 밤");
+    /** 배경별·회차 사건에 맞춘 임시 전환 카드 문구(1~10화). 실제 문구는 FastAPI가 쓴다. */
+    private static final Map<String, List<String>> TRANSITIONS = Map.of(
+            "school", List.of("새 교실 문 앞", "하교 후 울린 단톡 알림", "다들 먼저 가고 난 교실", "축제 준비로 남은 방과 후",
+                    "조퇴하고 돌아온 오후", "축제가 끝난 운동장", "독서실 앞 자판기", "회의가 끝난 빈 교실",
+                    "체육대회가 끝난 저녁", "종업식 날 교문 앞"),
+            "campus", List.of("환영회가 끝난 가게 앞", "과제방 첫 알림", "불 꺼진 과방", "MT 장보기가 끝난 마트 앞",
+                    "시험 전날 도서관", "MT 숙소의 밤", "과제에 묻힌 새벽", "조별 회의가 끝난 강의실",
+                    "종강 모임 가는 길", "마지막 수업이 끝난 캠퍼스"),
+            "office", List.of("첫 회식이 끝난 밤", "퇴근길에 울린 단톡 알림", "야근 후 엘리베이터", "워크숍 준비 회의실",
+                    "실수한 날 퇴근길", "워크숍 숙소의 저녁", "마감에 쫓기는 사무실", "회의가 끝난 탕비실",
+                    "프로젝트가 끝난 날 저녁", "연말 회식 뒤 거리"),
+            "cafe", List.of("첫 근무가 끝난 매장", "근무 단톡 첫 알림", "마감 정리하는 매장", "행사 준비로 늦게 남은 날",
+                    "진상 손님이 떠난 뒤", "행사가 끝난 주말 밤", "엇갈린 근무표 앞", "대타 문제로 어색한 휴게실",
+                    "마감 후 야식집", "마지막 근무 날 퇴근길"));
 
     @Override
     public StageIntroResponse stageIntro(String ownerSubject, StageIntroRequest request) {
@@ -45,7 +55,8 @@ public class AiStoryStubClient implements AiStoryClient {
     public EpisodeResponse writeEpisode(String ownerSubject, EpisodeRequest request) {
         Map<String, String> names = names(request.context());
         List<GeneratedBlock> blocks = request.design().stream().map(design -> switch (design.type()) {
-            case "transition" -> new GeneratedBlock(design.id(), null, TRANSITIONS.get(request.order() - 1), null);
+            case "transition" -> new GeneratedBlock(design.id(), null,
+                    TRANSITIONS.get(request.context().setting()).get(request.order() - 1), null);
             case "choice" -> new GeneratedBlock(design.id(), null, null, design.candidateIds().stream()
                     .map(id -> new ChoiceCandidate(id, cut(request.order() + "화에 함께한 순간", 20)))
                     .toList());

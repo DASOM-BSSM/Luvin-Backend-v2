@@ -54,14 +54,36 @@ class AiEpisodePlannerTest {
     void 기본_블록_순서와_배경_장면() {
         AiEpisodePlan plan = plan(1, null, null, Map.of());
 
-        assertEquals(List.of(AiSceneBlockType.GROUP, AiSceneBlockType.TRANSITION, AiSceneBlockType.PAIR,
-                AiSceneBlockType.MESSENGER), types(plan));
+        assertEquals(List.of(AiSceneBlockType.GROUP, AiSceneBlockType.TRANSITION, AiSceneBlockType.PAIR), types(plan));
         assertEquals("무리에 처음 합류", plan.commonEvent());
         assertEquals("새 학기 반 배정", plan.settingScene());
-        // 메신저 방 이름은 Spring이 정한다: 1:1은 상대 이름, 2화 단톡은 배경별 방 이름.
-        assertEquals(secure.name(), first(plan, AiSceneBlockType.MESSENGER).roomName());
-        assertEquals("우리 반 단톡", first(plan(2, null, null, Map.of()), AiSceneBlockType.MESSENGER).roomName());
         assertEquals(6, first(plan, AiSceneBlockType.GROUP).participantIds().size());
+        assertEquals(List.of("b1", "b2", "b3"), plan.blocks().stream().map(BlockPlan::id).toList());
+    }
+
+    @Test
+    void 단톡방은_2화에만_개인톡은_5화와_4_6_7_9화에만() {
+        // 2화: 1:1 장면 뒤 단톡방(배경별 방 이름)
+        BlockPlan groupChat = first(plan(2, null, null, Map.of()), AiSceneBlockType.MESSENGER);
+        assertEquals("group", groupChat.messengerKind());
+        assertEquals("우리 반 단톡", groupChat.roomName());
+
+        // 4·6·7·9화: 그 회차 1:1 상대와 개인톡(방 이름은 상대 이름)
+        AiEpisodePlan ep4 = plan(4, null, null, Map.of(1, new AiEpisodePlanner.ChoiceRecord(anxious.breadId(), true)));
+        BlockPlan direct = first(ep4, AiSceneBlockType.MESSENGER);
+        assertEquals("direct", direct.messengerKind());
+        assertEquals(anxious.breadId(), direct.focusBreadId());
+        assertEquals(anxious.name(), direct.roomName());
+        assertEquals(friend.breadId(), first(plan(7, AiStoryRoute.SOLO, null, Map.of()), AiSceneBlockType.MESSENGER)
+                .focusBreadId());
+
+        // 그 외 회차와 혼자인 9화에는 메신저가 없다.
+        for (AiEpisodePlan noMessenger : List.of(plan(1, null, null, Map.of()), plan(3, null, null, Map.of()),
+                plan(8, AiStoryRoute.SOLO, null, Map.of()), plan(10, AiStoryRoute.SOLO, null, Map.of()),
+                plan(9, AiStoryRoute.SOLO, null, Map.of(4, new AiEpisodePlanner.ChoiceRecord(null, true))))) {
+            assertTrue(types(noMessenger).stream().noneMatch(t -> t == AiSceneBlockType.MESSENGER),
+                    noMessenger.order() + "화");
+        }
     }
 
     @Test

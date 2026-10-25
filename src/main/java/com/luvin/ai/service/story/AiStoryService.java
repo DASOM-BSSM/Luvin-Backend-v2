@@ -550,6 +550,21 @@ public class AiStoryService {
         return snapshot.isStarted() ? toStateView(snapshot) : null;
     }
 
+    /**
+     * 출연진 소개 한 줄(1화 무대 소개에서 받은 description). 시즌 상태의 characters[]에 붙여, 2화 이후에도 소개를
+     * 보여줄 수 있게 한다. 1화를 아직 생성하지 않았으면 빈 map, 내 빵은 값이 없다.
+     */
+    public Map<UUID, String> castDescriptions(Long seasonPk) {
+        AiStageIntroView stageIntro = storedStageIntro(stateWriter.snapshot(seasonPk));
+        Map<UUID, String> descriptions = new HashMap<>();
+        if (stageIntro != null) {
+            stageIntro.cast().stream()
+                    .filter(c -> c.description() != null)
+                    .forEach(c -> descriptions.put(c.breadId(), c.description()));
+        }
+        return descriptions;
+    }
+
     /** 새 흐름 시즌의 최종 리포트(10화 완료 때 저장). 새 흐름 시즌이 아니면 empty. */
     public Optional<AiReportView> storedReport(Long seasonPk) {
         AiStorySnapshot snapshot = stateWriter.snapshot(seasonPk);
