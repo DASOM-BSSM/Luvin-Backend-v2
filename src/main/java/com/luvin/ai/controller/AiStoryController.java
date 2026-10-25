@@ -12,7 +12,10 @@ import com.luvin.ai.dto.story.AiStoryStateView;
 import com.luvin.ai.service.story.AiStoryService;
 import com.luvin.common.response.ApiResponse;
 import com.luvin.common.security.SecurityUtils;
+import com.luvin.ai.dto.AiInsufficientTokensErrorView;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +39,8 @@ public class AiStoryController {
     private final AiStoryService storyService;
 
     @Operation(summary = "회차 블록 목록", description = """
+            선택을 마친 회차면 선택 결과 블록(`choice_result`, 거절이면 뒤이은 대체 `pair`)이 `choice` 블록 바로 뒤에 들어 있다
+            (choices 응답과 같은 순서, 완료한 회차를 다시 볼 때도 같다).
             저장된 회차가 있으면 그대로, 없으면 생성을 시작하고 `status: generating`으로 응답한다(1~3초 간격으로 다시 요청).
             `failed`면 다시 요청할 때 생성을 다시 시도한다. 1화 요청이 새 흐름의 시작이다(나이로 배경 결정, 1화에 stageIntro 포함).
 
@@ -61,6 +66,11 @@ public class AiStoryController {
             **오류**: 409 `INSUFFICIENT_TOKENS`(data: required, balance — 미니게임으로 안내), `PREVIOUS_EPISODE_NOT_COMPLETED`,
             `STORY_NOT_STARTED`, `SEASON_COMPLETED`
             """)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", useReturnTypeSchema = true)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+            description = "INSUFFICIENT_TOKENS면 data에 required(필요 토큰)·balance(현재 잔액). 다른 409 code는 data가 null",
+            content = @Content(mediaType = "application/json",
+                    schema = @Schema(implementation = AiInsufficientTokensErrorView.class)))
     @PostMapping("/{order}/unlock")
     public ApiResponse<AiEpisodeUnlockView> unlock(@PathVariable("order") int order) {
         Long memberId = SecurityUtils.getCurrentUserId();
@@ -88,7 +98,16 @@ public class AiStoryController {
             메시지당 하나이고 다시 보내면 글을 바꾼다. body의 `order`는 생략해도 되고, 보내면 경로의 order와 같아야 한다.
             남긴 피드백은 다음 회차 생성 입력(learnedProfile.feedbacks)으로 쓰인다.
 
-            **오류**: 400 pair 블록이 아님·내 빵의 대사가 아님·독백·text 200자 초과 / 409 `CONTENT_NOT_READY`, `STORY_NOT_STARTED`
+            **400 code**
+            - `SCENE_ORDER_MISMATCH`: body의 order가 경로의 order와 다르다
+            - `SCENE_BLOCK_NOT_FOUND`: 이 회차에 없는 blockId
+            - `SCENE_NOT_PAIR`: pair 블록(1:1 장면)이 아니다
+            - `SCENE_MESSAGE_NOT_FOUND`: 그 블록에 없는 messageId
+            - `SCENE_NOT_MY_LINE`: 내 빵의 대사가 아니다(상대 대사·내레이션)
+            - `SCENE_MONOLOGUE`: 혼자인 독백 장면이거나 독백 대사다
+            - `FEEDBACK_TOO_LONG`: text가 200자를 넘는다
+
+            **409 code**: `CONTENT_NOT_READY`, `STORY_NOT_STARTED`
             """)
     @PostMapping("/{order}/scene-feedback")
     public ApiResponse<AiStoryFeedbackView> submitFeedback(@PathVariable("order") int order,
@@ -101,6 +120,9 @@ public class AiStoryController {
     @Operation(summary = "1:1 장면 좋아요", description = """
             1:1 장면(상대가 있는 `pair` 블록)에서 내 빵의 대사 좋아요를 켜고 끈다(`liked`). 상대 대사·독백·내레이션은 400.
             좋아요한 대사는 다음 회차 생성 입력(learnedProfile.likedMessages)으로 쓰인다.
+
+            **400 code**: `SCENE_ORDER_MISMATCH`, `SCENE_BLOCK_NOT_FOUND`, `SCENE_NOT_PAIR`, `SCENE_MESSAGE_NOT_FOUND`,
+            `SCENE_NOT_MY_LINE`, `SCENE_MONOLOGUE`(피드백과 같은 뜻) / 409 `CONTENT_NOT_READY`, `STORY_NOT_STARTED`
             """)
     @PostMapping("/{order}/scene-likes")
     public ApiResponse<AiMessageLikeView> setLike(@PathVariable("order") int order,

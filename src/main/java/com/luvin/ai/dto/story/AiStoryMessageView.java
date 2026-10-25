@@ -1,5 +1,6 @@
 package com.luvin.ai.dto.story;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.UUID;
@@ -14,7 +15,7 @@ public record AiStoryMessageView(
         /** 말한 빵(participant의 breadId). 내레이션이면 null */
         UUID speakerId,
         /** chat | monologue | narration */
-        String kind,
+        @Schema(allowableValues = {"chat", "monologue", "narration"}) String kind,
         boolean fromRepresentative,
         String text,
         /** 상대가 읽었는지 */

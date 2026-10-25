@@ -1810,6 +1810,16 @@
                                 }
                             }
                         }
+                    },
+                    "409": {
+                        "description": "INSUFFICIENT_TOKENS\uba74 data\uc5d0 required(\ud544\uc694 \ud1a0\ud070)\u00b7balance(\ud604\uc7ac \uc794\uc561). \ub2e4\ub978 409 code\ub294 data\uac00 null",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AiInsufficientTokensError"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1820,7 +1830,7 @@
                     "\ub7ec\ube48\uc9c0\uc625 \ud68c\ucc28"
                 ],
                 "summary": "1:1 \uc7a5\uba74 \uc88b\uc544\uc694",
-                "description": "1:1 \uc7a5\uba74(\uc0c1\ub300\uac00 \uc788\ub294 `pair` \ube14\ub85d)\uc5d0\uc11c \ub0b4 \ube75\uc758 \ub300\uc0ac \uc88b\uc544\uc694\ub97c \ucf1c\uace0 \ub048\ub2e4(`liked`). \uc0c1\ub300 \ub300\uc0ac\u00b7\ub3c5\ubc31\u00b7\ub0b4\ub808\uc774\uc158\uc740 400.\n\uc88b\uc544\uc694\ud55c \ub300\uc0ac\ub294 \ub2e4\uc74c \ud68c\ucc28 \uc0dd\uc131 \uc785\ub825(learnedProfile.likedMessages)\uc73c\ub85c \uc4f0\uc778\ub2e4.\n",
+                "description": "1:1 \uc7a5\uba74(\uc0c1\ub300\uac00 \uc788\ub294 `pair` \ube14\ub85d)\uc5d0\uc11c \ub0b4 \ube75\uc758 \ub300\uc0ac \uc88b\uc544\uc694\ub97c \ucf1c\uace0 \ub048\ub2e4(`liked`). \uc0c1\ub300 \ub300\uc0ac\u00b7\ub3c5\ubc31\u00b7\ub0b4\ub808\uc774\uc158\uc740 400.\n\uc88b\uc544\uc694\ud55c \ub300\uc0ac\ub294 \ub2e4\uc74c \ud68c\ucc28 \uc0dd\uc131 \uc785\ub825(learnedProfile.likedMessages)\uc73c\ub85c \uc4f0\uc778\ub2e4.\n\n**400 code**: `SCENE_ORDER_MISMATCH`, `SCENE_BLOCK_NOT_FOUND`, `SCENE_NOT_PAIR`, `SCENE_MESSAGE_NOT_FOUND`,\n`SCENE_NOT_MY_LINE`, `SCENE_MONOLOGUE`(\ud53c\ub4dc\ubc31\uacfc \uac19\uc740 \ub73b) / 409 `CONTENT_NOT_READY`, `STORY_NOT_STARTED`\n",
                 "operationId": "setLike",
                 "parameters": [
                     {
@@ -1863,7 +1873,7 @@
                     "\ub7ec\ube48\uc9c0\uc625 \ud68c\ucc28"
                 ],
                 "summary": "1:1 \uc7a5\uba74 \ud53c\ub4dc\ubc31",
-                "description": "1:1 \uc7a5\uba74(\uc0c1\ub300\uac00 \uc788\ub294 `pair` \ube14\ub85d)\uc5d0\uc11c \ub0b4 \ube75\uc758 \ub300\uc0ac(\ub3c5\ubc31 \uc81c\uc678) \ud558\ub098\uc5d0 \ud53c\ub4dc\ubc31\uc744 \ub0a8\uae34\ub2e4. \ud68c\ucc28 \ubcf8\ubb38 pair \ube14\ub85d\uacfc \uc120\ud0dd \uac70\uc808 \ub4a4\n\ub300\uccb4 pair \ube14\ub85d(`choices` \uc751\ub2f5\uc758 blocks)\uc5d0 \ub0a8\uae38 \uc218 \uc788\uace0, \ud63c\uc790\uc778 \ub3c5\ubc31 \uc7a5\uba74\u00b7\uadf8\ub8f9\u00b7\uba54\uc2e0\uc800\u00b7\uc778\ud130\ubdf0\u00b7\uc120\ud0dd \uacb0\uacfc\uc5d0\ub294 \uc548 \ub41c\ub2e4.\n\uba54\uc2dc\uc9c0\ub2f9 \ud558\ub098\uc774\uace0 \ub2e4\uc2dc \ubcf4\ub0b4\uba74 \uae00\uc744 \ubc14\uafbc\ub2e4. body\uc758 `order`\ub294 \uc0dd\ub7b5\ud574\ub3c4 \ub418\uace0, \ubcf4\ub0b4\uba74 \uacbd\ub85c\uc758 order\uc640 \uac19\uc544\uc57c \ud55c\ub2e4.\n\ub0a8\uae34 \ud53c\ub4dc\ubc31\uc740 \ub2e4\uc74c \ud68c\ucc28 \uc0dd\uc131 \uc785\ub825(learnedProfile.feedbacks)\uc73c\ub85c \uc4f0\uc778\ub2e4.\n\n**\uc624\ub958**: 400 pair \ube14\ub85d\uc774 \uc544\ub2d8\u00b7\ub0b4 \ube75\uc758 \ub300\uc0ac\uac00 \uc544\ub2d8\u00b7\ub3c5\ubc31\u00b7text 200\uc790 \ucd08\uacfc / 409 `CONTENT_NOT_READY`, `STORY_NOT_STARTED`\n",
+                "description": "1:1 \uc7a5\uba74(\uc0c1\ub300\uac00 \uc788\ub294 `pair` \ube14\ub85d)\uc5d0\uc11c \ub0b4 \ube75\uc758 \ub300\uc0ac(\ub3c5\ubc31 \uc81c\uc678) \ud558\ub098\uc5d0 \ud53c\ub4dc\ubc31\uc744 \ub0a8\uae34\ub2e4. \ud68c\ucc28 \ubcf8\ubb38 pair \ube14\ub85d\uacfc \uc120\ud0dd \uac70\uc808 \ub4a4\n\ub300\uccb4 pair \ube14\ub85d(`choices` \uc751\ub2f5\uc758 blocks)\uc5d0 \ub0a8\uae38 \uc218 \uc788\uace0, \ud63c\uc790\uc778 \ub3c5\ubc31 \uc7a5\uba74\u00b7\uadf8\ub8f9\u00b7\uba54\uc2e0\uc800\u00b7\uc778\ud130\ubdf0\u00b7\uc120\ud0dd \uacb0\uacfc\uc5d0\ub294 \uc548 \ub41c\ub2e4.\n\uba54\uc2dc\uc9c0\ub2f9 \ud558\ub098\uc774\uace0 \ub2e4\uc2dc \ubcf4\ub0b4\uba74 \uae00\uc744 \ubc14\uafbc\ub2e4. body\uc758 `order`\ub294 \uc0dd\ub7b5\ud574\ub3c4 \ub418\uace0, \ubcf4\ub0b4\uba74 \uacbd\ub85c\uc758 order\uc640 \uac19\uc544\uc57c \ud55c\ub2e4.\n\ub0a8\uae34 \ud53c\ub4dc\ubc31\uc740 \ub2e4\uc74c \ud68c\ucc28 \uc0dd\uc131 \uc785\ub825(learnedProfile.feedbacks)\uc73c\ub85c \uc4f0\uc778\ub2e4.\n\n**400 code**\n- `SCENE_ORDER_MISMATCH`: body\uc758 order\uac00 \uacbd\ub85c\uc758 order\uc640 \ub2e4\ub974\ub2e4\n- `SCENE_BLOCK_NOT_FOUND`: \uc774 \ud68c\ucc28\uc5d0 \uc5c6\ub294 blockId\n- `SCENE_NOT_PAIR`: pair \ube14\ub85d(1:1 \uc7a5\uba74)\uc774 \uc544\ub2c8\ub2e4\n- `SCENE_MESSAGE_NOT_FOUND`: \uadf8 \ube14\ub85d\uc5d0 \uc5c6\ub294 messageId\n- `SCENE_NOT_MY_LINE`: \ub0b4 \ube75\uc758 \ub300\uc0ac\uac00 \uc544\ub2c8\ub2e4(\uc0c1\ub300 \ub300\uc0ac\u00b7\ub0b4\ub808\uc774\uc158)\n- `SCENE_MONOLOGUE`: \ud63c\uc790\uc778 \ub3c5\ubc31 \uc7a5\uba74\uc774\uac70\ub098 \ub3c5\ubc31 \ub300\uc0ac\ub2e4\n- `FEEDBACK_TOO_LONG`: text\uac00 200\uc790\ub97c \ub118\ub294\ub2e4\n\n**409 code**: `CONTENT_NOT_READY`, `STORY_NOT_STARTED`\n",
                 "operationId": "submitFeedback",
                 "parameters": [
                     {
@@ -2955,7 +2965,7 @@
                     "\ub7ec\ube48\uc9c0\uc625 \ud68c\ucc28"
                 ],
                 "summary": "\ud68c\ucc28 \ube14\ub85d \ubaa9\ub85d",
-                "description": "\uc800\uc7a5\ub41c \ud68c\ucc28\uac00 \uc788\uc73c\uba74 \uadf8\ub300\ub85c, \uc5c6\uc73c\uba74 \uc0dd\uc131\uc744 \uc2dc\uc791\ud558\uace0 `status: generating`\uc73c\ub85c \uc751\ub2f5\ud55c\ub2e4(1~3\ucd08 \uac04\uaca9\uc73c\ub85c \ub2e4\uc2dc \uc694\uccad).\n`failed`\uba74 \ub2e4\uc2dc \uc694\uccad\ud560 \ub54c \uc0dd\uc131\uc744 \ub2e4\uc2dc \uc2dc\ub3c4\ud55c\ub2e4. 1\ud654 \uc694\uccad\uc774 \uc0c8 \ud750\ub984\uc758 \uc2dc\uc791\uc774\ub2e4(\ub098\uc774\ub85c \ubc30\uacbd \uacb0\uc815, 1\ud654\uc5d0 stageIntro \ud3ec\ud568).\n\n**409 code**\n- `AGE_REQUIRED`: \ub098\uc774 \ub610\ub294 \uc131\ubcc4\uc774 \uc5c6\ub2e4 \u2014 \ub458 \ub2e4 \uc785\ub825(PUT /api/users/me `{ age, gender }`) \ud6c4 \ub2e4\uc2dc \uc694\uccad\n- `STORY_NOT_STARTED`: 1\ud654\ubd80\ud130 \uc694\uccad\ud574\uc57c \ud55c\ub2e4\n- `PREVIOUS_EPISODE_NOT_COMPLETED`: \uc774\uc804 \ud68c\ucc28\ub97c \uba3c\uc800 \uc644\ub8cc\ud574\uc57c \ud55c\ub2e4(\uc120\ud0dd \ud68c\ucc28\ub294 \uc120\ud0dd \ud6c4 \uc644\ub8cc)\n- `EPISODE_NOT_RELEASED`: \uc544\uc9c1 \uacf5\uac1c \uc804\n- `SEASON_COMPLETED`: \ub05d\ub09c \uc2dc\uc98c\uc5d0\uc11c \uc0dd\uc131\ud558\uc9c0 \uc54a\uc740 \ud68c\ucc28\n- `EPISODE_NOT_UNLOCKED`: \uc5f4\uc9c0 \uc54a\uc740 4~10\ud654 \u2014 \ud68c\ucc28 \uc5f4\uae30(POST /{order}/unlock) \ud6c4 \ub2e4\uc2dc \uc694\uccad\n",
+                "description": "\uc120\ud0dd\uc744 \ub9c8\uce5c \ud68c\ucc28\uba74 \uc120\ud0dd \uacb0\uacfc \ube14\ub85d(`choice_result`, \uac70\uc808\uc774\uba74 \ub4a4\uc774\uc740 \ub300\uccb4 `pair`)\uc774 `choice` \ube14\ub85d \ubc14\ub85c \ub4a4\uc5d0 \ub4e4\uc5b4 \uc788\ub2e4\n(choices \uc751\ub2f5\uacfc \uac19\uc740 \uc21c\uc11c, \uc644\ub8cc\ud55c \ud68c\ucc28\ub97c \ub2e4\uc2dc \ubcfc \ub54c\ub3c4 \uac19\ub2e4).\n\uc800\uc7a5\ub41c \ud68c\ucc28\uac00 \uc788\uc73c\uba74 \uadf8\ub300\ub85c, \uc5c6\uc73c\uba74 \uc0dd\uc131\uc744 \uc2dc\uc791\ud558\uace0 `status: generating`\uc73c\ub85c \uc751\ub2f5\ud55c\ub2e4(1~3\ucd08 \uac04\uaca9\uc73c\ub85c \ub2e4\uc2dc \uc694\uccad).\n`failed`\uba74 \ub2e4\uc2dc \uc694\uccad\ud560 \ub54c \uc0dd\uc131\uc744 \ub2e4\uc2dc \uc2dc\ub3c4\ud55c\ub2e4. 1\ud654 \uc694\uccad\uc774 \uc0c8 \ud750\ub984\uc758 \uc2dc\uc791\uc774\ub2e4(\ub098\uc774\ub85c \ubc30\uacbd \uacb0\uc815, 1\ud654\uc5d0 stageIntro \ud3ec\ud568).\n\n**409 code**\n- `AGE_REQUIRED`: \ub098\uc774 \ub610\ub294 \uc131\ubcc4\uc774 \uc5c6\ub2e4 \u2014 \ub458 \ub2e4 \uc785\ub825(PUT /api/users/me `{ age, gender }`) \ud6c4 \ub2e4\uc2dc \uc694\uccad\n- `STORY_NOT_STARTED`: 1\ud654\ubd80\ud130 \uc694\uccad\ud574\uc57c \ud55c\ub2e4\n- `PREVIOUS_EPISODE_NOT_COMPLETED`: \uc774\uc804 \ud68c\ucc28\ub97c \uba3c\uc800 \uc644\ub8cc\ud574\uc57c \ud55c\ub2e4(\uc120\ud0dd \ud68c\ucc28\ub294 \uc120\ud0dd \ud6c4 \uc644\ub8cc)\n- `EPISODE_NOT_RELEASED`: \uc544\uc9c1 \uacf5\uac1c \uc804\n- `SEASON_COMPLETED`: \ub05d\ub09c \uc2dc\uc98c\uc5d0\uc11c \uc0dd\uc131\ud558\uc9c0 \uc54a\uc740 \ud68c\ucc28\n- `EPISODE_NOT_UNLOCKED`: \uc5f4\uc9c0 \uc54a\uc740 4~10\ud654 \u2014 \ud68c\ucc28 \uc5f4\uae30(POST /{order}/unlock) \ud6c4 \ub2e4\uc2dc \uc694\uccad\n",
                 "operationId": "getContent",
                 "parameters": [
                     {
@@ -4125,7 +4135,11 @@
                         "format": "int32"
                     },
                     "status": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "IN_PROGRESS",
+                            "COMPLETED"
+                        ]
                     },
                     "characters": {
                         "type": "array",
@@ -4153,7 +4167,13 @@
                 "type": "object",
                 "properties": {
                     "setting": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "school",
+                            "campus",
+                            "office",
+                            "cafe"
+                        ]
                     },
                     "currentOrder": {
                         "type": "integer",
@@ -4167,7 +4187,14 @@
                         }
                     },
                     "route": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "romance",
+                            "solo"
+                        ]
                     },
                     "romancePartnerId": {
                         "type": "string",
@@ -4238,7 +4265,9 @@
                 "properties": {
                     "pointId": {
                         "type": "integer",
-                        "format": "int32"
+                        "format": "int32",
+                        "maximum": 4,
+                        "minimum": 1
                     },
                     "episodeOrder": {
                         "type": "integer",
@@ -4276,6 +4305,39 @@
                 "required": [
                     "surveyResultId"
                 ]
+            },
+            "AiInsufficientTokensError": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/AiInsufficientTokensView"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string",
+                        "enum": [
+                            "INSUFFICIENT_TOKENS"
+                        ]
+                    }
+                }
+            },
+            "AiInsufficientTokensView": {
+                "type": "object",
+                "properties": {
+                    "required": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "balance": {
+                        "type": "integer",
+                        "format": "int32"
+                    }
+                }
             },
             "AiEpisodeUnlockView": {
                 "type": "object",
@@ -4380,8 +4442,7 @@
                     },
                     "text": {
                         "type": "string",
-                        "maxLength": 200,
-                        "minLength": 0
+                        "minLength": 1
                     }
                 },
                 "required": [
@@ -4446,11 +4507,17 @@
                 "properties": {
                     "pointId": {
                         "type": "integer",
-                        "format": "int32"
+                        "format": "int32",
+                        "maximum": 4,
+                        "minimum": 1
                     },
                     "breadId": {
-                        "type": "string",
-                        "format": "uuid"
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "uuid",
+                        "description": "null\uc774\uba74 \ud63c\uc790 \uc788\uae30"
                     }
                 },
                 "required": [
@@ -4478,7 +4545,16 @@
                         "type": "string"
                     },
                     "type": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "group",
+                            "pair",
+                            "transition",
+                            "messenger",
+                            "choice",
+                            "choice_result",
+                            "interview"
+                        ]
                     },
                     "participants": {
                         "type": "array",
@@ -4525,7 +4601,12 @@
                         "format": "uuid"
                     },
                     "kind": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "chat",
+                            "monologue",
+                            "narration"
+                        ]
                     },
                     "fromRepresentative": {
                         "type": "boolean"
@@ -4596,7 +4677,9 @@
                 "properties": {
                     "pointId": {
                         "type": "integer",
-                        "format": "int32"
+                        "format": "int32",
+                        "maximum": 4,
+                        "minimum": 1
                     },
                     "question": {
                         "type": "string"
@@ -4626,7 +4709,9 @@
                 "properties": {
                     "pointId": {
                         "type": "integer",
-                        "format": "int32"
+                        "format": "int32",
+                        "maximum": 4,
+                        "minimum": 1
                     },
                     "breadId": {
                         "type": "string",
@@ -4650,7 +4735,11 @@
                 "type": "object",
                 "properties": {
                     "kind": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "group",
+                            "direct"
+                        ]
                     },
                     "roomName": {
                         "type": "string"
@@ -5702,7 +5791,12 @@
                         "format": "int32"
                     },
                     "status": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "generating",
+                            "ready",
+                            "failed"
+                        ]
                     },
                     "errorCode": {
                         "type": "string"
@@ -5741,7 +5835,13 @@
                 "type": "object",
                 "properties": {
                     "setting": {
-                        "type": "string"
+                        "type": "string",
+                        "enum": [
+                            "school",
+                            "campus",
+                            "office",
+                            "cafe"
+                        ]
                     },
                     "title": {
                         "type": "string"

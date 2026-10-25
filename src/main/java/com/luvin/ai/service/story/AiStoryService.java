@@ -24,6 +24,7 @@ import com.luvin.ai.domain.AiSceneBlockType;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonStatus;
 import com.luvin.ai.domain.AiStoryContentStatus;
+import com.luvin.ai.domain.AiStoryRoute;
 import com.luvin.ai.domain.AiStoryFeedback;
 import com.luvin.ai.dto.AiHighlightView;
 import com.luvin.ai.dto.AiMessageLikeView;
@@ -475,7 +476,7 @@ public class AiStoryService {
             SeasonReportResponse report = callWithRetry("season-report",
                     () -> storyClient.writeSeasonReport(ownerSubject, reportRequest),
                     r -> AiStoryResponseValidator.validateReport(r, castIds));
-            reportJson = AiStoryJson.write(toReportView(report, mapper));
+            reportJson = AiStoryJson.write(toReportView(report, snapshot));
         }
 
         List<AiStoryStateWriter.RelationChange> changes = summary.relations().stream()
@@ -498,6 +499,10 @@ public class AiStoryService {
      */
     public AiStoryFeedbackView submitFeedback(Long memberId, int order, Integer bodyOrder, String blockId,
                                               UUID messageId, String text) {
+        if (text.length() > AiStoryFeedback.TEXT_MAX) {
+            throw new AiInputValidationException(AiInputValidationException.FEEDBACK_TOO_LONG,
+                    "피드백은 " + AiStoryFeedback.TEXT_MAX + "자 이내여야 합니다.");
+        }
         SceneMessage target = findMyPairMessage(memberId, order, bodyOrder, blockId, messageId);
         AiStoryFeedback saved = stateWriter.saveFeedback(target.seasonPk(), order, blockId, messageId,
                 target.message().text(), text);
@@ -524,7 +529,8 @@ public class AiStoryService {
                                            UUID messageId) {
         validateOrder(order);
         if (bodyOrder != null && bodyOrder != order) {
-            throw new AiInputValidationException("경로의 order와 body의 order가 다릅니다.");
+            throw new AiInputValidationException(AiInputValidationException.SCENE_ORDER_MISMATCH,
+                    "경로의 order와 body의 order가 다릅니다.");
         }
         AiSeason season = currentSeason(memberId);
         AiStorySnapshot snapshot = startedSnapshot(season);
@@ -535,18 +541,22 @@ public class AiStoryService {
             snapshot.choice(pointId).ifPresent(c -> blocks.addAll(AiStoryJson.read(c.resultBlocksJson(), BLOCK_LIST)));
         }
         AiSceneBlockView block = blocks.stream().filter(b -> b.id().equals(blockId)).findFirst()
-                .orElseThrow(() -> new AiInputValidationException("이 회차에 없는 blockId입니다."));
+                .orElseThrow(() -> new AiInputValidationException(AiInputValidationException.SCENE_BLOCK_NOT_FOUND,
+                        "이 회차에 없는 blockId입니다."));
         if (!AiSceneBlockType.PAIR.wireValue().equals(block.type()) || block.participants().size() < 2) {
-            throw new AiInputValidationException("1:1 장면(상대가 있는 pair 블록)에서만 남길 수 있습니다.");
+            throw new AiInputValidationException(AiInputValidationException.SCENE_NOT_PAIR,
+                    "1:1 장면(상대가 있는 pair 블록)에서만 남길 수 있습니다.");
         }
         AiStoryMessageView message = block.messages().stream().filter(m -> m.messageId().equals(messageId))
                 .findFirst()
-                .orElseThrow(() -> new AiInputValidationException("messageId가 이 장면의 대사에 없습니다."));
+                .orElseThrow(() -> new AiInputValidationException(AiInputValidationException.SCENE_MESSAGE_NOT_FOUND,
+                        "messageId가 이 장면의 대사에 없습니다."));
         if (!message.fromRepresentative()) {
-            throw new AiInputValidationException("내 빵의 대사에만 남길 수 있습니다.");
+            throw new AiInputValidationException(AiInputValidationException.SCENE_NOT_MY_LINE,
+                    "내 빵의 대사에만 남길 수 있습니다.");
         }
         if (StoryTypes.KIND_MONOLOGUE.equals(message.kind())) {
-            throw new AiInputValidationException("독백에는 남길 수 없습니다.");
+            throw new AiInputValidationException(AiInputValidationException.SCENE_MONOLOGUE, "독백에는 남길 수 없습니다.");
         }
         return new SceneMessage(season.getId(), message);
     }
@@ -817,8 +827,31 @@ public class AiStoryService {
         return new AiEpisodeContentView(content.order(), status, null,
                 AiStoryJson.read(content.introJson(), AiStoryIntroView.class),
                 AiStoryJson.read(content.stageIntroJson(), AiStageIntroView.class),
-                AiStoryJson.read(content.blocksJson(), BLOCK_LIST), content.completed(), feedbacks,
+                blocksWithChoiceResult(snapshot, content), content.completed(), feedbacks,
                 stateWriter.findLikedMessageIds(snapshot.seasonPk(), content.order()));
+    }
+
+    /**
+     * 회차 블록 + (선택을 마쳤으면) 선택 결과 블록. choice_result와 거절 뒤 대체 pair를 choice 블록 바로 뒤에 넣어,
+     * 앱을 다시 켜거나 다시 볼 때도 choices 응답과 같은 순서로 재생되게 한다.
+     */
+    private static List<AiSceneBlockView> blocksWithChoiceResult(AiStorySnapshot snapshot,
+                                                                 AiStorySnapshot.Content content) {
+        List<AiSceneBlockView> blocks = new ArrayList<>(AiStoryJson.read(content.blocksJson(), BLOCK_LIST));
+        Integer pointId = AiStoryCatalog.pointOf(content.order());
+        if (pointId == null) {
+            return blocks;
+        }
+        snapshot.choice(pointId).ifPresent(choice -> {
+            int choiceIndex = 0;
+            for (int i = 0; i < blocks.size(); i++) {
+                if (blocks.get(i).choice() != null) {
+                    choiceIndex = i;
+                }
+            }
+            blocks.addAll(choiceIndex + 1, AiStoryJson.read(choice.resultBlocksJson(), BLOCK_LIST));
+        });
+        return blocks;
     }
 
     private AiStoryStateView toStateView(AiStorySnapshot snapshot) {
@@ -846,11 +879,16 @@ public class AiStoryService {
                 choices, breads, List.copyOf(unlocked), properties.episodeTokenCost());
     }
 
-    private static AiReportView toReportView(SeasonReportResponse report, AiStoryContractMapper mapper) {
+    /**
+     * 최종 상대(finalPartnerId)는 Spring이 흐름으로 정한다: 연애 흐름이면 연인, 혼자 흐름이면 null. AI 응답의 값은 쓰지
+     * 않는다(앱은 null이면 상대 없이 내 빵만 굽는 연출).
+     */
+    private static AiReportView toReportView(SeasonReportResponse report, AiStorySnapshot snapshot) {
         AiReportHighlightsView highlights = new AiReportHighlightsView(
                 new AiHighlightView(report.highlights().episode2().message(), report.highlights().episode2().reason()),
                 new AiHighlightView(report.highlights().episode4().message(), report.highlights().episode4().reason()));
-        return new AiReportView(mapper.uuidOrNull(report.finalPartnerId()), report.tendency(), report.feedback(),
+        UUID finalPartnerId = snapshot.route() == AiStoryRoute.ROMANCE ? snapshot.romancePartnerId() : null;
+        return new AiReportView(finalPartnerId, report.tendency(), report.feedback(),
                 report.strengths(), report.weaknesses(), highlights, report.renderMode());
     }
 }

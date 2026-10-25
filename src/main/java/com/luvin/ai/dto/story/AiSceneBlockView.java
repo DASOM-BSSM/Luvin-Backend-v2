@@ -1,5 +1,6 @@
 package com.luvin.ai.dto.story;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.List;
@@ -17,6 +18,7 @@ import java.util.UUID;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record AiSceneBlockView(
         String id,
+        @Schema(allowableValues = {"group", "pair", "transition", "messenger", "choice", "choice_result", "interview"})
         String type,
         List<AiStoryParticipantView> participants,
         List<AiStoryMessageView> messages,
@@ -28,10 +30,10 @@ public record AiSceneBlockView(
 ) {
 
     /** kind: direct | group */
-    public record SceneMessenger(String kind, String roomName) {
+    public record SceneMessenger(@Schema(allowableValues = {"group", "direct"}) String kind, String roomName) {
     }
 
-    public record SceneChoice(int pointId, String question, List<SceneChoiceCandidate> candidates) {
+    public record SceneChoice(@Schema(minimum = "1", maximum = "4") int pointId, String question, List<SceneChoiceCandidate> candidates) {
     }
 
     /** memory는 관계 기록에서 뽑은 "기억 한 줄". */
@@ -39,7 +41,7 @@ public record AiSceneBlockView(
     }
 
     /** breadId가 null이면 혼자 있기를 고른 결과이고, 그때 accepted는 true다(공통 데이터 계약 3-2). */
-    public record SceneChoiceResult(int pointId, UUID breadId, boolean accepted) {
+    public record SceneChoiceResult(@Schema(minimum = "1", maximum = "4") int pointId, UUID breadId, boolean accepted) {
     }
 
     public record SceneInterview(UUID breadId) {
