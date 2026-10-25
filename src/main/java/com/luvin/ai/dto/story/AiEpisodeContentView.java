@@ -1,5 +1,6 @@
 package com.luvin.ai.dto.story;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 /**
@@ -10,7 +11,7 @@ import java.util.List;
 public record AiEpisodeContentView(
         int order,
         /** generating | ready | failed */
-        String status,
+        @Schema(allowableValues = {"generating", "ready", "failed"}) String status,
         String errorCode,
         AiStoryIntroView intro,
         AiStageIntroView stageIntro,

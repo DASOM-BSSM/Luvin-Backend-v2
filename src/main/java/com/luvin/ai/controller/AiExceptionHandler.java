@@ -124,8 +124,13 @@ public class AiExceptionHandler {
                 .body(ApiResponse.error("내용이 갱신되었습니다. 최신 버전을 다시 불러와 주세요."));
     }
 
-    @ExceptionHandler({AiInputValidationException.class, AiCandidateInvalidException.class})
-    public ResponseEntity<ApiResponse<Void>> handleInputValidation(RuntimeException e) {
+    @ExceptionHandler(AiInputValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInputValidation(AiInputValidationException e) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(e.getMessage(), e.getCode()));
+    }
+
+    @ExceptionHandler(AiCandidateInvalidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleCandidateInvalid(AiCandidateInvalidException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(e.getMessage()));
     }
 

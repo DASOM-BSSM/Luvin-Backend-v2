@@ -189,6 +189,10 @@ class AiStoryFlowIntegrationTest {
         assertEquals("CHOICE_ALREADY_MADE", error(post(user, "/episodes/3/choices",
                 "{\"pointId\":1,\"breadId\":null}")).get("code").asText());
         complete(user, 3);
+        // 다시 볼 때도 선택 결과 블록이 choice 블록 바로 뒤에 들어 있다.
+        List<String> rewatch3 = blockTypes(data(get(user, "/episodes/3/content")));
+        assertEquals("choice_result", rewatch3.get(rewatch3.indexOf("choice") + 1));
+        assertEquals(blockTypes(ep3).size() + 1, rewatch3.size());
 
         // 4화 pair 상대 = ①에서 수락한 빵
         JsonNode ep4 = readyContent(user, 4);
@@ -231,6 +235,8 @@ class AiStoryFlowIntegrationTest {
         JsonNode report = data(get(user, "/report"));
         assertFalse(report.get("tendency").asText().isBlank());
         assertNotNull(report.get("highlights").get("episode2"));
+        // 연애 흐름의 최종 상대는 연인
+        assertEquals(secure.toString(), report.get("finalPartnerId").asText());
         assertEquals("COMPLETED", seasonRepository.findById(season.pk()).orElseThrow().getStatus().name());
 
         // 회차마다 쪽지가 하나씩 생겼다(10화 쪽지가 시즌 종료 쪽지).
@@ -401,10 +407,24 @@ class AiStoryFlowIntegrationTest {
                 "SELECT reject_count FROM ai_bread_relations WHERE season_id = ? AND target_bread_id = ?",
                 Integer.class, season.pk(), anxious);
         assertEquals(1, rejectCount);
+        // 다시 받은 6화 콘텐츠에도 choice 뒤에 반응 장면과 대체 장면이 이어진다.
+        List<String> types6 = blockTypes(data(get(user, "/episodes/6/content")));
+        int choiceAt = types6.indexOf("choice");
+        assertEquals(List.of("choice_result", "pair"), types6.subList(choiceAt + 1, choiceAt + 3));
         complete(user, 6);
 
         String friend = breadOf(user, "friend");
         assertEquals(friend, pairFocus(readyContent(user, 7), user));
+        complete(user, 7);
+        readyContent(user, 8);
+        post(user, "/episodes/8/choices", "{\"pointId\":4,\"breadId\":null}");
+        complete(user, 8);
+        readyContent(user, 9);
+        complete(user, 9);
+        readyContent(user, 10);
+        complete(user, 10);
+        // 혼자 흐름이면 최종 상대가 없다(AI 응답의 finalPartnerId와 관계없이 null).
+        assertTrue(data(get(user, "/report")).get("finalPartnerId").isNull());
     }
 
     @Test
@@ -439,15 +459,19 @@ class AiStoryFlowIntegrationTest {
         assertEquals(myLine, reloaded.get("likedMessageIds").get(0).asText());
 
         // 상대의 대사에는 피드백·좋아요 불가, pair가 아닌 블록에는 둘 다 불가, body order가 경로와 다르면 불가
-        assertEquals(400, post(user, "/episodes/1/scene-feedback", "{\"blockId\":\"b3\",\"messageId\":\""
-                + partnerLine + "\",\"text\":\"x\"}").statusCode());
-        assertEquals(400, post(user, "/episodes/1/scene-likes", "{\"blockId\":\"b3\",\"messageId\":\""
-                + partnerLine + "\",\"liked\":true}").statusCode());
+        assertEquals("SCENE_NOT_MY_LINE", error(post(user, "/episodes/1/scene-feedback",
+                "{\"blockId\":\"b3\",\"messageId\":\"" + partnerLine + "\",\"text\":\"x\"}")).get("code").asText());
+        assertEquals("SCENE_NOT_MY_LINE", error(post(user, "/episodes/1/scene-likes",
+                "{\"blockId\":\"b3\",\"messageId\":\"" + partnerLine + "\",\"liked\":true}")).get("code").asText());
         String groupLine = ep1.get("blocks").get(0).get("messages").get(1).get("messageId").asText();
-        assertEquals(400, post(user, "/episodes/1/scene-likes", "{\"blockId\":\"b1\",\"messageId\":\""
-                + groupLine + "\",\"liked\":true}").statusCode());
-        assertEquals(400, post(user, "/episodes/1/scene-likes", "{\"order\":2,\"blockId\":\"b3\","
-                + "\"messageId\":\"" + myLine + "\",\"liked\":true}").statusCode());
+        assertEquals("SCENE_NOT_PAIR", error(post(user, "/episodes/1/scene-likes",
+                "{\"blockId\":\"b1\",\"messageId\":\"" + groupLine + "\",\"liked\":true}")).get("code").asText());
+        assertEquals("SCENE_ORDER_MISMATCH", error(post(user, "/episodes/1/scene-likes", "{\"order\":2,\"blockId\":\"b3\","
+                + "\"messageId\":\"" + myLine + "\",\"liked\":true}")).get("code").asText());
+        assertEquals("SCENE_BLOCK_NOT_FOUND", error(post(user, "/episodes/1/scene-likes",
+                "{\"blockId\":\"nope\",\"messageId\":\"" + myLine + "\",\"liked\":true}")).get("code").asText());
+        assertEquals("FEEDBACK_TOO_LONG", error(post(user, "/episodes/1/scene-feedback", "{\"blockId\":\"b3\","
+                + "\"messageId\":\"" + myLine + "\",\"text\":\"" + "가".repeat(201) + "\"}")).get("code").asText());
 
         // 끄면 목록에서 빠진다.
         post(user, "/episodes/1/scene-likes", "{\"blockId\":\"b3\",\"messageId\":\"" + myLine

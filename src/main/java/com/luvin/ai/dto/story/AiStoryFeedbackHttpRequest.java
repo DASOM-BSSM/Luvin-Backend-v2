@@ -2,7 +2,6 @@ package com.luvin.ai.dto.story;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Size;
 
 import java.util.UUID;
 
@@ -14,6 +13,7 @@ public record AiStoryFeedbackHttpRequest(
         Integer order,
         @NotBlank String blockId,
         @NotNull UUID messageId,
-        @NotBlank @Size(max = 200) String text
+        /** 200자 이내. 넘으면 400 FEEDBACK_TOO_LONG */
+        @NotBlank String text
 ) {
 }

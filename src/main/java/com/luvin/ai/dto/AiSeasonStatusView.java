@@ -1,5 +1,6 @@
 package com.luvin.ai.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.UUID;
 
@@ -7,7 +8,8 @@ public record AiSeasonStatusView(
         UUID seasonId,
         Integer revision,
         Integer currentEpisode,
-        String status,
+        /** 진행 중이면 IN_PROGRESS, 10화를 완료하면 COMPLETED. */
+        @Schema(allowableValues = {"IN_PROGRESS", "COMPLETED"}) String status,
         List<AiCharacterView> characters,
         /** 이 시즌을 만든 survey_results.id. legacy(원시 traits) 경로로 만든 시즌은 null — 추측하지 않는다. */
         UUID sourceSurveyResultId,
