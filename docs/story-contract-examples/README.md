@@ -11,8 +11,7 @@ Spring이 FastAPI story endpoint에 실제로 보내는 요청 JSON입니다. `A
 | choice-result.json | POST /luvin/choice-result (3화 ①) | 5-3 |
 | interview.json | POST /luvin/interview (10화) | 5-4 |
 | summarize.json | POST /luvin/summarize (1화 완료) | 5-5 |
-| episode-note.json | POST /luvin/episode-note (10화, episodeSummaries 포함) | 5-6 |
+| episode-note.json | POST /luvin/episode-note (10화) | 5-6 |
 | season-report.json | POST /luvin/season-report | 5-7 |
 
-계약과 다른 점: episode-note의 `episodeSummaries`는 계약 5-6에 아직 없습니다. 10화(시즌 종료 쪽지)에만 1~10화 요약을
-담아 보내고, 그 외 회차에는 필드 자체가 없습니다(AI 문서 P6). 계약 문서에 추가가 필요합니다.
+모든 요청은 계약 v6 5장 필드 그대로입니다(계약에 없는 필드는 보내지 않습니다).

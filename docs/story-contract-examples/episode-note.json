@@ -1,50 +1,62 @@
 {
   "context" : {
-    "setting" : "campus",
+    "setting" : "cafe",
     "audience" : "adult",
     "ageGroup" : "20대 초반",
     "cast" : [ {
       "breadId" : "me",
       "name" : "빵",
       "breadType" : "소금빵",
-      "role" : "같은 과 새 얼굴",
+      "role" : "나",
       "description" : null,
-      "gender" : "FEMALE"
+      "gender" : "FEMALE",
+      "castRole" : "me",
+      "attachmentStyle" : "none"
     }, {
       "breadId" : "avoidant",
-      "name" : "동그란 팥빵",
-      "breadType" : "팥빵",
-      "role" : "같은 과 친구",
-      "description" : "동그란 팥빵와 함께 지내요",
-      "gender" : "MALE"
+      "name" : "보송한 도넛",
+      "breadType" : "도넛",
+      "role" : "같은 매장 친구",
+      "description" : "보송한 도넛와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "candidate",
+      "attachmentStyle" : "avoidant"
     }, {
       "breadId" : "anxious",
-      "name" : "보송한 카스테라",
-      "breadType" : "카스테라",
-      "role" : "같은 과 친구",
-      "description" : "보송한 카스테라와 함께 지내요",
-      "gender" : "MALE"
+      "name" : "새콤한 팥빵",
+      "breadType" : "팥빵",
+      "role" : "같은 매장 친구",
+      "description" : "새콤한 팥빵와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "candidate",
+      "attachmentStyle" : "anxious"
     }, {
       "breadId" : "secure",
-      "name" : "반짝이는 마들렌",
-      "breadType" : "마들렌",
-      "role" : "같은 과 친구",
-      "description" : "반짝이는 마들렌와 함께 지내요",
-      "gender" : "MALE"
+      "name" : "말랑한 프레첼",
+      "breadType" : "프레첼",
+      "role" : "같은 매장 친구",
+      "description" : "말랑한 프레첼와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "candidate",
+      "attachmentStyle" : "secure"
     }, {
       "breadId" : "friend",
-      "name" : "따끈한 크림빵",
-      "breadType" : "크림빵",
-      "role" : "같은 과 단짝",
-      "description" : "따끈한 크림빵와 함께 지내요",
-      "gender" : "FEMALE"
+      "name" : "포근한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 단짝",
+      "description" : "포근한 바게트와 함께 지내요",
+      "gender" : "FEMALE",
+      "castRole" : "friend",
+      "attachmentStyle" : "none"
     }, {
       "breadId" : "maker",
-      "name" : "몽글한 바게트",
-      "breadType" : "바게트",
-      "role" : "같은 과 분위기 담",
-      "description" : "몽글한 바게트와 함께 지내요",
-      "gender" : "MALE"
+      "name" : "몽글한 마들렌",
+      "breadType" : "마들렌",
+      "role" : "같은 매장 분위기 ",
+      "description" : "몽글한 마들렌와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "maker",
+      "attachmentStyle" : "none"
     } ],
     "learnedProfile" : {
       "summary" : "소금빵 타입.",
@@ -54,15 +66,15 @@
     }
   },
   "order" : 10,
-  "settingScene" : "종강",
+  "settingScene" : "마지막 근무 날",
   "episodeSummary" : "10화 요약: 장면 8개.",
   "choice" : null,
   "relations" : [ {
-    "breadId" : "maker",
+    "breadId" : "avoidant",
     "statusText" : "친해짐",
     "recentMemory" : "10화: 함께 이야기를 나눴다"
   }, {
-    "breadId" : "secure",
+    "breadId" : "maker",
     "statusText" : "친해짐",
     "recentMemory" : "10화: 함께 이야기를 나눴다"
   }, {
@@ -74,39 +86,15 @@
     "statusText" : "친해짐",
     "recentMemory" : "10화: 함께 이야기를 나눴다"
   }, {
-    "breadId" : "avoidant",
+    "breadId" : "secure",
     "statusText" : "친해짐",
     "recentMemory" : "10화: 함께 이야기를 나눴다"
   } ],
-  "episodeSummaries" : [ {
-    "order" : 1,
-    "summary" : "1화 요약: 장면 3개."
-  }, {
-    "order" : 2,
-    "summary" : "2화 요약: 장면 4개."
-  }, {
-    "order" : 3,
-    "summary" : "3화 요약: 장면 5개."
-  }, {
-    "order" : 4,
-    "summary" : "4화 요약: 장면 4개."
-  }, {
-    "order" : 5,
-    "summary" : "5화 요약: 장면 8개."
-  }, {
-    "order" : 6,
-    "summary" : "6화 요약: 장면 6개."
-  }, {
-    "order" : 7,
-    "summary" : "7화 요약: 장면 4개."
-  }, {
-    "order" : 8,
-    "summary" : "8화 요약: 장면 5개."
-  }, {
-    "order" : 9,
-    "summary" : "9화 요약: 장면 4개."
-  }, {
-    "order" : 10,
-    "summary" : "10화 요약: 장면 8개."
-  } ]
+  "sender" : {
+    "breadId" : "friend",
+    "name" : "포근한 바게트",
+    "attachmentStyle" : "none",
+    "statusText" : "친해짐"
+  },
+  "previousNoteOpenings" : [ "처음 만난 날인데 이상하게 편했어.", "단톡에서 네가 보낸 이모티콘, 나 혼자 계속 봤어.", "둘만 남았을 때 조금 떨렸는데, 너도 그랬을까.", "준비하느라 힘들었지?", "오늘 너한테 연락할까 말까 오래 고민했어.", "그날 밤 했던 이야기, 아직도 귓가에 맴돌아.", "요즘 바빠서 얼굴을 못 봤네.", "그때 내가 한 말이 서운했다면 미안해.", "다시 웃으면서 이야기할 수 있어서 다행이야." ]
 }

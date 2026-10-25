@@ -1,11 +1,14 @@
 package com.luvin.ai.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.util.UUID;
 
 public record AiCharacterView(
         UUID characterId,
         String role,
-        String gender,
+        /** MALE | FEMALE. 친구와 내 빵은 사용자와 같고, 후보 셋과 분위기 메이커는 반대(시즌 동안 고정). */
+        @Schema(allowableValues = {"MALE", "FEMALE"}) String gender,
         /** 장면 블록 회차 출연진 역할. 새 흐름을 시작하기 전이면 null. */
         String castRole,
         String attachmentStyle,

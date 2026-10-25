@@ -7,7 +7,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +18,19 @@ import java.util.Map;
 @Component
 @ConditionalOnProperty(name = "app.ai.story.client", havingValue = "stub", matchIfMissing = true)
 public class AiStoryStubClient implements AiStoryClient {
+
+    /** 회차마다 다른 임시 쪽지 문구(1~10화, 10화가 시즌 종료 쪽지). 실제 문구는 FastAPI가 쓴다. */
+    private static final List<String> NOTES = List.of(
+            "처음 만난 날인데 이상하게 편했어. 내일도 인사해줄 거지?",
+            "단톡에서 네가 보낸 이모티콘, 나 혼자 계속 봤어.",
+            "둘만 남았을 때 조금 떨렸는데, 너도 그랬을까.",
+            "준비하느라 힘들었지? 네 덕분에 다 잘 끝났어.",
+            "오늘 너한테 연락할까 말까 오래 고민했어.",
+            "그날 밤 했던 이야기, 아직도 귓가에 맴돌아.",
+            "요즘 바빠서 얼굴을 못 봤네. 밥은 잘 챙겨 먹어.",
+            "그때 내가 한 말이 서운했다면 미안해. 다시 얘기하고 싶어.",
+            "다시 웃으면서 이야기할 수 있어서 다행이야.",
+            "시즌을 함께해줘서 고마워. 마지막 날까지 네 곁이라 좋았어.");
 
     /** 배경별·회차 사건에 맞춘 임시 전환 카드 문구(1~10화). 실제 문구는 FastAPI가 쓴다. */
     private static final Map<String, List<String>> TRANSITIONS = Map.of(
@@ -66,6 +78,7 @@ public class AiStoryStubClient implements AiStoryClient {
                     null, null);
         }).toList();
         return new EpisodeResponse(new StoryTypes.Intro(cut(request.settingScene(), 8),
+                cut(request.settingScene(), 20),
                 request.commonEvent() + " — " + request.settingScene() + "에서 생긴 일."), blocks,
                 request.threads().stream().map(StoryTypes.Thread::id).toList());
     }
@@ -121,10 +134,7 @@ public class AiStoryStubClient implements AiStoryClient {
 
     @Override
     public EpisodeNoteResponse writeEpisodeNote(String ownerSubject, EpisodeNoteRequest request) {
-        String body = request.order() == 10
-                ? "시즌을 함께해줘서 고마워. 마지막 날까지 네 곁이라 좋았어."
-                : request.order() + "화 이야기, 나는 오래 기억할 것 같아.";
-        return new EpisodeNoteResponse(null, closest(request.context(), request.relations()), body, "default");
+        return new EpisodeNoteResponse(null, request.sender().breadId(), NOTES.get(request.order() - 1), "default");
     }
 
     @Override
@@ -143,7 +153,7 @@ public class AiStoryStubClient implements AiStoryClient {
                                        boolean messenger, boolean alone, boolean shortReply) {
         List<Message> messages = new ArrayList<>();
         if (!messenger) {
-            messages.add(new Message("n1", StoryTypes.NARRATOR, scene, StoryTypes.KIND_NARRATION, null, null, null));
+            messages.add(new Message("n1", StoryTypes.NARRATOR, scene, StoryTypes.KIND_NARRATION, null, null, null, null));
         }
         int count = shortReply ? 2 : Math.max(3, speakers.size());
         for (int i = 0; i < count; i++) {
@@ -152,28 +162,20 @@ public class AiStoryStubClient implements AiStoryClient {
             String kind = alone ? StoryTypes.KIND_MONOLOGUE : StoryTypes.KIND_CHAT;
             messages.add(messenger
                     ? new Message("m" + i, speaker, text, kind, i < count - 1, i == count - 1 ? Boolean.TRUE : null,
-                            i == 0 ? Boolean.TRUE : null)
-                    : new Message("m" + i, speaker, text, kind, null, null, null));
+                            i == 0 ? Boolean.TRUE : null, "오후 " + (4 + i / 2) + "시 " + (10 + i * 7 % 50) + "분")
+                    : new Message("m" + i, speaker, text, kind, null, null, null, null));
         }
         return messages;
     }
 
     private static Message chat(String id, String speaker, String text) {
-        return new Message(id, speaker, text, StoryTypes.KIND_CHAT, null, null, null);
+        return new Message(id, speaker, text, StoryTypes.KIND_CHAT, null, null, null, null);
     }
 
     private static Map<String, String> names(StoryTypes.GenerationContext context) {
         Map<String, String> names = new HashMap<>();
         context.cast().forEach(c -> names.put(c.breadId(), c.name()));
         return names;
-    }
-
-    /** 쪽지 발신 빵: 상태 문구가 "연애 중"인 빵, 없으면 첫 번째 빵. */
-    private static String closest(StoryTypes.GenerationContext context, List<EpisodeNoteRequest.Relation> relations) {
-        return relations.stream()
-                .max(Comparator.comparing(r -> "연애 중".equals(r.statusText())))
-                .map(EpisodeNoteRequest.Relation::breadId)
-                .orElse(null);
     }
 
     private static String roleWord(String breadId) {

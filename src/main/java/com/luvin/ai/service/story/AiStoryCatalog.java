@@ -68,10 +68,10 @@ public final class AiStoryCatalog {
 
     /** 그룹 메신저 방 이름(배경별). */
     private static final Map<AiSeasonSetting, String> GROUP_ROOM_NAMES = Map.of(
-            AiSeasonSetting.SCHOOL, "우리 반 단톡",
-            AiSeasonSetting.CAMPUS, "과 동기 단톡",
-            AiSeasonSetting.OFFICE, "입사 동기 단톡",
-            AiSeasonSetting.CAFE, "매장 근무 단톡");
+            AiSeasonSetting.SCHOOL, "2학년 2반 단톡방ㅎㅎ",
+            AiSeasonSetting.CAMPUS, "새내기 과 동기방",
+            AiSeasonSetting.OFFICE, "입사 동기방",
+            AiSeasonSetting.CAFE, "매장 근무자 단톡");
 
     private AiStoryCatalog() {
     }

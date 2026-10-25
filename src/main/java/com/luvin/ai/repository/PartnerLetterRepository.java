@@ -17,6 +17,9 @@ public interface PartnerLetterRepository extends JpaRepository<PartnerLetter, Lo
 
     boolean existsBySeason_IdAndEpisodeOrder(Long seasonPk, Integer episodeOrder);
 
+    /** 장면 블록 회차 쪽지(회차 순). episode-note의 previousNoteOpenings 재료. */
+    List<PartnerLetter> findAllBySeason_IdAndEpisodeOrderIsNotNullOrderByEpisodeOrderAsc(Long seasonPk);
+
     void deleteAllBySeason_IdAndEpisodeOrderIsNotNull(Long seasonPk);
 
     /**

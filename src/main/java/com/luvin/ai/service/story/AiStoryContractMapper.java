@@ -75,7 +75,8 @@ final class AiStoryContractMapper {
             AiStageIntroView.StageCast intro = stageCast.get(m.breadId());
             return new StoryTypes.CastMember(m.castRole().contractId(), m.name(), m.breadType(),
                     intro != null ? intro.role() : m.castRole().seasonRole(),
-                    intro != null ? intro.description() : null, m.gender());
+                    intro != null ? intro.description() : null, m.gender(), m.castRole().fastApiCastRole(),
+                    m.castRole().attachmentStyle().wireValue());
         }).toList();
     }
 
@@ -180,7 +181,7 @@ final class AiStoryContractMapper {
         return view.messages().stream()
                 .map(m -> new StoryTypes.Message(m.messageId().toString(),
                         m.speakerId() == null ? StoryTypes.NARRATOR : contractId(m.speakerId()), m.text(), m.kind(),
-                        m.read(), m.typing(), m.deletedAfterSend()))
+                        m.read(), m.typing(), m.deletedAfterSend(), m.sentAtLabel()))
                 .toList();
     }
 
@@ -205,7 +206,7 @@ final class AiStoryContractMapper {
         for (StoryTypes.Message m : messages) {
             UUID speaker = StoryTypes.NARRATOR.equals(m.speakerId()) ? null : uuid(m.speakerId());
             views.add(new AiStoryMessageView(UUID.randomUUID(), sequence[0]++, speaker, m.kind(),
-                    me.equals(speaker), m.text(), m.read(), m.typing(), m.deletedAfterSend()));
+                    me.equals(speaker), m.text(), m.read(), m.typing(), m.deletedAfterSend(), m.sentAtLabel()));
         }
         return views;
     }

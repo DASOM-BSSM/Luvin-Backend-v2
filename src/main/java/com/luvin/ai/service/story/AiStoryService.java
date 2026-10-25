@@ -91,6 +91,8 @@ public class AiStoryService {
     private static final int MAX_ATTEMPTS = 2;
     private static final String DEFAULT_MEMORY = "아직 함께한 기억이 없어요";
     public static final String FORMAT_BLOCKS = "blocks";
+    /** 1화 무대 소개에서 내 빵의 역할 표기. */
+    static final String MY_BREAD_STAGE_ROLE = "나";
     private static final TypeReference<List<AiSceneBlockView>> BLOCK_LIST = new TypeReference<>() {
     };
 
@@ -259,7 +261,8 @@ public class AiStoryService {
                     ? Map.of() : requestInterviews(ownerSubject, snapshot, mapper, context);
 
             List<AiSceneBlockView> blocks = toBlockViews(plan, generated, interviews, snapshot, mapper);
-            AiStoryIntroView intro = new AiStoryIntroView(episode.intro().title(), episode.intro().situation());
+            AiStoryIntroView intro = new AiStoryIntroView(episode.intro().title(), episode.intro().episodeName(),
+                    episode.intro().situation());
             stateWriter.saveGenerated(contentPk, AiStoryJson.write(intro),
                     order == AiStoryCatalog.FIRST_ORDER ? AiStoryJson.write(stageIntro) : null,
                     AiStoryJson.write(blocks));
@@ -273,7 +276,8 @@ public class AiStoryService {
     private AiStageIntroView requestStageIntro(String ownerSubject, AiStorySnapshot snapshot, int age) {
         List<StageIntroRequest.Cast> cast = snapshot.cast().stream()
                 .map(m -> new StageIntroRequest.Cast(m.castRole().contractId(), m.name(), m.breadType(), m.gender(),
-                        m.castRole().attachmentStyle().wireValue(), m.castRole().seasonRole()))
+                        m.castRole().fastApiCastRole(), m.castRole().attachmentStyle().wireValue(),
+                        m.castRole().seasonRole()))
                 .toList();
         StageIntroRequest request = new StageIntroRequest(snapshot.setting().wireValue(),
                 AiSeasonSettingPolicy.audience(age), AiSeasonSettingPolicy.ageGroup(age), cast);
@@ -285,9 +289,12 @@ public class AiStoryService {
         response.cast().forEach(c -> byId.put(c.breadId(), c));
         List<AiStageIntroView.StageCast> stageCast = snapshot.cast().stream()
                 .map(m -> {
+                    // 내 빵은 역할 "나", 소개 없음(계약 0-1장). 무대 소개는 내 빵 포함 6명 전부다.
                     StageIntroResponse.Cast intro = byId.get(m.castRole().contractId());
-                    return new AiStageIntroView.StageCast(m.breadId(), m.name(), m.breadType(), intro.role(),
-                            m.isMe() ? null : intro.description());
+                    return m.isMe()
+                            ? new AiStageIntroView.StageCast(m.breadId(), m.name(), m.breadType(), MY_BREAD_STAGE_ROLE, null)
+                            : new AiStageIntroView.StageCast(m.breadId(), m.name(), m.breadType(), intro.role(),
+                                    intro.description());
                 })
                 .toList();
         return new AiStageIntroView(snapshot.setting().wireValue(), snapshot.setting().title(),
@@ -441,16 +448,26 @@ public class AiStoryService {
         List<EpisodeNoteRequest.Relation> noteRelations = summary.relations().stream()
                 .map(u -> new EpisodeNoteRequest.Relation(u.breadId(), u.statusText(), u.recentMemory()))
                 .toList();
-        boolean finale = order == AiStoryCatalog.FINAL_ORDER;
-        List<StoryTypes.EpisodeSummary> summaries = episodeSummaries(snapshot, order, summary.episodeSummary());
+        AiStoryCastMember sender = noteSender(snapshot, content, order);
+        String senderStatus = summary.relations().stream()
+                .filter(u -> u.breadId().equals(sender.castRole().contractId()))
+                .map(SummarizeResponse.RelationUpdate::statusText)
+                .findFirst()
+                .orElseGet(() -> snapshot.relation(sender.breadId()).map(AiStorySnapshot.Relation::statusText)
+                        .orElse(null));
         EpisodeNoteRequest noteRequest = new EpisodeNoteRequest(context, order, settingScene, summary.episodeSummary(),
-                choice, noteRelations, finale ? summaries : null);
+                choice, noteRelations,
+                new EpisodeNoteRequest.Sender(sender.castRole().contractId(), sender.name(),
+                        sender.castRole().attachmentStyle().wireValue(), senderStatus),
+                stateWriter.findEpisodeNoteBodies(snapshot.seasonPk()).stream().map(AiStoryService::firstSentence)
+                        .toList());
         EpisodeNoteResponse note = callWithRetry("episode-note",
                 () -> storyClient.writeEpisodeNote(ownerSubject, noteRequest),
                 r -> AiStoryResponseValidator.validateNote(r, castIds));
 
         String reportJson = null;
-        if (finale) {
+        if (order == AiStoryCatalog.FINAL_ORDER) {
+            List<StoryTypes.EpisodeSummary> summaries = episodeSummaries(snapshot, order, summary.episodeSummary());
             SeasonReportRequest reportRequest = new SeasonReportRequest(context,
                     snapshot.route() == null ? null : snapshot.route().wireValue(),
                     mapper.contractIdOrNull(snapshot.romancePartnerId()), summaries, mapper.choiceRecordsWithReason(),
@@ -467,7 +484,7 @@ public class AiStoryService {
                         u.affinityDelta(), u.choiceMemory()))
                 .toList();
         stateWriter.completeEpisode(season.getId(), order, summary.episodeSummary(), changes,
-                new AiStoryStateWriter.EpisodeNote(mapper.uuidOrNull(note.finalPartnerId()), note.body(),
+                new AiStoryStateWriter.EpisodeNote(sender.breadId(), note.body(),
                         note.renderMode()),
                 reportJson);
         return toStateView(stateWriter.snapshot(season.getId()));
@@ -647,6 +664,31 @@ public class AiStoryService {
                 stateWriter.recentFeedbacks(snapshot.seasonPk()), stateWriter.recentLikedMyMessages(snapshot.seasonPk()));
         return new StoryTypes.GenerationContext(snapshot.setting().wireValue(), AiSeasonSettingPolicy.audience(age),
                 AiSeasonSettingPolicy.ageGroup(age), mapper.castMembers(), learned);
+    }
+
+    /**
+     * 회차 쪽지 발신 빵(계약 7장 "회차 쪽지 발신자"): 그 회차의 1:1 상대. 1:1 상대가 없던 회차(혼자)는 친구,
+     * 10화는 연애 흐름이면 연인, 혼자 흐름이면 친구.
+     */
+    private static AiStoryCastMember noteSender(AiStorySnapshot snapshot, AiStorySnapshot.Content content, int order) {
+        AiStoryCastMember friend = snapshot.cast().stream().filter(c -> c.castRole() == AiCastRole.FRIEND)
+                .findFirst().orElseThrow();
+        if (order == AiStoryCatalog.FINAL_ORDER) {
+            return snapshot.romancePartnerId() != null
+                    ? snapshot.member(snapshot.romancePartnerId()).orElse(friend) : friend;
+        }
+        return AiStoryJson.read(content.blocksJson(), BLOCK_LIST).stream()
+                .filter(b -> AiSceneBlockType.PAIR.wireValue().equals(b.type()))
+                .findFirst()
+                .flatMap(pair -> pair.participants().stream().filter(p -> !p.isMe()).findFirst())
+                .flatMap(p -> snapshot.member(p.breadId()))
+                .orElse(friend);
+    }
+
+    /** 쪽지 첫 문장(마침표·물음표·느낌표·줄바꿈 전까지). */
+    static String firstSentence(String body) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("^.*?[.!?…\n]").matcher(body.strip());
+        return (matcher.find() ? matcher.group() : body.strip()).strip();
     }
 
     /** 1화부터 이번 회차까지의 회차 요약(이번 회차는 방금 받은 정리 결과). */

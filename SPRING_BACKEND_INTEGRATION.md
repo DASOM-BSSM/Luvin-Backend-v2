@@ -309,8 +309,19 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 - 출연진 성별(계약 7장): 친구만 사용자와 같은 성별, 후보 셋과 분위기 메이커는 다른 성별로 `characters[].gender`에 저장합니다.
 - 1:1 상대(계약 7장): 1·2·3화는 시즌 시작 때 랜덤으로 정한 후보 순서대로, 4화 ①의 빵(아니면 친구), 5화 친구(후보 셋은
   각자 1:1 메신저로 연락), 6화 ②의 빵(아니면 친구), 7·10화 연인/친구, 8화 연인/호감이 가장 높은 후보, 9화 ④ 결과.
-- 메신저: 단톡방(group)은 2화에만, 개인톡(direct)은 5화(후보 셋이 각자 연락)와 4·6·7·9화(그 회차 1:1 상대)에만
-  있습니다. 그 외 회차는 메신저 없이 1:1 장면이나 선택으로 끝납니다.
+- 블록 배치(계약 0-1장): group(항상 6명) → (2화만 단톡방) → transition(첫 pair 바로 앞에 하나) → 첫 pair → (개인톡)
+  → (10화 interview) → (choice). 첫 pair 뒤에는 group이나 단톡방이 오지 않습니다. 개인톡(direct)은 1·3·4·6·7·9화는 그
+  회차 1:1 상대와, 5화는 후보 셋이 각자 연락합니다(2·8·10화와 혼자인 9화는 없음). messenger 메시지에는 이야기 속
+  시각 `sentAtLabel`이 있을 수 있습니다.
+- 회차 소개: `intro.episodeName`(회차 시작 화면 한 줄, 20자 이내). 1화 `stageIntro.title`은 "In School" 등, cast는 내 빵
+  포함 6명이고 내 빵 role은 "나", description null.
+- 회차 쪽지 발신자(계약 7장): 그 회차의 1:1 상대(첫 pair), 1:1 상대가 없던 회차는 친구, 10화는 연인(연애 흐름) 또는
+  친구. Spring이 정해 episode-note 요청 `sender`로 보내고 쪽지 `partnerId`에 저장합니다. `GET /letters/unread`의
+  `partnerName`/`partnerBreadType`은 그 빵의 출연진 이름·빵 종류입니다. 요청에는 이미 보낸 쪽지 첫 문장
+  `previousNoteOpenings`도 함께 보냅니다.
+- FastAPI로 보내는 cast에는 `castRole`(me | friend | maker | candidate)과 `attachmentStyle`(후보만 avoidant/anxious/secure,
+  나머지 none)을 넣습니다. 앱 응답 `characters[].castRole`은 기존 값(my_bread, avoidant, …) 그대로입니다.
+- 성별 값은 `MALE`/`FEMALE`(요청은 대소문자 무관, 응답은 대문자)입니다.
 - `characters[].description`: 출연진 소개 한 줄(1화 무대 소개에서 정해짐, 내 빵과 1화 생성 전은 null).
 - 쪽지(`GET /letters/unread`)와 최종 리포트(`GET /report`)는 경로·응답 형식이 그대로입니다. 회차마다 쪽지가 하나씩
   생기고 10화 쪽지가 시즌 종료 쪽지입니다.
@@ -343,7 +354,7 @@ Spring ↔ FastAPI 형식은 「러빈지옥 에피소드 재구성: 공통 데�
     감정일기 원문은 보내지 않습니다.
   - 관계 기록의 호감은 숫자 대신 구간(0~39 `low`, 40~69 `mid`, 70~100 `high`)만 넘깁니다.
 - 혼자 있기는 FastAPI를 부르지 않고 `accepted: true`, 대사·대체 장면 없이 결과를 만듭니다(5-3).
-- 10화 episode-note에는 1~10화 요약 목록(`episodeSummaries`)을 함께 보냅니다(AI 문서 P6, 계약 5-6에 추가 필요).
+- 10화 쪽지 요청에는 시즌 요약을 넣지 않습니다(계약 5-6). 1~10화 요약은 최종 리포트(5-7) 요청에만 들어갑니다.
 - endpoint별 실제 요청 예시: `docs/story-contract-examples/`
 - 출연진 이름: 내 빵은 닉네임, 나머지는 "중립 형용사 + 빵 종류"(설문 빵 8종에서 내 빵 타입 제외)로 시즌 시작 때 정해
   고정합니다. 형용사 목록(`AiStoryCatalog.NEUTRAL_ADJECTIVES`)은 서비스 목록을 받으면 교체합니다.
