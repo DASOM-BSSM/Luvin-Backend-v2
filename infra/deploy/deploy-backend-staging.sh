@@ -39,7 +39,21 @@ echo "Registered $new_task_definition"
 aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
   --task-definition "$new_task_definition" --query 'service.taskDefinition' --output text
 
-aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+# services-stable waiter는 최대 10분(15초 x 40회)까지만 기다린다. ALB deregistration_delay(300초)로
+# 이전 태스크를 정리하는 시간이 길어지면 배포는 곧 끝나는데도 여기서 타임아웃이 난다(10분 남짓 걸린
+# 실제 배포가 실패로 찍힌 적이 있다). waiter를 두 번까지 돌려 최대 20분을 기다린다.
+stable=false
+for attempt in 1 2; do
+  if aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"; then
+    stable=true
+    break
+  fi
+  echo "services-stable wait timed out for $ECS_SERVICE (attempt $attempt/2)" >&2
+done
+if [[ "$stable" != true ]]; then
+  echo "$ECS_SERVICE did not become stable within 20 minutes" >&2
+  exit 1
+fi
 
 actual="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
   --query 'services[0].taskDefinition' --output text)"
