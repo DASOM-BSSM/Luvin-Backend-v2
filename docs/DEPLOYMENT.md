@@ -22,6 +22,8 @@ ECR(`luvin-staging-backend`)·ALB 타겟그룹을 그대로 사용하며, 이 �
    그 외 모든 필드는 그대로 유지된다(Service Connect 설정은 태스크 정의가 아니라 ECS 서비스 리소스
    자체에 있어서 이 스크립트가 건드리지 않는 한 자동으로 보존된다).
 2. `aws ecs update-service`로 새 revision을 적용하고 `aws ecs wait services-stable`로 안정화를 기다린다.
+   waiter 한 번은 최대 10분이라, ALB deregistration_delay(300초) 때문에 이전 태스크 정리가 길어져도
+   실패하지 않도록 최대 두 번(20분)까지 기다린다.
 3. 서비스의 최종 task definition이 방금 등록한 revision과 실제로 일치하는지 확인한다 — 일치하지
    않으면(예: 배포 circuit breaker가 자동 롤백한 경우) 실패 처리한다.
 4. ALB 타겟그룹(`luvin-staging-backend`)의 타겟 헬스를 직접 조회해 `healthy`가 될 때까지 최대
