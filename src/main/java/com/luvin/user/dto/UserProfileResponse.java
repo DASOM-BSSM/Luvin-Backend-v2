@@ -18,10 +18,13 @@ public class UserProfileResponse {
     private final String personalityType;
     private final boolean surveyCompleted;
     private final UUID latestSurveyResultId;
+    @Schema(description = "감정일기 학습 동의. 끄면 일기·댓글·그룹 답·밸런스 답을 내 빵 학습에 쓰지 않는다")
+    private final boolean learningEnabled;
 
     public UserProfileResponse(Long memberId, String name, String nickname, String gender,
                                Integer age, String job, String bio,
-                               String personalityType, boolean surveyCompleted, UUID latestSurveyResultId) {
+                               String personalityType, boolean surveyCompleted, UUID latestSurveyResultId,
+                               boolean learningEnabled) {
         this.memberId = memberId;
         this.name = name;
         this.nickname = nickname;
@@ -32,6 +35,7 @@ public class UserProfileResponse {
         this.personalityType = personalityType;
         this.surveyCompleted = surveyCompleted;
         this.latestSurveyResultId = latestSurveyResultId;
+        this.learningEnabled = learningEnabled;
     }
 
     public static UserProfileResponse from(User user, boolean surveyCompleted) {
@@ -39,7 +43,7 @@ public class UserProfileResponse {
                 user.getId(), user.getName(), user.getNickname(),
                 user.getGender(), user.getAge(), user.getJob(), user.getBio(),
                 surveyCompleted ? user.getPersonalityType() : null,
-                surveyCompleted, user.getLatestSurveyResultId());
+                surveyCompleted, user.getLatestSurveyResultId(), user.isLearningEnabled());
     }
 
     public Long getMemberId() { return memberId; }
@@ -52,4 +56,5 @@ public class UserProfileResponse {
     public String getPersonalityType() { return personalityType; }
     public boolean isSurveyCompleted() { return surveyCompleted; }
     public UUID getLatestSurveyResultId() { return latestSurveyResultId; }
+    public boolean isLearningEnabled() { return learningEnabled; }
 }

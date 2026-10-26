@@ -68,6 +68,9 @@ public class UserServiceImpl implements UserService {
         }
         user.updateProfile(request.getNickname(), normalizeGender(request.getGender()), request.getAge(),
                 request.getJob(), request.getBio());
+        if (request.getLearningEnabled() != null) {
+            user.changeLearningEnabled(request.getLearningEnabled());
+        }
         // JPA 변경 감지(dirty checking)로 트랜잭션 종료 시 자동 반영 -> save() 호출 불필요
     }
 
