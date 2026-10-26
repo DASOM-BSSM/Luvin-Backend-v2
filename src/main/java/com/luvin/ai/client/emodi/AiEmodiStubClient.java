@@ -17,7 +17,9 @@ import java.util.Optional;
  * 학습 추출은 결과 없음으로 돌려준다 — 가짜 말투·성격을 저장하지 않고, 신호는 http로 바꾼 뒤 처리되도록 남긴다.
  */
 @Component
-@ConditionalOnProperty(name = "app.ai.emodi.client", havingValue = "stub", matchIfMissing = true)
+// 기본값을 두지 않는다 — 설정이 빠진 환경(스테이징)이 조용히 stub으로 돌며 임시 문구를 정상 결과로 저장한 적이 있다.
+// app.ai.emodi.client(stub|http)가 없으면 구현 빈이 없어 기동이 실패한다.
+@ConditionalOnProperty(name = "app.ai.emodi.client", havingValue = "stub")
 public class AiEmodiStubClient implements AiEmodiClient {
 
     @Override
