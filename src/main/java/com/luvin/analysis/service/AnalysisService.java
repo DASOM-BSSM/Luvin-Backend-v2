@@ -10,7 +10,6 @@ import com.luvin.analysis.repository.AnalysisResultRepository;
 import com.luvin.common.exception.BusinessException;
 import com.luvin.common.exception.ErrorCode;
 import com.luvin.common.security.SecurityUtils;
-import com.luvin.dailyquestion.repository.DailyQuestionAnswerRepository;
 import com.luvin.simulation.domain.AiClone;
 import com.luvin.simulation.repository.AiCloneRepository;
 import com.luvin.survey.repository.SurveyAnswerRepository;
@@ -30,7 +29,6 @@ public class AnalysisService {
     private final UserRepository userRepository;
     private final AiCloneRepository aiCloneRepository;
     private final SurveyAnswerRepository surveyAnswerRepository;
-    private final DailyQuestionAnswerRepository dailyQuestionAnswerRepository;
 
     public AnalysisSummaryResponse getSummary() {
         AnalysisResult result = getOrCreateLatestResult();
@@ -129,7 +127,6 @@ public class AnalysisService {
         if (user.getNickname() != null && user.getNickname().length() >= 6) {
             score += 5;
         }
-        score += Math.min(dailyQuestionAnswerRepository.countByMemberId(user.getId()) * 2, 10);
         return Math.min(score, 95);
     }
 
@@ -155,7 +152,6 @@ public class AnalysisService {
         } else if (user.getMbti() != null && user.getMbti().contains("F")) {
             score += 15;
         }
-        score += Math.min(dailyQuestionAnswerRepository.countByMemberId(user.getId()), 10);
         return Math.min(score, 95);
     }
 

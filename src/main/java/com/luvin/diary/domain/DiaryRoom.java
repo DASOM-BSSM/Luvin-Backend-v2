@@ -36,19 +36,25 @@ public class DiaryRoom {
     @Column(name = "invite_code", nullable = false, length = 8, unique = true)
     private String inviteCode;
 
+    /** 최대 인원(방장 포함, 2~6명). 이 컬럼이 생기기 전에 있던 방은 Flyway V13이 6으로 채운다. */
+    @Column(name = "max_member_count", nullable = false)
+    private Integer maxMemberCount;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
-    public DiaryRoom(String name, String description, Long ownerId) {
+    public DiaryRoom(String name, String description, Long ownerId, int maxMemberCount) {
         this.name = name;
         this.description = description;
         this.ownerId = ownerId;
+        this.maxMemberCount = maxMemberCount;
     }
 
-    public void update(String name, String description) {
+    public void update(String name, String description, int maxMemberCount) {
         this.name = name;
         this.description = description;
+        this.maxMemberCount = maxMemberCount;
     }
 
     public void changeInviteCode(String inviteCode) {

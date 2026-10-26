@@ -46,7 +46,7 @@ public final class LearningPolicy {
 
     // ---------------------------------------------------------------- (B) 반죽 성격 학습
 
-    /** 밸런스 답·그룹 답이 이만큼 쌓이면 성격 신호 추출을 돌린다. */
+    /** 그룹 답이 이만큼 쌓이면 성격 신호 추출을 돌린다. */
     public static final int PERSONALITY_MIN_SIGNALS = 3;
     public static final int PERSONALITY_MAX_ANSWERS = 20;
     /** 한 번 반영할 때 축별 변화량 상한(1~100 척도, 절댓값). */

@@ -119,8 +119,8 @@ class AiStoryHttpContractIntegrationTest {
     void 계약_경로와_camelCase_형식으로_보내고_피드백이_다음_회차_입력에_들어간다() throws Exception {
         setUpUserAndSeason();
         // 감정일기 16개 → 최근 15개가 원문 그대로 learnedProfile.styleSamples로 간다(최근 순).
-        Long roomId = jdbcTemplate.queryForObject("INSERT INTO diary_room (owner_id, name, invite_code, created_at, "
-                + "updated_at) VALUES (?, '방', ?, now(), now()) RETURNING id", Long.class, userId,
+        Long roomId = jdbcTemplate.queryForObject("INSERT INTO diary_room (owner_id, name, invite_code, max_member_count, "
+                + "created_at, updated_at) VALUES (?, '방', ?, 6, now(), now()) RETURNING id", Long.class, userId,
                 String.valueOf(userId % 100000000));
         for (int i = 1; i <= 16; i++) {
             jdbcTemplate.update("INSERT INTO diary (user_id, room_id, title, content, created_at, updated_at) "

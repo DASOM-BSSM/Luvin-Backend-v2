@@ -1,5 +1,6 @@
 package com.luvin.diary.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.luvin.diary.domain.DiaryComment;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
@@ -12,6 +13,7 @@ public class DiaryCommentDto {
 
     @Getter
     @NoArgsConstructor
+    @Schema(name = "DiaryCommentRequest")
     public static class Request {
         @NotBlank(message = "댓글 내용은 필수 입력값입니다.")
         private String content;
@@ -22,6 +24,7 @@ public class DiaryCommentDto {
     }
 
     @Getter
+    @Schema(name = "DiaryCommentResponse")
     public static class Response {
         private Long id;
 

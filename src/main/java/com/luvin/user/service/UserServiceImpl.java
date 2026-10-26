@@ -7,6 +7,7 @@ import com.luvin.common.exception.BusinessException;
 import com.luvin.common.exception.ErrorCode;
 import com.luvin.common.exception.UserNotFoundException;
 import com.luvin.diary.service.DiaryRoomService;
+import com.luvin.learning.service.LearningSignalService;
 import com.luvin.simulation.repository.AiCloneRepository;
 import com.luvin.user.domain.User;
 import com.luvin.user.dto.UserProfileResponse;
@@ -34,6 +35,7 @@ public class UserServiceImpl implements UserService {
     private final AppleRefreshTokenRepository appleRefreshTokenRepository;
     private final AppleOAuthClient appleOAuthClient;
     private final DiaryRoomService diaryRoomService;
+    private final LearningSignalService learningSignalService;
     private final TransactionTemplate transactionTemplate;
 
     public UserServiceImpl(UserRepository userRepository,
@@ -42,6 +44,7 @@ public class UserServiceImpl implements UserService {
                             AppleRefreshTokenRepository appleRefreshTokenRepository,
                             AppleOAuthClient appleOAuthClient,
                             DiaryRoomService diaryRoomService,
+                            LearningSignalService learningSignalService,
                             PlatformTransactionManager transactionManager) {
         this.userRepository = userRepository;
         this.aiCloneRepository = aiCloneRepository;
@@ -49,6 +52,7 @@ public class UserServiceImpl implements UserService {
         this.appleRefreshTokenRepository = appleRefreshTokenRepository;
         this.appleOAuthClient = appleOAuthClient;
         this.diaryRoomService = diaryRoomService;
+        this.learningSignalService = learningSignalService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -122,6 +126,8 @@ public class UserServiceImpl implements UserService {
             // 도메인은 user_id가 FK 없는 plain 컬럼이라 User 삭제에 영향받지 않는 기존 프로젝트
             // 전반의 의도된 decoupling 패턴을 따른다).
             diaryRoomService.removeUserFromAllRooms(memberId);
+            // 학습 신호·말투 요약·성격 보정은 FK가 없어 users를 지워도 남으므로 직접 지운다(내가 쓴 글에서 나온 개인 데이터).
+            learningSignalService.removeAllForUser(memberId);
             aiCloneRepository.deleteByUserId(memberId);
             analysisResultRepository.deleteByUserId(memberId);
             appleRefreshTokenRepository.deleteByUserId(memberId);

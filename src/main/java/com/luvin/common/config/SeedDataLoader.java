@@ -1,9 +1,5 @@
 package com.luvin.common.config;
 
-import com.luvin.dailyquestion.domain.DailyQuestion;
-import com.luvin.dailyquestion.domain.DailyQuestionOption;
-import com.luvin.dailyquestion.repository.DailyQuestionOptionRepository;
-import com.luvin.dailyquestion.repository.DailyQuestionRepository;
 import com.luvin.survey.domain.Survey;
 import com.luvin.survey.domain.SurveyOption;
 import com.luvin.survey.domain.SurveyQuestion;
@@ -31,8 +27,6 @@ public class SeedDataLoader implements ApplicationRunner {
     private final SurveyRepository surveyRepository;
     private final SurveyQuestionRepository surveyQuestionRepository;
     private final SurveyOptionRepository surveyOptionRepository;
-    private final DailyQuestionRepository dailyQuestionRepository;
-    private final DailyQuestionOptionRepository dailyQuestionOptionRepository;
     private final SimulationCharacterRepository simulationCharacterRepository;
     private final EpisodeGameRepository episodeGameRepository;
     private final MinigameRepository minigameRepository;
@@ -42,10 +36,6 @@ public class SeedDataLoader implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         if (surveyRepository.count() == 0) {
             seedPersonalitySurvey();
-        }
-
-        if (dailyQuestionRepository.count() == 0) {
-            seedDailyQuestions();
         }
 
         if (simulationCharacterRepository.count() == 0) {
@@ -101,15 +91,6 @@ public class SeedDataLoader implements ApplicationRunner {
             SurveyQuestion question = surveyQuestionRepository.save(new SurveyQuestion(survey, questionSeed.content()));
             for (OptionSeed optionSeed : questionSeed.options()) {
                 surveyOptionRepository.save(new SurveyOption(question, optionSeed.content(), optionSeed.effects()));
-            }
-        }
-    }
-
-    private void seedDailyQuestions() {
-        for (QuestionSeed questionSeed : personalityQuestions()) {
-            DailyQuestion question = dailyQuestionRepository.save(new DailyQuestion(questionSeed.content()));
-            for (OptionSeed optionSeed : questionSeed.options()) {
-                dailyQuestionOptionRepository.save(new DailyQuestionOption(question, optionSeed.content(), optionSeed.effects()));
             }
         }
     }

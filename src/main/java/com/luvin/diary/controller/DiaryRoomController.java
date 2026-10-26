@@ -22,9 +22,10 @@ public class DiaryRoomController {
 
     private final DiaryRoomService diaryRoomService;
 
-    @Operation(summary = "공유방 생성", description = "만든 사람이 방장(OWNER)으로 자동 등록.")
+    @Operation(summary = "공유방 생성", description = "만든 사람이 방장(OWNER)으로 자동 등록되고 ownerNickname이 방장의 방 닉네임이 된다. "
+            + "maxMemberCount는 방장 포함 2~6명(범위 밖이면 400).")
     @PostMapping
-    public ApiResponse<DiaryRoomDto.Response> createRoom(@Valid @RequestBody DiaryRoomDto.Request requestDto) {
+    public ApiResponse<DiaryRoomDto.Response> createRoom(@Valid @RequestBody DiaryRoomDto.CreateRequest requestDto) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryRoomService.createRoom(memberId, requestDto));
     }
@@ -36,11 +37,19 @@ public class DiaryRoomController {
         return ApiResponse.ok(diaryRoomService.getMyRooms(memberId));
     }
 
-    @Operation(summary = "공유방 수정", description = "방장만 가능 (403).")
+    @Operation(summary = "공유방 단건 조회", description = "방장·멤버만 조회 가능 (403). 없는 방 404.")
+    @GetMapping("/{roomId}")
+    public ApiResponse<DiaryRoomDto.Response> getRoom(@PathVariable Long roomId) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(diaryRoomService.getRoomDetail(memberId, roomId));
+    }
+
+    @Operation(summary = "공유방 수정", description = "방장만 가능 (403). maxMemberCount를 현재 인원보다 적게 하면 "
+            + "409 DIARY_ROOM_MAX_BELOW_MEMBER_COUNT, ownerNickname이 다른 멤버와 겹치면 409 DIARY_ROOM_NICKNAME_DUPLICATED.")
     @PutMapping("/{roomId}")
     public ApiResponse<DiaryRoomDto.Response> updateRoom(
             @PathVariable Long roomId,
-            @Valid @RequestBody DiaryRoomDto.Request requestDto) {
+            @Valid @RequestBody DiaryRoomDto.UpdateRequest requestDto) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryRoomService.updateRoom(memberId, roomId, requestDto));
     }
@@ -53,7 +62,7 @@ public class DiaryRoomController {
         return ApiResponse.ok(null);
     }
 
-    @Operation(summary = "멤버 목록", description = "방장·멤버만 조회 가능 (403).")
+    @Operation(summary = "멤버 목록", description = "방장·멤버만 조회 가능 (403). 방 닉네임·역할 포함, 먼저 들어온 순.")
     @GetMapping("/{roomId}/members")
     public ApiResponse<List<DiaryRoomDto.MemberResponse>> getRoomMembers(@PathVariable Long roomId) {
         Long memberId = SecurityUtils.getCurrentUserId();
@@ -67,11 +76,13 @@ public class DiaryRoomController {
         return ApiResponse.ok(diaryRoomService.leave(memberId, roomId));
     }
 
-    @Operation(summary = "멤버 추가(초대)", description = "방장만 가능 (403). 없는 사용자 404. 이미 멤버여도 200.")
+    @Operation(summary = "멤버 추가(초대)", description = "방장만 가능 (403). 없는 사용자 404. 이미 멤버여도 200(닉네임 변경 없음). "
+            + "nickname은 이 방에서 쓸 닉네임(1~10자), 비우면 계정 닉네임(없으면 이름). "
+            + "꽉 찼으면 409 DIARY_ROOM_FULL, 닉네임이 겹치면 409 DIARY_ROOM_NICKNAME_DUPLICATED.")
     @PostMapping("/{roomId}/members")
     public ApiResponse<DiaryRoomDto.MembershipResponse> addMember(@Valid @RequestBody DiaryRoomDto.AddMemberRequest request, @PathVariable Long roomId) {
         Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(diaryRoomService.addMember(memberId, roomId, request.userId()));
+        return ApiResponse.ok(diaryRoomService.addMember(memberId, roomId, request.userId(), request.nickname()));
     }
 
     @Operation(summary = "멤버 강퇴", description = "방장만 가능 (403). 방장 자신은 강퇴 불가 (400). 멤버가 아닌 id여도 200. 실제로 강퇴되면 초대 코드가 새로 발급되어 이전 코드는 쓸 수 없다.")
@@ -102,10 +113,12 @@ public class DiaryRoomController {
         return ApiResponse.ok(diaryRoomService.regenerateInviteCode(memberId, roomId));
     }
 
-    @Operation(summary = "초대 코드로 참여", description = "코드를 아는 사람은 누구나 참여 가능 (인원 제한 없음). 대소문자 구분 없음. 이미 멤버면 200, 없는 코드면 404.")
+    @Operation(summary = "초대 코드로 참여", description = "코드를 아는 사람은 최대 인원까지 참여 가능. 대소문자 구분 없음. "
+            + "nickname은 이 방에서 쓸 닉네임. 이미 멤버면 200(닉네임 변경 없음), 없는 코드면 404, "
+            + "인원이 가득 찼으면 409 DIARY_ROOM_FULL, 같은 방에 같은 닉네임이 있으면 409 DIARY_ROOM_NICKNAME_DUPLICATED.")
     @PostMapping("/join")
     public ApiResponse<DiaryRoomDto.MembershipResponse> joinByInviteCode(@Valid @RequestBody DiaryRoomDto.JoinRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(diaryRoomService.joinByInviteCode(memberId, request.inviteCode()));
+        return ApiResponse.ok(diaryRoomService.joinByInviteCode(memberId, request));
     }
 }

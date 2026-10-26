@@ -12,15 +12,11 @@ public final class EmodiTypes {
     private EmodiTypes() {
     }
 
-    /** POST /emodi/daily-question: 전체 사용자 공통 O/X 질문 하나. date는 KST 날짜(yyyy-MM-dd). */
-    public record DailyQuestionRequest(String date, List<String> recentQuestions) {
-    }
-
     /** POST /emodi/room-question: 그룹 질문 하나. 그룹 맥락은 이름·멤버 수·최근 질문뿐이다(일기 본문 없음). */
     public record RoomQuestionRequest(String roomName, int memberCount, List<String> recentQuestions) {
     }
 
-    /** 두 질문 생성 endpoint 공통 응답. */
+    /** 질문 생성 endpoint 응답. */
     public record QuestionResponse(String content) {
     }
 
@@ -35,7 +31,7 @@ public final class EmodiTypes {
     public record SpeechStyleResponse(Map<String, Object> speechStyle) {
     }
 
-    /** sourceType: BALANCE_ANSWER(answer는 "O"/"X") | ROOM_ANSWER(answer는 자유 답). */
+    /** sourceType: ROOM_ANSWER(answer는 자유 답). */
     public record AnsweredQuestion(String sourceType, String question, String answer) {
     }
 

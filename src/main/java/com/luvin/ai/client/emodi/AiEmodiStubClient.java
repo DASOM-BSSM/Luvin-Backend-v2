@@ -1,6 +1,5 @@
 package com.luvin.ai.client.emodi;
 
-import com.luvin.ai.client.emodi.EmodiTypes.DailyQuestionRequest;
 import com.luvin.ai.client.emodi.EmodiTypes.PersonalitySignalRequest;
 import com.luvin.ai.client.emodi.EmodiTypes.PersonalitySignalResponse;
 import com.luvin.ai.client.emodi.EmodiTypes.QuestionResponse;
@@ -20,12 +19,6 @@ import java.util.Optional;
 @Component
 @ConditionalOnProperty(name = "app.ai.emodi.client", havingValue = "stub", matchIfMissing = true)
 public class AiEmodiStubClient implements AiEmodiClient {
-
-    @Override
-    public QuestionResponse dailyQuestion(String ownerSubject, DailyQuestionRequest request) {
-        return new QuestionResponse(EmodiQuestionPool.balanceFor(LocalDate.parse(request.date()),
-                request.recentQuestions()));
-    }
 
     @Override
     public QuestionResponse roomQuestion(String ownerSubject, RoomQuestionRequest request) {

@@ -1,5 +1,6 @@
 package com.luvin.diary.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.luvin.diary.domain.Diary;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -21,6 +22,7 @@ public class DiaryDto {
     }
 
     /** 일기 작성 요청. 일기는 항상 공유방 안에서 쓴다. */
+    @Schema(name = "DiaryCreateRequest")
     public record CreateRequest(
             @NotNull(message = "공유방을 선택해주세요.")
             Long roomId,
@@ -36,6 +38,7 @@ public class DiaryDto {
     }
 
     /** 일기 수정 요청. 방은 옮길 수 없다. */
+    @Schema(name = "DiaryUpdateRequest")
     public record UpdateRequest(
             @NotBlank(message = "제목을 입력해주세요.")
             @Size(max = 100, message = "제목은 100자 이하로 입력해주세요.")
@@ -48,6 +51,7 @@ public class DiaryDto {
     }
 
     /** 일기 목록/상세 공통 응답. */
+    @Schema(name = "DiaryResponse")
     public record Response(
             Long diaryId,
             Long roomId,
@@ -76,6 +80,7 @@ public class DiaryDto {
     }
 
     /** 이모지 반응 요청. 이모지 문자 그대로 보낸다 (예: "❤️", "😂"). */
+    @Schema(name = "DiaryReactionRequest")
     public record ReactionRequest(
             @NotBlank(message = "이모지를 선택해주세요.")
             String emoji
@@ -86,6 +91,7 @@ public class DiaryDto {
      * 이모지 반응 응답.
      * emoji: 이번 요청 후 내 반응 (취소됐으면 null), liked: 반응했는지, likeCount: 모든 이모지를 합친 반응 수
      */
+    @Schema(name = "DiaryReactionResponse")
     public record ReactionResponse(
             Long diaryId,
             String emoji,
@@ -97,6 +103,7 @@ public class DiaryDto {
     /**
      * 공유방·내 방들 피드 일기 목록 항목. emoji는 내 반응(없으면 null).
      * authorNickname은 닉네임이 없으면 이름, authorBreadType은 빵 타입 id(예: "salt_bread", 설문 전이면 null). JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춰야 한다. */
+    @Schema(name = "DiaryFeedItem")
     public record FeedItem(
             Long diaryId,
             Long roomId,

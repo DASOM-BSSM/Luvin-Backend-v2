@@ -18,6 +18,7 @@ public class RoomQuestionDto {
     }
 
     /** 그룹 질문 답하기 요청. 앞뒤 공백을 뺀 1~200자. */
+    @Schema(name = "RoomQuestionAnswerRequest")
     public record AnswerRequest(
             @Schema(description = "1~200자(앞뒤 공백 제외). 아니면 400 ROOM_ANSWER_INVALID", maxLength = 200)
             String content
@@ -25,6 +26,7 @@ public class RoomQuestionDto {
     }
 
     /** 답 하나. authorNickname은 피드와 같이 닉네임이 없으면 이름. JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춘다. */
+    @Schema(name = "RoomQuestionAnswerItem")
     public record AnswerItem(
             Long answerId,
             Long authorId,
@@ -42,6 +44,7 @@ public class RoomQuestionDto {
     /**
      * 그룹 질문. content는 status가 ready일 때만 있고, myAnswer·answers도 ready일 때만 채운다(아니면 null·빈 목록).
      */
+    @Schema(name = "RoomQuestionView")
     public record QuestionView(
             Long questionId,
             Long roomId,
@@ -70,6 +73,7 @@ public class RoomQuestionDto {
     }
 
     /** 지난 질문 목록 항목. */
+    @Schema(name = "RoomQuestionHistoryItem")
     public record HistoryItem(
             Long questionId,
             LocalDate questionDate,
