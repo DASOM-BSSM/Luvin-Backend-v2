@@ -3,6 +3,7 @@ package com.luvin.ai.service.story;
 import com.luvin.ai.client.story.StoryTypes;
 import com.luvin.ai.domain.AiSeasonSetting;
 import com.luvin.ai.domain.AiSeasonStatus;
+import com.luvin.ai.domain.AiSpeechLevel;
 import com.luvin.ai.domain.AiStoryContentStatus;
 import com.luvin.ai.domain.AiStoryRoute;
 
@@ -35,7 +36,7 @@ public record AiStorySnapshot(
 
     public record Relation(UUID breadId, int affinity, int rejectCount, String statusText, String memorySummary,
                            List<String> recentMemories, List<String> knownFacts, List<StoryTypes.Thread> openThreads,
-                           String choiceMemory) {
+                           String choiceMemory, AiSpeechLevel speechLevel) {
     }
 
     public record Choice(int pointId, int episodeOrder, UUID breadId, boolean accepted, String reasonCode,

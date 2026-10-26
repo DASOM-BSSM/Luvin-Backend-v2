@@ -9,6 +9,8 @@ public record SummarizeResponse(String episodeSummary, List<RelationUpdate> rela
 
     public record RelationUpdate(String breadId, String memorySummary, String recentMemory, List<String> newFacts,
                                  List<Thread> threadsAdd, List<String> threadsResolved, String statusText,
-                                 Integer affinityDelta, String affinityReason, String choiceMemory) {
+                                 Integer affinityDelta, String affinityReason, String choiceMemory,
+                                 /** formal | casual | null(변경 없음). Spring이 배경 규칙에 맞을 때만 반영한다. */
+                                 String speechLevel) {
     }
 }

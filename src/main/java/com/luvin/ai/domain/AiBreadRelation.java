@@ -2,6 +2,8 @@ package com.luvin.ai.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -54,6 +56,11 @@ public class AiBreadRelation {
     @Column(name = "reject_count", nullable = false)
     private int rejectCount;
 
+    /** 이 빵이 내 빵에게 쓰는 말투. 시즌 시작 값은 배경으로 정한다({@link AiSpeechLevel#initial}). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "speech_level", length = 10)
+    private AiSpeechLevel speechLevel;
+
     @Column(name = "status_text", length = 50)
     private String statusText;
 
@@ -81,8 +88,10 @@ public class AiBreadRelation {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public AiBreadRelation(Long memberId, AiSeason season, UUID targetBreadId, int affinity, String statusText) {
+    public AiBreadRelation(Long memberId, AiSeason season, UUID targetBreadId, int affinity, String statusText,
+                           AiSpeechLevel speechLevel) {
         this.memberId = memberId;
+        this.speechLevel = speechLevel;
         this.season = season;
         this.targetBreadId = targetBreadId;
         this.affinity = clamp(affinity);
@@ -100,6 +109,11 @@ public class AiBreadRelation {
 
     public void recordRejection() {
         this.rejectCount += 1;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void changeSpeechLevel(AiSpeechLevel speechLevel) {
+        this.speechLevel = speechLevel;
         this.updatedAt = LocalDateTime.now();
     }
 

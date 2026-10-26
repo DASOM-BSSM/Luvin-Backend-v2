@@ -14,46 +14,46 @@
       "attachmentStyle" : "none"
     }, {
       "breadId" : "avoidant",
-      "name" : "보송한 도넛",
-      "breadType" : "도넛",
-      "role" : "같은 매장 친구",
-      "description" : "보송한 도넛와 함께 지내요",
-      "gender" : "MALE",
-      "castRole" : "candidate",
-      "attachmentStyle" : "avoidant"
-    }, {
-      "breadId" : "anxious",
-      "name" : "새콤한 팥빵",
-      "breadType" : "팥빵",
-      "role" : "같은 매장 친구",
-      "description" : "새콤한 팥빵와 함께 지내요",
-      "gender" : "MALE",
-      "castRole" : "candidate",
-      "attachmentStyle" : "anxious"
-    }, {
-      "breadId" : "secure",
       "name" : "말랑한 프레첼",
       "breadType" : "프레첼",
       "role" : "같은 매장 친구",
       "description" : "말랑한 프레첼와 함께 지내요",
       "gender" : "MALE",
       "castRole" : "candidate",
+      "attachmentStyle" : "avoidant"
+    }, {
+      "breadId" : "anxious",
+      "name" : "보송한 바게트",
+      "breadType" : "바게트",
+      "role" : "같은 매장 친구",
+      "description" : "보송한 바게트와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "candidate",
+      "attachmentStyle" : "anxious"
+    }, {
+      "breadId" : "secure",
+      "name" : "몽글한 카스테라",
+      "breadType" : "카스테라",
+      "role" : "같은 매장 친구",
+      "description" : "몽글한 카스테라와 함께 지내요",
+      "gender" : "MALE",
+      "castRole" : "candidate",
       "attachmentStyle" : "secure"
     }, {
       "breadId" : "friend",
-      "name" : "포근한 바게트",
-      "breadType" : "바게트",
+      "name" : "고소한 마들렌",
+      "breadType" : "마들렌",
       "role" : "같은 매장 단짝",
-      "description" : "포근한 바게트와 함께 지내요",
+      "description" : "고소한 마들렌와 함께 지내요",
       "gender" : "FEMALE",
       "castRole" : "friend",
       "attachmentStyle" : "none"
     }, {
       "breadId" : "maker",
-      "name" : "몽글한 마들렌",
-      "breadType" : "마들렌",
+      "name" : "반짝이는 팥빵",
+      "breadType" : "팥빵",
       "role" : "같은 매장 분위기 ",
-      "description" : "몽글한 마들렌와 함께 지내요",
+      "description" : "반짝이는 팥빵와 함께 지내요",
       "gender" : "MALE",
       "castRole" : "maker",
       "attachmentStyle" : "none"
@@ -62,7 +62,8 @@
       "summary" : "소금빵 타입.",
       "recentAnswers" : [ ],
       "feedbacks" : [ ],
-      "likedMessages" : [ ]
+      "likedMessages" : [ ],
+      "styleSamples" : [ ]
     }
   },
   "order" : 1,
@@ -76,64 +77,64 @@
       "role" : "나"
     }, {
       "breadId" : "avoidant",
-      "name" : "보송한 도넛",
-      "breadType" : "도넛",
-      "role" : "같은 매장 친구"
-    }, {
-      "breadId" : "anxious",
-      "name" : "새콤한 팥빵",
-      "breadType" : "팥빵",
-      "role" : "같은 매장 친구"
-    }, {
-      "breadId" : "secure",
       "name" : "말랑한 프레첼",
       "breadType" : "프레첼",
       "role" : "같은 매장 친구"
     }, {
-      "breadId" : "friend",
-      "name" : "포근한 바게트",
+      "breadId" : "anxious",
+      "name" : "보송한 바게트",
       "breadType" : "바게트",
+      "role" : "같은 매장 친구"
+    }, {
+      "breadId" : "secure",
+      "name" : "몽글한 카스테라",
+      "breadType" : "카스테라",
+      "role" : "같은 매장 친구"
+    }, {
+      "breadId" : "friend",
+      "name" : "고소한 마들렌",
+      "breadType" : "마들렌",
       "role" : "같은 매장 단짝"
     }, {
       "breadId" : "maker",
-      "name" : "몽글한 마들렌",
-      "breadType" : "마들렌",
+      "name" : "반짝이는 팥빵",
+      "breadType" : "팥빵",
       "role" : "같은 매장 분위기 "
     } ],
     "messages" : [ {
-      "id" : "6cc3cfec-86cc-48f1-aac3-a59b680d7c5c",
+      "id" : "dd69203c-ac47-4cf8-9228-c43ff0bc439f",
       "speakerId" : "narrator",
       "text" : "첫 출근",
       "kind" : "narration"
     }, {
-      "id" : "127e0ac4-1c4c-4cc5-b87e-140ed40961f1",
+      "id" : "9f9a666e-d5d7-4d80-bf30-6d8ae0e7f4ca",
       "speakerId" : "me",
       "text" : "빵: 첫 출근 이야기 1",
       "kind" : "chat"
     }, {
-      "id" : "3eebdbbb-842e-4a89-99df-b0f30852bc85",
+      "id" : "8f9eb623-72d3-477b-8920-25ea9867a6b4",
       "speakerId" : "avoidant",
-      "text" : "보송한 도넛: 첫 출근 이야기 2",
+      "text" : "말랑한 프레첼: 첫 출근 이야기 2",
       "kind" : "chat"
     }, {
-      "id" : "ca6038a9-61e3-4539-86d7-a905aa05f6ac",
+      "id" : "ec8fd2f2-398a-4af3-b3ed-feff16cc3e56",
       "speakerId" : "anxious",
-      "text" : "새콤한 팥빵: 첫 출근 이야기 3",
+      "text" : "보송한 바게트: 첫 출근 이야기 3",
       "kind" : "chat"
     }, {
-      "id" : "97180f55-22cd-49d1-b5d0-1bec0fa6d5a6",
+      "id" : "d6267acc-7e37-43c6-8610-8a0424a6b1bf",
       "speakerId" : "secure",
-      "text" : "말랑한 프레첼: 첫 출근 이야기 4",
+      "text" : "몽글한 카스테라: 첫 출근 이야기 4",
       "kind" : "chat"
     }, {
-      "id" : "69dec0ba-a074-4cc6-aaf8-25b2bc7c5268",
+      "id" : "4a7cf23c-ecec-4e7a-b285-d5de87919484",
       "speakerId" : "friend",
-      "text" : "포근한 바게트: 첫 출근 이야기 5",
+      "text" : "고소한 마들렌: 첫 출근 이야기 5",
       "kind" : "chat"
     }, {
-      "id" : "c89220f6-7c96-4e1c-a376-bd1b585bdb6b",
+      "id" : "ee71c5be-0e93-4aba-b45a-4e141a5339ba",
       "speakerId" : "maker",
-      "text" : "몽글한 마들렌: 첫 출근 이야기 6",
+      "text" : "반짝이는 팥빵: 첫 출근 이야기 6",
       "kind" : "chat"
     } ]
   }, {
@@ -149,28 +150,28 @@
       "breadType" : "소금빵",
       "role" : "나"
     }, {
-      "breadId" : "anxious",
-      "name" : "새콤한 팥빵",
-      "breadType" : "팥빵",
+      "breadId" : "secure",
+      "name" : "몽글한 카스테라",
+      "breadType" : "카스테라",
       "role" : "같은 매장 친구"
     } ],
     "messages" : [ {
-      "id" : "5a891f0f-4433-4f62-913f-c3e7b2b1f0ae",
+      "id" : "19ac47a1-52ee-4ca9-91bb-58de182a8a59",
       "speakerId" : "narrator",
       "text" : "첫 출근",
       "kind" : "narration"
     }, {
-      "id" : "05970bf0-5a6f-452c-abe5-b63a2f1afb93",
+      "id" : "c4a6a1ad-708c-46d8-a7c7-47985e582924",
       "speakerId" : "me",
       "text" : "빵: 첫 출근 이야기 1",
       "kind" : "chat"
     }, {
-      "id" : "916ab04c-3c04-4c7b-8d54-e2b904f2a12b",
-      "speakerId" : "anxious",
-      "text" : "새콤한 팥빵: 첫 출근 이야기 2",
+      "id" : "baa23849-cf8a-4694-85ed-f44e70794c7e",
+      "speakerId" : "secure",
+      "text" : "몽글한 카스테라: 첫 출근 이야기 2",
       "kind" : "chat"
     }, {
-      "id" : "b574012d-a28a-46d6-9f89-8d17eddcf677",
+      "id" : "8fe58c24-d98c-4d48-984f-eebb8f85f92d",
       "speakerId" : "me",
       "text" : "빵: 첫 출근 이야기 3",
       "kind" : "chat"
@@ -184,13 +185,13 @@
       "breadType" : "소금빵",
       "role" : "나"
     }, {
-      "breadId" : "anxious",
-      "name" : "새콤한 팥빵",
-      "breadType" : "팥빵",
+      "breadId" : "secure",
+      "name" : "몽글한 카스테라",
+      "breadType" : "카스테라",
       "role" : "같은 매장 친구"
     } ],
     "messages" : [ {
-      "id" : "dcc56799-2ebf-4f03-af04-60af99bbf940",
+      "id" : "3314c6e9-d8bb-45e9-943b-e6bf8fc0efe2",
       "speakerId" : "me",
       "text" : "빵: 첫 출근 이야기 1",
       "kind" : "chat",
@@ -198,14 +199,14 @@
       "deletedAfterSend" : true,
       "sentAtLabel" : "오후 4시 10분"
     }, {
-      "id" : "e37f4056-13a8-44ed-bdf6-e4c49eee5a7f",
-      "speakerId" : "anxious",
-      "text" : "새콤한 팥빵: 첫 출근 이야기 2",
+      "id" : "9a3528e2-1775-4d00-9b9b-01968d5cbe18",
+      "speakerId" : "secure",
+      "text" : "몽글한 카스테라: 첫 출근 이야기 2",
       "kind" : "chat",
       "read" : true,
       "sentAtLabel" : "오후 4시 17분"
     }, {
-      "id" : "acc5431b-6580-4e86-b97f-57d0da962b4e",
+      "id" : "b4ee8e6a-0308-421b-b2e3-db559c20d5c5",
       "speakerId" : "me",
       "text" : "빵: 첫 출근 이야기 3",
       "kind" : "chat",
@@ -215,41 +216,18 @@
     } ],
     "messenger" : {
       "kind" : "direct",
-      "roomName" : "새콤한 팥빵"
+      "roomName" : "몽글한 카스테라"
     }
   } ],
   "relations" : [ {
-    "breadId" : "avoidant",
-    "affinityLevel" : "low",
-    "statusText" : "처음 만남",
-    "memorySummary" : "",
-    "recentMemories" : [ ],
-    "knownFacts" : [ ],
-    "openThreads" : [ ]
-  }, {
     "breadId" : "maker",
     "affinityLevel" : "mid",
     "statusText" : "처음 만남",
     "memorySummary" : "",
     "recentMemories" : [ ],
     "knownFacts" : [ ],
-    "openThreads" : [ ]
-  }, {
-    "breadId" : "friend",
-    "affinityLevel" : "mid",
-    "statusText" : "처음 만남",
-    "memorySummary" : "",
-    "recentMemories" : [ ],
-    "knownFacts" : [ ],
-    "openThreads" : [ ]
-  }, {
-    "breadId" : "anxious",
-    "affinityLevel" : "low",
-    "statusText" : "처음 만남",
-    "memorySummary" : "",
-    "recentMemories" : [ ],
-    "knownFacts" : [ ],
-    "openThreads" : [ ]
+    "openThreads" : [ ],
+    "speechLevel" : "formal"
   }, {
     "breadId" : "secure",
     "affinityLevel" : "low",
@@ -257,6 +235,34 @@
     "memorySummary" : "",
     "recentMemories" : [ ],
     "knownFacts" : [ ],
-    "openThreads" : [ ]
+    "openThreads" : [ ],
+    "speechLevel" : "formal"
+  }, {
+    "breadId" : "friend",
+    "affinityLevel" : "mid",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ],
+    "speechLevel" : "formal"
+  }, {
+    "breadId" : "avoidant",
+    "affinityLevel" : "low",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ],
+    "speechLevel" : "formal"
+  }, {
+    "breadId" : "anxious",
+    "affinityLevel" : "low",
+    "statusText" : "처음 만남",
+    "memorySummary" : "",
+    "recentMemories" : [ ],
+    "knownFacts" : [ ],
+    "openThreads" : [ ],
+    "speechLevel" : "formal"
   } ]
 }

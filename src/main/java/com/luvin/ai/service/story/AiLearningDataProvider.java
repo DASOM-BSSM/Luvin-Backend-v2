@@ -5,8 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.luvin.ai.client.story.StoryTypes;
 import com.luvin.ai.repository.AiSeasonCreationInputRepository;
 import com.luvin.dailyquestion.repository.DailyQuestionAnswerRepository;
+import com.luvin.diary.domain.Diary;
+import com.luvin.diary.repository.DiaryRepository;
 import com.luvin.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +21,7 @@ import java.util.Map;
 /**
  * 내 빵 학습 데이터(계약 GenerationContext.learnedProfile). Spring은 LLM을 부르지 않으므로 요약(summary)은
  * 설문 빵 타입과 두드러진 성향 점수로 코드가 만든다. 매시간 질문 답변은 최근 몇 개를 "질문 → 답"으로 보낸다.
+ * 감정일기 본문은 원문 그대로 최근 순으로 styleSamples에 담는다(내 빵 말투 참고, 계약 7장).
  * 1:1 장면 피드백·좋아요는 {@link AiStoryStateWriter}가 시즌별로 따로 읽어 채운다.
  */
 @Component
@@ -25,6 +29,7 @@ import java.util.Map;
 public class AiLearningDataProvider {
 
     static final int RECENT_ANSWER_LIMIT = 5;
+    static final int STYLE_SAMPLE_LIMIT = 15;
     /** 성향 점수(1~100)가 이 이상이면 "높은 편", 이 이하면 "낮은 편"으로 요약에 넣는다. */
     static final int HIGH_TRAIT = 65;
     static final int LOW_TRAIT = 35;
@@ -34,6 +39,7 @@ public class AiLearningDataProvider {
     private final UserRepository userRepository;
     private final AiSeasonCreationInputRepository creationInputRepository;
     private final DailyQuestionAnswerRepository dailyQuestionAnswerRepository;
+    private final DiaryRepository diaryRepository;
     private final AiBreadCatalog breadCatalog;
 
     /** feedbacks/likedMessages는 빈 목록으로 돌려준다 — 호출부가 시즌 기록으로 채운다. */
@@ -47,7 +53,13 @@ public class AiLearningDataProvider {
                 .limit(RECENT_ANSWER_LIMIT)
                 .map(a -> a.getDailyQuestion().getContent() + " → " + a.getSelectedOption().getContent())
                 .toList();
-        return new StoryTypes.LearnedProfile(summary(personalityType, traits), answers, List.of(), List.of());
+        List<String> styleSamples = diaryRepository
+                .findAllByUserIdOrderByCreatedAtDesc(memberId, PageRequest.of(0, STYLE_SAMPLE_LIMIT)).stream()
+                .map(Diary::getContent)
+                .filter(text -> text != null && !text.isBlank())
+                .toList();
+        return new StoryTypes.LearnedProfile(summary(personalityType, traits), answers, List.of(), List.of(),
+                styleSamples);
     }
 
     /** 예: "소금빵 타입. 관계 불안도·확신 요구도가 높은 편이고 갈등 직면성이 낮은 편이다." */
