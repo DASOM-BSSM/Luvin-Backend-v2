@@ -16,7 +16,7 @@ import java.util.HexFormat;
 import java.util.UUID;
 
 /**
- * 설문 v2 definition을 최초 1회 DB에 import한다. 기존 SeedDataLoader(레거시 설문·오늘의 질문)와
+ * 설문 v2 definition을 최초 1회 DB에 import한다. 기존 SeedDataLoader(레거시 설문)와
  * 의도적으로 분리했다 — personalityQuestions() 등 레거시 시드 변경이 이 신규 definition에 영향을
  * 주면 안 되고, 반대도 마찬가지다.
  *

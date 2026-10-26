@@ -14,7 +14,7 @@ class DiaryTest {
     private static final Long AUTHOR = 2L;
     private static final Long OTHER = 3L;
 
-    private final Diary diary = new Diary(AUTHOR, new DiaryRoom("방", null, OWNER), "제목", "내용");
+    private final Diary diary = new Diary(AUTHOR, new DiaryRoom("방", null, OWNER, 6), "제목", "내용");
 
     @Test
     void 작성자는_방_멤버_조회없이_볼_수_있다() {

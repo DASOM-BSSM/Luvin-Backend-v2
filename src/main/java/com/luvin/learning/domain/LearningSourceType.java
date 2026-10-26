@@ -6,11 +6,10 @@ import java.util.List;
 public enum LearningSourceType {
     DIARY,
     COMMENT,
-    ROOM_ANSWER,
-    BALANCE_ANSWER;
+    ROOM_ANSWER;
 
     /** 말투 학습(A)에 쓰는 글: 내가 쓴 일기·댓글·그룹 답. */
     public static final List<LearningSourceType> SPEECH = List.of(DIARY, COMMENT, ROOM_ANSWER);
-    /** 반죽 성격 학습(B)에 쓰는 답: 밸런스 답·그룹 답. */
-    public static final List<LearningSourceType> PERSONALITY = List.of(BALANCE_ANSWER, ROOM_ANSWER);
+    /** 반죽 성격 학습(B)에 쓰는 답: 그룹 답. */
+    public static final List<LearningSourceType> PERSONALITY = List.of(ROOM_ANSWER);
 }

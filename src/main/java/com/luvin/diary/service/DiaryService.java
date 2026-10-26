@@ -11,6 +11,8 @@ import com.luvin.diary.dto.DiaryDto;
 import com.luvin.diary.repository.DiaryCommentRepository;
 import com.luvin.diary.repository.DiaryRepository;
 import com.luvin.diary.repository.DiaryRoomRepository;
+import com.luvin.learning.domain.LearningSourceType;
+import com.luvin.learning.service.LearningSignalService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,7 @@ public class DiaryService {
     private final DiaryRepository diaryRepository;
     private final DiaryRoomRepository diaryRoomRepository;
     private final DiaryCommentRepository diaryCommentRepository;
+    private final LearningSignalService learningSignalService;
 
     private static final int MY_ROOMS_FEED_LIMIT = 50;
     private static final int DEFAULT_PAGE_SIZE = 20;
@@ -40,6 +43,7 @@ public class DiaryService {
         }
 
         Diary savedDiary = diaryRepository.save(new Diary(memberId, room, request.title(), request.content()));
+        learningSignalService.record(memberId, LearningSourceType.DIARY, savedDiary.getId());
         return DiaryDto.Response.of(savedDiary, memberId);
     }
 
@@ -87,6 +91,8 @@ public class DiaryService {
         Diary diary = getOwnedDiaryOrThrow(memberId, diaryId);
 
         // DB FK에 ON DELETE CASCADE가 없어서, 딸린 공감/댓글을 먼저 지워야 FK 오류가 나지 않는다.
+        // 학습 신호는 댓글 테이블을 조인해서 찾으므로 댓글보다 먼저 지운다.
+        learningSignalService.removeForDiary(diary.getId());
         diaryRepository.deleteReactionsByDiaryId(diary.getId());
         diaryCommentRepository.deleteAllByDiaryId(diary.getId());
         diaryRepository.deleteById(diary.getId());

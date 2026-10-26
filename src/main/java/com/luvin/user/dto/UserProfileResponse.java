@@ -18,7 +18,7 @@ public class UserProfileResponse {
     private final String personalityType;
     private final boolean surveyCompleted;
     private final UUID latestSurveyResultId;
-    @Schema(description = "감정일기 학습 동의. 끄면 일기·댓글·그룹 답·밸런스 답을 내 빵 학습에 쓰지 않는다")
+    @Schema(description = "감정일기 학습 동의. 끄면 일기·댓글·그룹 답을 내 빵 학습에 쓰지 않는다")
     private final boolean learningEnabled;
 
     public UserProfileResponse(Long memberId, String name, String nickname, String gender,

@@ -47,8 +47,8 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(e.getMessage()));
     }
 
-    @ExceptionHandler({DuplicateAnswerException.class, DuplicateVoteException.class})
-    public ResponseEntity<ApiResponse<Void>> handleDuplicateAnswer(RuntimeException e) {
+    @ExceptionHandler(DuplicateVoteException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDuplicateVote(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(e.getMessage()));
     }
@@ -59,8 +59,6 @@ public class GlobalExceptionHandler {
             SurveyNotFoundException.class,
             SurveyQuestionNotFoundException.class,
             SurveyOptionNotFoundException.class,
-            DailyQuestionNotFoundException.class,
-            DailyQuestionOptionNotFoundException.class,
             EpisodeNotFoundException.class,
             DiaryNotFoundException.class,
             DiaryRoomNotFoundException.class,

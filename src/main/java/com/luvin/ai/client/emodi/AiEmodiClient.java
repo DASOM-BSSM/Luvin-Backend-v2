@@ -1,6 +1,5 @@
 package com.luvin.ai.client.emodi;
 
-import com.luvin.ai.client.emodi.EmodiTypes.DailyQuestionRequest;
 import com.luvin.ai.client.emodi.EmodiTypes.PersonalitySignalRequest;
 import com.luvin.ai.client.emodi.EmodiTypes.PersonalitySignalResponse;
 import com.luvin.ai.client.emodi.EmodiTypes.QuestionResponse;
@@ -16,8 +15,6 @@ import java.util.Optional;
  * 학습 추출은 결과가 없을 수 있다(Optional.empty) — 그때 신호는 소비하지 않고 다음 배치에서 다시 시도한다.
  */
 public interface AiEmodiClient {
-
-    QuestionResponse dailyQuestion(String ownerSubject, DailyQuestionRequest request);
 
     QuestionResponse roomQuestion(String ownerSubject, RoomQuestionRequest request);
 

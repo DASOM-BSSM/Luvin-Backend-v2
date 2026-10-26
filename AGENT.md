@@ -42,7 +42,7 @@ This repository is `luvin-backend-v2`, and it is currently **at the MVP developm
 
 | Category | Technology | Notes |
 |---|---|---|
-| Backend (domain) | Spring Boot | Auth, users, surveys, daily questions, emotion diary, shared diary rooms, community, mini-games, simulation data management, DB |
+| Backend (domain) | Spring Boot | Auth, users, surveys, emotion diary, shared diary rooms, community, mini-games, simulation data management, DB |
 | Backend (AI) | FastAPI | AI analysis, AI clone generation/chat, action generation, NLP, report generation |
 | DB | PostgreSQL | (Current code still has `h2-console` permitAll config — confirm whether H2 is still used in parallel during development) |
 | Auth | Google OAuth + JWT | No separate signup flow; account is auto-created on first login |
@@ -200,7 +200,7 @@ Style currently differs by module. New code should follow whichever of the two b
 
 - `AnalysisResult` (dating-tendency analysis) → referenced when creating an `AiClone` → used within a `Simulation`
 - `analysis.getClone()` and `simulation.createClone()` currently **duplicate the same clone-creation logic** — consider extracting it into shared logic
-- The `effects` field on survey/daily-question options (formatted like `"관계불안도:+20"`) is stored but not yet parsed into `AnalysisService`'s scoring — actually wiring this up looks like the next priority for improving the analysis
+- The `effects` field on survey options (formatted like `"관계불안도:+20"`) is stored but not yet parsed into `AnalysisService`'s scoring — actually wiring this up looks like the next priority for improving the analysis
 - User intervention in a simulation (`intervene`) currently only saves the message and changes status; it does not yet feed into subsequent action generation (`generateAction`) — this needs to be wired up to satisfy the "intervention → changed outcome" requirement from the product spec (§7, user intervention)
 
 ---
@@ -234,7 +234,7 @@ Style currently differs by module. New code should follow whichever of the two b
 3. `GlobalExceptionHandler` is empty
 4. No real Google OAuth token verification (currently mocked)
 5. Duplicated AI-clone creation logic between `analysis` and `simulation`
-6. Survey / daily-question `effects` field not yet factored into scoring
+6. Survey `effects` field not yet factored into scoring
 7. The survey-option lookup API appears to only return the first question (intent needs confirmation)
 8. `diary`, `diaryroom`, `minigame` modules entirely unimplemented
 9. Simulation participants / episodes / chat / voting / reroll / branching / AI-decision-rationale / feedback / highlights APIs unimplemented

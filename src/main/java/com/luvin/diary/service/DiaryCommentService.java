@@ -8,6 +8,8 @@ import com.luvin.diary.dto.DiaryCommentDto;
 import com.luvin.diary.repository.DiaryCommentRepository;
 import com.luvin.diary.repository.DiaryRepository;
 import com.luvin.diary.repository.DiaryRoomRepository;
+import com.luvin.learning.domain.LearningSourceType;
+import com.luvin.learning.service.LearningSignalService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +23,7 @@ public class DiaryCommentService {
     private final DiaryCommentRepository diaryCommentRepository;
     private final DiaryRepository diaryRepository;
     private final DiaryRoomRepository diaryRoomRepository;
+    private final LearningSignalService learningSignalService;
 
     // 1. 댓글 작성
     @Transactional
@@ -34,6 +37,7 @@ public class DiaryCommentService {
 
         DiaryComment comment = new DiaryComment(memberId, requestDto.getContent(), diary);
         DiaryComment savedComment = diaryCommentRepository.save(comment);
+        learningSignalService.record(memberId, LearningSourceType.COMMENT, savedComment.getId());
 
         return new DiaryCommentDto.Response(savedComment);
     }
@@ -85,6 +89,7 @@ public class DiaryCommentService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
+        learningSignalService.remove(LearningSourceType.COMMENT, comment.getId());
         diaryCommentRepository.delete(comment);
     }
 

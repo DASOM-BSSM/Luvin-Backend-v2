@@ -1,7 +1,6 @@
 package com.luvin.ai.client.emodi;
 
 import com.luvin.ai.client.AiServiceClient;
-import com.luvin.ai.client.emodi.EmodiTypes.DailyQuestionRequest;
 import com.luvin.ai.client.emodi.EmodiTypes.PersonalitySignalRequest;
 import com.luvin.ai.client.emodi.EmodiTypes.PersonalitySignalResponse;
 import com.luvin.ai.client.emodi.EmodiTypes.QuestionResponse;
@@ -22,7 +21,6 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "app.ai.emodi.client", havingValue = "http")
 public class AiEmodiHttpClient implements AiEmodiClient {
 
-    static final String DAILY_QUESTION_PATH = "/emodi/daily-question";
     static final String ROOM_QUESTION_PATH = "/emodi/room-question";
     static final String SPEECH_STYLE_PATH = "/emodi/speech-style";
     static final String PERSONALITY_SIGNAL_PATH = "/emodi/personality-signal";
@@ -34,11 +32,6 @@ public class AiEmodiHttpClient implements AiEmodiClient {
                              @Qualifier("aiStoryRestClient") RestClient restClient) {
         this.aiServiceClient = aiServiceClient;
         this.restClient = restClient;
-    }
-
-    @Override
-    public QuestionResponse dailyQuestion(String ownerSubject, DailyQuestionRequest request) {
-        return post(DAILY_QUESTION_PATH, ownerSubject, request, QuestionResponse.class);
     }
 
     @Override

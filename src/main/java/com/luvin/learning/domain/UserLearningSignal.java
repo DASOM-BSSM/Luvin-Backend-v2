@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 import java.time.OffsetDateTime;
 
 /**
- * 사용자가 쓴 글 하나를 학습에 쓸 수 있다는 표시(Flyway V12). 원본(일기·댓글·그룹 답·밸런스 답)이 지워지면 함께 지운다.
+ * 사용자가 쓴 글 하나를 학습에 쓸 수 있다는 표시(Flyway V12). 원본(일기·댓글·그룹 답)이 지워지면 함께 지운다.
  * 말투 학습과 성격 학습이 따로 소비한다(speechConsumedAt / personalityConsumedAt).
  * 행은 LearningSignalService가 native insert로만 만든다.
  */
