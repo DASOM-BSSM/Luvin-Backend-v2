@@ -62,6 +62,15 @@ public interface DiaryRoomRepository extends JpaRepository<DiaryRoom, Long> {
     @Query("delete from DiaryRoomMember m where m.id.roomId = :roomId and m.id.userId = :userId")
     int deleteMember(@Param("roomId") Long roomId, @Param("userId") Long userId);
 
+    /** 회원 탈퇴 시 방장인 방을 찾는다. */
+    @Query("select r.id from DiaryRoom r where r.ownerId = :ownerId")
+    List<Long> findIdsByOwnerId(@Param("ownerId") Long ownerId);
+
+    /** 회원 탈퇴 시 모든 방에서 나간다 (diary_room_member.user_id는 users FK). */
+    @Modifying(clearAutomatically = true)
+    @Query("delete from DiaryRoomMember m where m.id.userId = :userId")
+    int deleteAllMembershipsByUserId(@Param("userId") Long userId);
+
     @Query("select count(m) from DiaryRoomMember m where m.id.roomId = :roomId")
     long countMembers(@Param("roomId") Long roomId);
 }

@@ -85,6 +85,23 @@ public class DiaryRoomService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
+        deleteRoomWithContents(roomId);
+    }
+
+    /**
+     * 회원 탈퇴 시 users 행을 지우기 전에 호출한다. diary_room_member.user_id가 users FK라 멤버 행이
+     * 남아 있으면 탈퇴가 FK 오류로 실패한다. 방장인 방은 관리할 사람이 없어지므로 방째로 지우고,
+     * 나머지 방에서는 나가기만 한다(그 방에 쓴 일기·댓글은 user_id가 FK 없는 컬럼이라 남겨 둔다).
+     */
+    @Transactional
+    public void removeUserFromAllRooms(Long userId) {
+        for (Long roomId : diaryRoomRepository.findIdsByOwnerId(userId)) {
+            deleteRoomWithContents(roomId);
+        }
+        diaryRoomRepository.deleteAllMembershipsByUserId(userId);
+    }
+
+    private void deleteRoomWithContents(Long roomId) {
         // DB FK에 ON DELETE 설정이 없어서, 딸린 데이터를 먼저 정리해야 FK 오류가 나지 않는다.
         // 일기는 항상 방 안에 있어야 하므로 방의 일기도 함께 지운다: 반응 → 댓글 → 일기 → 멤버 → 방
         diaryRepository.deleteReactionsByRoomId(roomId);

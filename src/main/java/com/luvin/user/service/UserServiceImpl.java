@@ -6,6 +6,7 @@ import com.luvin.auth.service.AppleOAuthClient;
 import com.luvin.common.exception.BusinessException;
 import com.luvin.common.exception.ErrorCode;
 import com.luvin.common.exception.UserNotFoundException;
+import com.luvin.diary.service.DiaryRoomService;
 import com.luvin.simulation.repository.AiCloneRepository;
 import com.luvin.user.domain.User;
 import com.luvin.user.dto.UserProfileResponse;
@@ -32,6 +33,7 @@ public class UserServiceImpl implements UserService {
     private final AnalysisResultRepository analysisResultRepository;
     private final AppleRefreshTokenRepository appleRefreshTokenRepository;
     private final AppleOAuthClient appleOAuthClient;
+    private final DiaryRoomService diaryRoomService;
     private final TransactionTemplate transactionTemplate;
 
     public UserServiceImpl(UserRepository userRepository,
@@ -39,12 +41,14 @@ public class UserServiceImpl implements UserService {
                             AnalysisResultRepository analysisResultRepository,
                             AppleRefreshTokenRepository appleRefreshTokenRepository,
                             AppleOAuthClient appleOAuthClient,
+                            DiaryRoomService diaryRoomService,
                             PlatformTransactionManager transactionManager) {
         this.userRepository = userRepository;
         this.aiCloneRepository = aiCloneRepository;
         this.analysisResultRepository = analysisResultRepository;
         this.appleRefreshTokenRepository = appleRefreshTokenRepository;
         this.appleOAuthClient = appleOAuthClient;
+        this.diaryRoomService = diaryRoomService;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -114,9 +118,10 @@ public class UserServiceImpl implements UserService {
             User user = userRepository.findById(memberId)
                     .orElseThrow(() -> new UserNotFoundException(memberId));
             // AiClone.user_id는 NOT NULL FK, AnalysisResult.user_id는 nullable FK,
-            // AppleRefreshToken.user_id도 NOT NULL FK라 User 삭제 전에 먼저 지워야 한다(그 외
+            // AppleRefreshToken.user_id와 DiaryRoomMember.user_id도 FK라 User 삭제 전에 먼저 지워야 한다(그 외
             // 도메인은 user_id가 FK 없는 plain 컬럼이라 User 삭제에 영향받지 않는 기존 프로젝트
             // 전반의 의도된 decoupling 패턴을 따른다).
+            diaryRoomService.removeUserFromAllRooms(memberId);
             aiCloneRepository.deleteByUserId(memberId);
             analysisResultRepository.deleteByUserId(memberId);
             appleRefreshTokenRepository.deleteByUserId(memberId);
