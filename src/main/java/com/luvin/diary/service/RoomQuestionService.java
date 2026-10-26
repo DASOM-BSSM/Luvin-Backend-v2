@@ -161,9 +161,9 @@ public class RoomQuestionService {
                     .stream().collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
             return questions.stream()
                     .map(q -> {
-                        String status = wireStatus(q);
+                        String wire = wireStatus(q);
                         return new RoomQuestionDto.HistoryItem(q.getId(), q.getQuestionDate(),
-                                "ready".equals(status) ? q.getContent() : null, status, q.getCreatedAt(),
+                                "ready".equals(wire) ? q.getContent() : null, wire, q.getCreatedAt(),
                                 counts.getOrDefault(q.getId(), 0L));
                     })
                     .toList();
