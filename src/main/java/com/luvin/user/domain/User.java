@@ -68,6 +68,13 @@ public class User {
     @Column(name = "latest_survey_result_id")
     private UUID latestSurveyResultId;
 
+    /**
+     * 감정일기 학습 동의(기본 true). 끄면 새로 쓴 글을 학습 신호로 남기지 않고, 학습 배치와 러빈지옥 회차 생성 입력에서도
+     * 학습 결과(말투·성격 보정·최근 답·감정일기 말투 샘플)를 쓰지 않는다. 기존 행은 Flyway V12가 true로 채운다.
+     */
+    @Column(name = "learning_enabled", nullable = false)
+    private boolean learningEnabled = true;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
@@ -109,6 +116,10 @@ public class User {
         if (age != null) this.age = age;
         if (job != null) this.job = job;
         if (bio != null) this.bio = bio;
+    }
+
+    public void changeLearningEnabled(boolean learningEnabled) {
+        this.learningEnabled = learningEnabled;
     }
 
     /**

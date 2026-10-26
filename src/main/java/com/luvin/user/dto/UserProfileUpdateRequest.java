@@ -13,6 +13,9 @@ public class UserProfileUpdateRequest {
     private Integer age;
     private String job;
     private String bio;
+    /** 감정일기 학습 동의. 보내지 않으면(null) 기존 값을 유지한다. */
+    @Schema(description = "감정일기 학습 동의. 보내지 않으면 기존 값 유지")
+    private Boolean learningEnabled;
 
     public UserProfileUpdateRequest() {
     }
@@ -22,10 +25,12 @@ public class UserProfileUpdateRequest {
     public Integer getAge() { return age; }
     public String getJob() { return job; }
     public String getBio() { return bio; }
+    public Boolean getLearningEnabled() { return learningEnabled; }
 
     public void setNickname(String nickname) { this.nickname = nickname; }
     public void setGender(String gender) { this.gender = gender; }
     public void setAge(Integer age) { this.age = age; }
     public void setJob(String job) { this.job = job; }
     public void setBio(String bio) { this.bio = bio; }
+    public void setLearningEnabled(Boolean learningEnabled) { this.learningEnabled = learningEnabled; }
 }

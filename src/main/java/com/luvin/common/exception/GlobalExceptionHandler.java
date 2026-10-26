@@ -23,6 +23,12 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(e.getMessage()));
     }
 
+    @ExceptionHandler(CodedApiException.class)
+    public ResponseEntity<ApiResponse<Object>> handleCoded(CodedApiException e) {
+        return ResponseEntity.status(e.getStatus())
+                .body(ApiResponse.error(e.getMessage(), e.getCode(), e.getData()));
+    }
+
     @ExceptionHandler({InsufficientTokenException.class, InvalidFeedbackException.class})
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(RuntimeException e) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

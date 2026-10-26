@@ -13,6 +13,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByGoogleId(String googleId);
     Optional<User> findByAppleId(String appleId);
 
+    /** 학습 동의 여부. 없는 사용자면 empty. */
+    @Query("select u.learningEnabled from User u where u.id = :id")
+    Optional<Boolean> findLearningEnabled(@Param("id") Long id);
+
     /** 설문 제출 등 사용자별 동시 요청을 직렬화하기 위한 row lock. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u where u.id = :id")
