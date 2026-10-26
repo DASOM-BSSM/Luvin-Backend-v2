@@ -350,9 +350,13 @@ Spring ↔ FastAPI 형식은 「러빈지옥 에피소드 재구성: 공통 데�
 
 - 모든 호출에 `context`(setting, audience `minor|adult`, ageGroup, 출연진, 내 빵 학습 데이터)를 보냅니다.
   - 학습 데이터(`learnedProfile`): summary는 설문 빵 타입과 두드러진 성향 점수로 Spring이 만든 문장, recentAnswers는
-    최근 매시간 질문 답변 5개, feedbacks·likedMessages는 이 시즌 1:1 장면 피드백·내 빵 대사 좋아요(각 최근 10개).
-    감정일기 원문은 보내지 않습니다.
+    최근 매시간 질문 답변 5개, feedbacks·likedMessages는 이 시즌 1:1 장면 피드백·내 빵 대사 좋아요(각 최근 10개),
+    styleSamples는 감정일기 본문 원문 최근 15개(최근 순, 내 빵 말투 참고 — 계약 v7 7장).
   - 관계 기록의 호감은 숫자 대신 구간(0~39 `low`, 40~69 `mid`, 70~100 `high`)만 넘깁니다.
+  - 관계 기록의 `speechLevel`(`formal | casual`, 계약 v7 7장 "배경별 말투"): 시즌 시작 값은 school이면 모두 casual,
+    나머지 배경은 모두 formal입니다. 정리 단계(5-5)의 `speechLevel`은 규칙에 맞을 때만 반영합니다 — campus는
+    formal → casual 허용, office·cafe는 연애 흐름의 연인만 casual 허용, casual → formal 변경은 무시
+    (`AiSpeechLevel.allowsChange`). 기존 행은 V11이 시즌 배경으로 채웁니다.
 - 혼자 있기는 FastAPI를 부르지 않고 `accepted: true`, 대사·대체 장면 없이 결과를 만듭니다(5-3).
 - 10화 쪽지 요청에는 시즌 요약을 넣지 않습니다(계약 5-6). 1~10화 요약은 최종 리포트(5-7) 요청에만 들어갑니다.
 - endpoint별 실제 요청 예시: `docs/story-contract-examples/`

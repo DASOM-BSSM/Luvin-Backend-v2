@@ -107,6 +107,8 @@ class AiStoryHttpContractIntegrationTest {
                 .forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
         jdbcTemplate.update("DELETE FROM ai_episode_unlocks WHERE season_id = ?", seasonPk);
         jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
+        jdbcTemplate.update("DELETE FROM diary WHERE user_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM diary_room WHERE owner_id = ?", userId);
         jdbcTemplate.update("DELETE FROM user_tokens WHERE member_id = ?", userId);
         jdbcTemplate.update("DELETE FROM token_histories WHERE member_id = ?", userId);
         userRepository.deleteById(userId);
@@ -116,6 +118,14 @@ class AiStoryHttpContractIntegrationTest {
     @Test
     void 계약_경로와_camelCase_형식으로_보내고_피드백이_다음_회차_입력에_들어간다() throws Exception {
         setUpUserAndSeason();
+        // 감정일기 16개 → 최근 15개가 원문 그대로 learnedProfile.styleSamples로 간다(최근 순).
+        Long roomId = jdbcTemplate.queryForObject("INSERT INTO diary_room (owner_id, name, invite_code, created_at, "
+                + "updated_at) VALUES (?, '방', ?, now(), now()) RETURNING id", Long.class, userId,
+                String.valueOf(userId % 100000000));
+        for (int i = 1; i <= 16; i++) {
+            jdbcTemplate.update("INSERT INTO diary (user_id, room_id, title, content, created_at, updated_at) "
+                    + "VALUES (?, ?, '제목', ?, now() - make_interval(mins => ?), now())", userId, roomId, "일기 " + i, 100 - i);
+        }
 
         JsonNode ep1 = readyContent(1);
         JsonNode stageIntro = last("/luvin/stage-intro");
@@ -136,6 +146,12 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals("FEMALE", context.get("cast").get(0).get("gender").asText());
         assertEquals("candidate", context.get("cast").get(1).get("castRole").asText());
         assertTrue(context.get("learnedProfile").has("recentAnswers"));
+        List<String> styleSamples = texts(context.get("learnedProfile").get("styleSamples"));
+        assertEquals(15, styleSamples.size());
+        assertEquals("일기 16", styleSamples.get(0));
+        // 말투(계약 7장): school이 아닌 배경은 모두 formal로 시작한다.
+        assertEquals(List.of("formal", "formal", "formal", "formal", "formal"),
+                texts(episode.get("relations"), "speechLevel"));
         JsonNode pairDesign = find(episode.get("design"), "type", "pair");
         assertEquals("me", pairDesign.get("participantIds").get(0).asText());
         assertTrue(pairDesign.has("pairTarget") && pairDesign.has("short"));

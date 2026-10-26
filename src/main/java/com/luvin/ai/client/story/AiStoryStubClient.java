@@ -127,7 +127,7 @@ public class AiStoryStubClient implements AiStoryClient {
             return new SummarizeResponse.RelationUpdate(r.breadId(), request.order() + "화까지 함께한 기억이 쌓였다.",
                     request.order() + "화: 함께 이야기를 나눴다", List.of(request.order() + "화에서 알게 된 점"), added,
                     resolved, lines > 2 ? "친해짐" : "어색함", lines > 2 ? 3 : -1, "대화량 기준",
-                    cut(request.order() + "화에 이야기를 나눔", 20));
+                    cut(request.order() + "화에 이야기를 나눔", 20), lines > 2 ? "casual" : null);
         }).toList();
         return new SummarizeResponse(request.order() + "화 요약: 장면 " + request.blocks().size() + "개.", updates);
     }

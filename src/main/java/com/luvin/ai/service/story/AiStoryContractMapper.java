@@ -91,7 +91,7 @@ final class AiStoryContractMapper {
     private StoryTypes.RelationRecord relationRecord(AiStorySnapshot.Relation r) {
         return new StoryTypes.RelationRecord(contractId(r.breadId()), AiChoiceRules.affinityLevel(r.affinity()),
                 r.statusText(), r.memorySummary() == null ? "" : r.memorySummary(), r.recentMemories(),
-                r.knownFacts(), r.openThreads());
+                r.knownFacts(), r.openThreads(), r.speechLevel().wireValue());
     }
 
     List<StoryTypes.ChoiceRecord> choiceRecords() {

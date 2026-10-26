@@ -7,6 +7,7 @@ import com.luvin.ai.domain.AiCharacterRole;
 import com.luvin.ai.domain.AiEpisodeContent;
 import com.luvin.ai.domain.AiEpisodeUnlock;
 import com.luvin.ai.domain.AiSeason;
+import com.luvin.ai.domain.AiSpeechLevel;
 import com.luvin.ai.domain.AiSeasonCharacter;
 import com.luvin.ai.domain.AiSeasonChoice;
 import com.luvin.ai.domain.AiSeasonSetting;
@@ -134,7 +135,8 @@ public class AiStoryStateWriter {
         }
         for (AiSeasonCharacter member : cast) {
             relationRepository.save(new AiBreadRelation(season.getMemberId(), season, member.getCharacterId(),
-                    AiChoiceRules.INITIAL_AFFINITY.get(member.getCastRole()), AiChoiceRules.INITIAL_STATUS_TEXT));
+                    AiChoiceRules.INITIAL_AFFINITY.get(member.getCastRole()), AiChoiceRules.INITIAL_STATUS_TEXT,
+                    AiSpeechLevel.initial(setting)));
         }
         season.startStory(setting);
     }
@@ -152,7 +154,8 @@ public class AiStoryStateWriter {
                 .map(r -> new AiStorySnapshot.Relation(r.getTargetBreadId(), r.getAffinity(), r.getRejectCount(),
                         r.getStatusText(), r.getMemorySummary(), AiStoryJson.readStrings(r.getRecentMemoriesJson()),
                         AiStoryJson.readStrings(r.getKnownFactsJson()), AiStoryJson.readThreads(r.getOpenThreadsJson()),
-                        r.getChoiceMemory()))
+                        r.getChoiceMemory(),
+                        r.getSpeechLevel() != null ? r.getSpeechLevel() : AiSpeechLevel.initial(season.getSetting())))
                 .toList();
         List<AiStorySnapshot.Choice> choices = choiceRepository.findAllBySeason_IdOrderByPointIdAsc(seasonPk).stream()
                 .map(c -> new AiStorySnapshot.Choice(c.getPointId(), c.getEpisodeOrder(), c.getBreadId(),
@@ -241,7 +244,9 @@ public class AiStoryStateWriter {
     /** 정리 단계(5-5)가 제안한 빵 하나의 관계 기록 갱신안. breadId는 서비스가 계약 id를 UUID로 바꾼 값이다. */
     public record RelationChange(UUID breadId, String memorySummary, String recentMemory, List<String> newFacts,
                                  List<StoryTypes.Thread> threadsAdd, List<String> threadsResolved, String statusText,
-                                 Integer affinityDelta, String choiceMemory) {
+                                 Integer affinityDelta, String choiceMemory,
+                                 /** formal | casual | null. 배경 규칙에 맞을 때만 반영한다({@link AiSpeechLevel#allowsChange}). */
+                                 String speechLevel) {
     }
 
     /** 회차 쪽지(5-6). partnerId는 발신 빵(계약 id를 UUID로 바꾼 값, 모르면 null). */
@@ -271,6 +276,13 @@ public class AiStoryStateWriter {
             if (change.affinityDelta() != null) {
                 relation.addAffinity(AiChoiceRules.clampSummaryDelta(change.affinityDelta()));
             }
+            AiSpeechLevel current = relation.getSpeechLevel() != null
+                    ? relation.getSpeechLevel() : AiSpeechLevel.initial(season.getSetting());
+            AiSpeechLevel requested = AiSpeechLevel.fromWire(change.speechLevel());
+            boolean romancePartner = season.getRoute() == AiStoryRoute.ROMANCE
+                    && relation.getTargetBreadId().equals(season.getRomancePartnerId());
+            relation.changeSpeechLevel(AiSpeechLevel.allowsChange(season.getSetting(), current, requested, romancePartner)
+                    ? requested : current);
             String statusText = AiChoiceRules.ROMANCE_STATUS_TEXT.equals(relation.getStatusText())
                     ? null : change.statusText();
             relation.applyMemory(change.memorySummary(), appendRecentMemory(relation, change.recentMemory()),

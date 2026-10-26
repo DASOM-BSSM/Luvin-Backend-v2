@@ -41,7 +41,9 @@ public final class StoryTypes {
 
     /** 5-0 RelationRecord. 호감은 숫자 대신 구간(low/mid/high)만 넘긴다. */
     public record RelationRecord(String breadId, String affinityLevel, String statusText, String memorySummary,
-                                 List<String> recentMemories, List<String> knownFacts, List<Thread> openThreads) {
+                                 List<String> recentMemories, List<String> knownFacts, List<Thread> openThreads,
+                                 /** formal | casual — 이 빵이 내 빵에게 쓰는 말투(7장). */
+                                 String speechLevel) {
     }
 
     /** 3-4 ChoiceRecord. breadId null = 혼자 있기. */
@@ -66,7 +68,9 @@ public final class StoryTypes {
     }
 
     public record LearnedProfile(String summary, List<String> recentAnswers, List<Feedback> feedbacks,
-                                 List<String> likedMessages) {
+                                 List<String> likedMessages,
+                                 /** 사용자가 쓴 감정일기 원문(최근 순, 최대 15개). 내 빵 대사의 말투 참고용. */
+                                 List<String> styleSamples) {
     }
 
     public record Feedback(int order, String messageText, String text) {

@@ -9,6 +9,7 @@ import com.luvin.ai.client.story.StageIntroResponse;
 import com.luvin.ai.client.story.StoryTypes;
 import com.luvin.ai.client.story.SummarizeResponse;
 import com.luvin.ai.domain.AiSceneBlockType;
+import com.luvin.ai.domain.AiSpeechLevel;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -123,6 +124,8 @@ public final class AiStoryResponseValidator {
                     "recentMemory 길이 초과");
             require(update.choiceMemory() == null || update.choiceMemory().length() <= MEMORY_MAX,
                     "choiceMemory 길이 초과");
+            require(update.speechLevel() == null || AiSpeechLevel.fromWire(update.speechLevel()) != null,
+                    "speechLevel은 formal | casual: " + update.speechLevel());
             require(update.statusText() == null || update.statusText().length() <= STATUS_TEXT_MAX,
                     "statusText 길이 초과");
             if (update.threadsAdd() != null) {

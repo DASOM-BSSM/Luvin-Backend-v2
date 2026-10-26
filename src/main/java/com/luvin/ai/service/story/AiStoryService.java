@@ -482,7 +482,7 @@ public class AiStoryService {
         List<AiStoryStateWriter.RelationChange> changes = summary.relations().stream()
                 .map(u -> new AiStoryStateWriter.RelationChange(mapper.uuid(u.breadId()), u.memorySummary(),
                         u.recentMemory(), u.newFacts(), u.threadsAdd(), u.threadsResolved(), u.statusText(),
-                        u.affinityDelta(), u.choiceMemory()))
+                        u.affinityDelta(), u.choiceMemory(), u.speechLevel()))
                 .toList();
         stateWriter.completeEpisode(season.getId(), order, summary.episodeSummary(), changes,
                 new AiStoryStateWriter.EpisodeNote(sender.breadId(), note.body(),
@@ -671,7 +671,8 @@ public class AiStoryService {
                                                  Long memberId) {
         StoryTypes.LearnedProfile base = learningDataProvider.load(memberId, snapshot.seasonNumber());
         StoryTypes.LearnedProfile learned = new StoryTypes.LearnedProfile(base.summary(), base.recentAnswers(),
-                stateWriter.recentFeedbacks(snapshot.seasonPk()), stateWriter.recentLikedMyMessages(snapshot.seasonPk()));
+                stateWriter.recentFeedbacks(snapshot.seasonPk()), stateWriter.recentLikedMyMessages(snapshot.seasonPk()),
+                base.styleSamples());
         return new StoryTypes.GenerationContext(snapshot.setting().wireValue(), AiSeasonSettingPolicy.audience(age),
                 AiSeasonSettingPolicy.ageGroup(age), mapper.castMembers(), learned);
     }
