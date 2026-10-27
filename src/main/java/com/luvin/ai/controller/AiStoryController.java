@@ -42,7 +42,7 @@ public class AiStoryController {
             선택을 마친 회차면 선택 결과 블록(`choice_result`, 거절이면 뒤이은 대체 `pair`)이 `choice` 블록 바로 뒤에 들어 있다
             (choices 응답과 같은 순서, 완료한 회차를 다시 볼 때도 같다).
             저장된 회차가 있으면 그대로, 없으면 생성을 시작하고 `status: generating`으로 응답한다(1~3초 간격으로 다시 요청).
-            `failed`면 다시 요청할 때 생성을 다시 시도한다. 1화 요청이 새 흐름의 시작이다(나이로 배경 결정, 1화에 stageIntro 포함).
+            실패하면 그다음 요청 한 번은 `failed`(errorCode 포함)로 응답하고, 그 뒤에 다시 요청하면 생성을 다시 시도한다. 1화 요청이 새 흐름의 시작이다(나이로 배경 결정, 1화에 stageIntro 포함).
 
             **409 code**
             - `AGE_REQUIRED`: 나이 또는 성별이 없다 — 둘 다 입력(PUT /api/users/me `{ age, gender }`) 후 다시 요청
