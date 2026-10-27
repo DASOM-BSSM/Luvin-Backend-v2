@@ -16,7 +16,9 @@ import java.util.Map;
  * 따라 정해진 문구로 대사를 만든다 — 같은 요청이면 항상 같은 응답이다. 운영 대사가 아니다.
  */
 @Component
-@ConditionalOnProperty(name = "app.ai.story.client", havingValue = "stub", matchIfMissing = true)
+// 기본값을 두지 않는다 — 설정이 빠진 환경(스테이징)이 조용히 stub으로 돌며 임시 문구를 정상 결과로 저장한 적이 있다.
+// app.ai.story.client(stub|http)가 없으면 구현 빈이 없어 기동이 실패한다.
+@ConditionalOnProperty(name = "app.ai.story.client", havingValue = "stub")
 public class AiStoryStubClient implements AiStoryClient {
 
     /** 회차마다 다른 임시 쪽지 문구(1~10화, 10화가 시즌 종료 쪽지). 실제 문구는 FastAPI가 쓴다. */
