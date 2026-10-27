@@ -18,7 +18,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.YearMonth;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -60,6 +66,30 @@ public class DiaryService {
                 )
                 .stream()
                 .map(diary -> DiaryDto.Response.of(diary, memberId))
+                .toList();
+    }
+
+    /**
+     * 달력: year년 month월(KST)에 내가 쓴 일기를 날짜별로 묶는다. 일기가 없는 날은 빠지고, 날짜는 오름차순,
+     * 하루에 여러 개면 diaryIds에 작성순으로 담는다. 모든 방의 내 일기가 대상이다.
+     */
+    @Transactional(readOnly = true)
+    public List<DiaryDto.CalendarDay> getMyCalendar(Long memberId, int year, int month) {
+        if (year < 1 || year > 9999 || month < 1 || month > 12) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        YearMonth yearMonth = YearMonth.of(year, month);
+        OffsetDateTime from = yearMonth.atDay(1).atStartOfDay(DiaryDto.KST).toOffsetDateTime();
+        OffsetDateTime to = yearMonth.plusMonths(1).atDay(1).atStartOfDay(DiaryDto.KST).toOffsetDateTime();
+
+        Map<LocalDate, List<Long>> byDate = new LinkedHashMap<>();
+        diaryRepository.findAllByUserIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
+                        memberId, from, to)
+                .forEach(d -> byDate.computeIfAbsent(
+                        d.getCreatedAt().atZoneSameInstant(DiaryDto.KST).toLocalDate(), k -> new ArrayList<>())
+                        .add(d.getId()));
+        return byDate.entrySet().stream()
+                .map(e -> new DiaryDto.CalendarDay(e.getKey(), e.getValue()))
                 .toList();
     }
 

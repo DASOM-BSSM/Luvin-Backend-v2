@@ -29,7 +29,7 @@ public class DiaryCommentController {
         return ApiResponse.ok(diaryCommentService.createComment(memberId, diaryId, requestDto));
     }
 
-    @Operation(summary = "댓글 목록", description = "일기를 볼 수 있는 사람만 가능 (403). 작성순.")
+    @Operation(summary = "댓글 목록", description = "일기를 볼 수 있는 사람만 가능 (403). 작성순. 작성자 정보(authorNickname, authorBreadType)와 내 댓글 여부(isMine)는 DiaryFeedItem과 같은 규칙이다.")
     @GetMapping
     public ApiResponse<List<DiaryCommentDto.Response>> getComments(@PathVariable Long diaryId) {
         Long memberId = SecurityUtils.getCurrentUserId();

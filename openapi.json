@@ -1919,7 +1919,7 @@
                     "\uac10\uc815\uc77c\uae30 \ub313\uae00"
                 ],
                 "summary": "\ub313\uae00 \ubaa9\ub85d",
-                "description": "\uc77c\uae30\ub97c \ubcfc \uc218 \uc788\ub294 \uc0ac\ub78c\ub9cc \uac00\ub2a5 (403). \uc791\uc131\uc21c.",
+                "description": "\uc77c\uae30\ub97c \ubcfc \uc218 \uc788\ub294 \uc0ac\ub78c\ub9cc \uac00\ub2a5 (403). \uc791\uc131\uc21c. \uc791\uc131\uc790 \uc815\ubcf4(authorNickname, authorBreadType)\uc640 \ub0b4 \ub313\uae00 \uc5ec\ubd80(isMine)\ub294 DiaryFeedItem\uacfc \uac19\uc740 \uaddc\uce59\uc774\ub2e4.",
                 "operationId": "getComments",
                 "parameters": [
                     {
@@ -3296,6 +3296,48 @@
                 }
             }
         },
+        "/api/diaries/calendar": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30"
+                ],
+                "summary": "\ub0b4 \uc77c\uae30 \ub2ec\ub825",
+                "description": "year\ub144 month\uc6d4(\ud55c\uad6d \uc2dc\uac04 \uae30\uc900\uc73c\ub85c \uadf8 \ub2ec 1\uc77c 00:00 ~ \ub2e4\uc74c \ub2ec 1\uc77c 00:00 \uc804)\uc5d0 \ub0b4\uac00 \uc4f4 \uc77c\uae30\uc758 \ub0a0\uc9dc\uc640 id.\n\ubaa8\ub4e0 \uacf5\uc720\ubc29\uc758 \ub0b4 \uc77c\uae30\uac00 \ub300\uc0c1\uc774\uace0 \ubcf8\ubb38\uc740 \uc8fc\uc9c0 \uc54a\ub294\ub2e4(\uc0c1\uc138\ub294 GET /api/diaries/{diaryId}).\n\n- \ub0a0\uc9dc(`date`, yyyy-MM-dd)\ub294 \uc791\uc131 \uc2dc\uac01\uc744 \ud55c\uad6d \uc2dc\uac04\uc73c\ub85c \ubc14\uafbc \ub0a0\uc9dc\uc774\uace0, \uc624\ub984\ucc28\uc21c\uc774\ub2e4.\n- \ud558\ub8e8\uc5d0 \uc5ec\ub7ec \uac1c\uba74 \uadf8\ub0a0 \ud56d\ubaa9 \ud558\ub098\uc758 `diaryIds`\uc5d0 \uc791\uc131\uc21c(\uc624\ub798\ub41c \uac83 \uba3c\uc800)\uc73c\ub85c \ubaa8\ub450 \ub2f4\ub294\ub2e4.\n- \uc77c\uae30\uac00 \uc5c6\ub294 \ub0a0\uc740 \ubaa9\ub85d\uc5d0 \uc5c6\ub2e4. \uadf8 \ub2ec\uc5d0 \uc77c\uae30\uac00 \uc5c6\uc73c\uba74 \ube48 \ubc30\uc5f4.\n- month\uac00 1~12\uac00 \uc544\ub2c8\uba74 400.\n",
+                "operationId": "getMyCalendar",
+                "parameters": [
+                    {
+                        "name": "year",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    },
+                    {
+                        "name": "month",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseListDiaryCalendarDay"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/contents/recommendations": {
             "get": {
                 "tags": [
@@ -4091,6 +4133,15 @@
                     "updatedAt": {
                         "type": "string",
                         "format": "date-time"
+                    },
+                    "authorNickname": {
+                        "type": "string"
+                    },
+                    "authorBreadType": {
+                        "type": "string"
+                    },
+                    "isMine": {
+                        "type": "boolean"
                     }
                 }
             },
@@ -6464,6 +6515,43 @@
                     },
                     "code": {
                         "type": "string"
+                    }
+                }
+            },
+            "ApiResponseListDiaryCalendarDay": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DiaryCalendarDay"
+                        }
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "DiaryCalendarDay": {
+                "type": "object",
+                "properties": {
+                    "date": {
+                        "type": "string",
+                        "format": "date",
+                        "example": "2026-10-03"
+                    },
+                    "diaryIds": {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
                     }
                 }
             },

@@ -10,11 +10,16 @@ import com.luvin.diary.repository.DiaryRepository;
 import com.luvin.diary.repository.DiaryRoomRepository;
 import com.luvin.learning.domain.LearningSourceType;
 import com.luvin.learning.service.LearningSignalService;
+import com.luvin.user.domain.User;
+import com.luvin.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +29,7 @@ public class DiaryCommentService {
     private final DiaryRepository diaryRepository;
     private final DiaryRoomRepository diaryRoomRepository;
     private final LearningSignalService learningSignalService;
+    private final UserRepository userRepository;
 
     // 1. 댓글 작성
     @Transactional
@@ -39,7 +45,7 @@ public class DiaryCommentService {
         DiaryComment savedComment = diaryCommentRepository.save(comment);
         learningSignalService.record(memberId, LearningSourceType.COMMENT, savedComment.getId());
 
-        return new DiaryCommentDto.Response(savedComment);
+        return DiaryCommentDto.Response.of(savedComment, userRepository.findById(memberId).orElse(null), memberId);
     }
 
     // 2. 댓글 목록 조회
@@ -52,8 +58,13 @@ public class DiaryCommentService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
-        return diaryCommentRepository.findByDiaryIdOrderByCreatedAtAsc(diaryId).stream()
-                .map(DiaryCommentDto.Response::new)
+        List<DiaryComment> comments = diaryCommentRepository.findByDiaryIdOrderByCreatedAtAsc(diaryId);
+        // 작성자는 FK 없는 user_id라 한 번에 모아 조회한다 (댓글마다 조회하면 N+1).
+        Map<Long, User> authors = userRepository.findAllById(
+                        comments.stream().map(DiaryComment::getUserId).distinct().toList()).stream()
+                .collect(Collectors.toMap(User::getId, Function.identity()));
+        return comments.stream()
+                .map(c -> DiaryCommentDto.Response.of(c, authors.get(c.getUserId()), memberId))
                 .toList();
     }
 
@@ -72,7 +83,7 @@ public class DiaryCommentService {
         }
 
         comment.update(requestDto.getContent());
-        return new DiaryCommentDto.Response(comment);
+        return DiaryCommentDto.Response.of(comment, userRepository.findById(memberId).orElse(null), memberId);
     }
 
     // 4. 댓글 삭제
