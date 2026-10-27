@@ -72,6 +72,16 @@ public class RoomQuestionDto {
         }
     }
 
+    /** 문서용: 409 ROOM_QUESTION_ALREADY_EXISTS 응답 본문(ApiResponse 형식). data에 이미 있는 오늘 질문이 담긴다. */
+    @Schema(name = "RoomQuestionAlreadyExistsError")
+    public record AlreadyExistsError(
+            @Schema(example = "false") boolean success,
+            @Schema(description = "이미 있는 오늘 질문(생성 중 포함)") QuestionView data,
+            String message,
+            @Schema(allowableValues = {"ROOM_QUESTION_ALREADY_EXISTS"}) String code
+    ) {
+    }
+
     /** 지난 질문 목록 항목. */
     @Schema(name = "RoomQuestionHistoryItem")
     public record HistoryItem(

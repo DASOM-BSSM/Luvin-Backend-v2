@@ -16,6 +16,10 @@
             "description": "\uc77c\uae30 \uc791\uc131\u00b7\uc870\ud68c\u00b7\uc218\uc815\u00b7\uc0ad\uc81c, \uc774\ubaa8\uc9c0 \ubc18\uc751, \ub0b4 \ubc29\ub4e4 \ud53c\ub4dc"
         },
         {
+            "name": "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38",
+            "description": "\uacf5\uc720\ubc29(\uadf8\ub8f9)\ub9c8\ub2e4 AI\uac00 \ub9cc\ub4dc\ub294 \ud558\ub8e8 1\uac1c \uc9c8\ubb38\uacfc \uba64\ubc84\ub4e4\uc758 \ub2f5"
+        },
+        {
             "name": "AI job \uc9c4\ud589 \uc774\ubca4\ud2b8",
             "description": "generation job \uc9c4\ud589 \uc0c1\ud669 SSE \uad6c\ub3c5"
         },
@@ -100,12 +104,75 @@
             }
         },
         "/api/diary-rooms/{roomId}": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
+                ],
+                "summary": "\uacf5\uc720\ubc29 \ub2e8\uac74 \uc870\ud68c",
+                "description": "\ubc29\uc7a5(owner_id)\uc774\uac70\ub098 diary_room_member\uc5d0 \uc788\ub294 \uc0ac\ub78c\ub9cc \uc870\ud68c \uac00\ub2a5, \uc544\ub2c8\uba74 403. \uc5c6\ub294 \ubc29\uc740 404(\uad8c\ud55c \ud655\uc778\ubcf4\ub2e4 \uba3c\uc800).",
+                "operationId": "getRoom",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseDiaryRoomResponse"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "\ubc29\uc7a5\u00b7\uba64\ubc84\uac00 \uc544\ub2d8(\ub098\uac14\uac70\ub098 \uac15\ud1f4\ub41c \uc0ac\ub78c \ud3ec\ud568). code\ub294 null",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uad8c\ud55c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                    "code": null
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "\uc5c6\ub294 \ubc29. code\ub294 null",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. roomId=1",
+                                    "code": null
+                                }
+                            }
+                        }
+                    }
+                }
+            },
             "put": {
                 "tags": [
                     "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
                 ],
                 "summary": "\uacf5\uc720\ubc29 \uc218\uc815",
-                "description": "\ubc29\uc7a5\ub9cc \uac00\ub2a5 (403).",
+                "description": "\ubc29\uc7a5\ub9cc \uac00\ub2a5 (403). maxMemberCount\ub97c \ud604\uc7ac \uc778\uc6d0\ubcf4\ub2e4 \uc801\uac8c \ud558\uba74 409 DIARY_ROOM_MAX_BELOW_MEMBER_COUNT, ownerNickname\uc774 \ub2e4\ub978 \uba64\ubc84\uc640 \uacb9\uce58\uba74 409 DIARY_ROOM_NICKNAME_DUPLICATED.",
                 "operationId": "updateRoom",
                 "parameters": [
                     {
@@ -122,7 +189,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/Request"
+                                "$ref": "#/components/schemas/DiaryRoomUpdateRequest"
                             }
                         }
                     },
@@ -134,7 +201,85 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryRoomResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "\uac80\uc99d \uc2e4\ud328(\uc0dd\uc131\uacfc \uac19\uc740 \uaddc\uce59). code\ub294 null",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\ucd5c\ub300 \uc778\uc6d0\uc740 2~6\uba85\uc785\ub2c8\ub2e4.",
+                                    "code": null
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "\ubc29\uc7a5\uc774 \uc544\ub2d8. code\ub294 null",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uad8c\ud55c\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                    "code": null
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "\uc5c6\ub294 \ubc29. code\ub294 null",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4. roomId=1",
+                                    "code": null
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "code: DIARY_ROOM_MAX_BELOW_MEMBER_COUNT(maxMemberCount < \ud604\uc7ac \uc778\uc6d0) \ub610\ub294 DIARY_ROOM_NICKNAME_DUPLICATED(ownerNickname\uc774 \ub2e4\ub978 \uba64\ubc84\uc640 \uacb9\uce68)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "examples": {
+                                    "DIARY_ROOM_MAX_BELOW_MEMBER_COUNT": {
+                                        "description": "DIARY_ROOM_MAX_BELOW_MEMBER_COUNT",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\ucd5c\ub300 \uc778\uc6d0\uc740 \ud604\uc7ac \uc778\uc6d0(3\uba85)\ubcf4\ub2e4 \uc801\uac8c \uc815\ud560 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                            "code": "DIARY_ROOM_MAX_BELOW_MEMBER_COUNT"
+                                        }
+                                    },
+                                    "DIARY_ROOM_NICKNAME_DUPLICATED": {
+                                        "description": "DIARY_ROOM_NICKNAME_DUPLICATED",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uc774 \uacf5\uc720\ubc29\uc5d0\uc11c \uc774\ubbf8 \uc4f0\uace0 \uc788\ub294 \ub2c9\ub124\uc784\uc785\ub2c8\ub2e4.",
+                                            "code": "DIARY_ROOM_NICKNAME_DUPLICATED"
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -198,7 +343,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryResponse"
                                 }
                             }
                         }
@@ -227,7 +372,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/UpdateRequest"
+                                "$ref": "#/components/schemas/DiaryUpdateRequest"
                             }
                         }
                     },
@@ -239,7 +384,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryResponse"
                                 }
                             }
                         }
@@ -310,7 +455,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/Request"
+                                "$ref": "#/components/schemas/DiaryCommentRequest"
                             }
                         }
                     },
@@ -322,7 +467,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryCommentResponse"
                                 }
                             }
                         }
@@ -1053,7 +1198,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseListResponse"
+                                    "$ref": "#/components/schemas/ApiResponseListDiaryRoomResponse"
                                 }
                             }
                         }
@@ -1065,13 +1210,13 @@
                     "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
                 ],
                 "summary": "\uacf5\uc720\ubc29 \uc0dd\uc131",
-                "description": "\ub9cc\ub4e0 \uc0ac\ub78c\uc774 \ubc29\uc7a5(OWNER)\uc73c\ub85c \uc790\ub3d9 \ub4f1\ub85d.",
+                "description": "\ub9cc\ub4e0 \uc0ac\ub78c\uc774 \ubc29\uc7a5(OWNER)\uc73c\ub85c \uc790\ub3d9 \ub4f1\ub85d\ub418\uace0 ownerNickname\uc774 \ubc29\uc7a5\uc758 \ubc29 \ub2c9\ub124\uc784\uc774 \ub41c\ub2e4. maxMemberCount\ub294 \ubc29\uc7a5 \ud3ec\ud568 2~6\uba85(\ubc94\uc704 \ubc16\uc774\uba74 400). \uc751\ub2f5\uc758 memberCount\ub294 \ubc29\uc7a5 1\uba85\uc774\ub77c \ud56d\uc0c1 1.",
                 "operationId": "createRoom",
                 "requestBody": {
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/Request"
+                                "$ref": "#/components/schemas/DiaryRoomCreateRequest"
                             }
                         }
                     },
@@ -1083,7 +1228,311 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryRoomResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "\uac80\uc99d \uc2e4\ud328(name\u00b7ownerNickname \uacf5\ubc31, ownerNickname 10\uc790 \ucd08\uacfc, maxMemberCount \ub204\ub77d\u00b72~6 \ubc16). code\ub294 null",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\ucd5c\ub300 \uc778\uc6d0\uc740 2~6\uba85\uc785\ub2c8\ub2e4.",
+                                    "code": null
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diary-rooms/{roomId}/questions": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38"
+                ],
+                "summary": "\uc9c0\ub09c \uadf8\ub8f9 \uc9c8\ubb38 \ubaa9\ub85d",
+                "description": "\ucd5c\uc2e0\uc21c. page\ub294 0\ubd80\ud130, size \uae30\ubcf8 20\u00b7\ucd5c\ub300 50. \ub2f5 \uc218(answerCount) \ud3ec\ud568 \u2014 \ub2f5 \ub0b4\uc6a9\uc740 GET current\ucc98\ub7fc \uc0c1\uc138\uac00 \ud544\uc694\ud558\uba74\n\ub530\ub85c \uc694\uccad\ud55c\ub2e4(\uc9c0\uae08\uc740 current\ub9cc \uc0c1\uc138\ub97c \uc900\ub2e4).\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
+                "operationId": "getRoomQuestionHistory",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "size",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 20
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseListRoomQuestionHistoryItem"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8. code: ROOM_FORBIDDEN",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29 \uba64\ubc84\ub9cc \uc774\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_FORBIDDEN"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "\uc5c6\ub294 \uadf8\ub8f9. code: ROOM_NOT_FOUND",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_NOT_FOUND"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38"
+                ],
+                "summary": "\uadf8\ub8f9 \uc9c8\ubb38 \uc0dd\uc131",
+                "description": "\uadf8\ub8f9 \uba64\ubc84\uba74 \ub204\uad6c\ub098 \ub204\ub97c \uc218 \uc788\ub2e4. \uadf8\ub8f9\ub2f9 \ud558\ub8e8(KST \uc790\uc815 \uae30\uc900) 1\uac1c.\n**\ube44\ub3d9\uae30**: \ubc14\ub85c 202\uc640 \ud568\uaed8 `status: generating`\uc778 \uc9c8\ubb38\uc744 \ub3cc\ub824\uc900\ub2e4. 1~3\ucd08 \uac04\uaca9\uc73c\ub85c GET current\ub97c \ub2e4\uc2dc \uc694\uccad\ud574\uc11c\n`ready`(content\u00b7answers \ucc44\uc6cc\uc9d0)\ub098 `failed`\ub97c \ud655\uc778\ud55c\ub2e4. `failed`\uba74 \uc774 API\ub97c \ub2e4\uc2dc \ub20c\ub7ec \uc7ac\uc2dc\ub3c4\ud560 \uc218 \uc788\ub2e4.\nAI\uc5d0\ub294 \uadf8\ub8f9 \uc774\ub984\u00b7\uba64\ubc84 \uc218\u00b7\ucd5c\uadfc \uc9c8\ubb38\ub9cc \ub118\uae30\uace0 \uc77c\uae30 \ubcf8\ubb38\uc740 \ub118\uae30\uc9c0 \uc54a\ub294\ub2e4.\n\n**409 code**\n- `ROOM_QUESTION_ALREADY_EXISTS`: \uc624\ub298 \uc9c8\ubb38\uc774 \uc774\ubbf8 \uc788\ub2e4(\uc0dd\uc131 \uc911 \ud3ec\ud568). data\uc5d0 \uadf8 \uc9c8\ubb38(QuestionView)\uc774 \ub2f4\uae34\ub2e4\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
+                "operationId": "create",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "\uc0dd\uc131 \uc2dc\uc791. data.status = generating",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseRoomQuestionView"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "code: ROOM_QUESTION_ALREADY_EXISTS. \uc624\ub298 \uc9c8\ubb38\uc774 \uc774\ubbf8 \uc788\ub2e4(\uc0dd\uc131 \uc911 \ud3ec\ud568). data\uc5d0 \uadf8 \uc9c8\ubb38",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/RoomQuestionAlreadyExistsError"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8. code: ROOM_FORBIDDEN",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29 \uba64\ubc84\ub9cc \uc774\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_FORBIDDEN"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "\uc5c6\ub294 \uadf8\ub8f9. code: ROOM_NOT_FOUND",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_NOT_FOUND"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/diary-rooms/{roomId}/questions/{questionId}/answers": {
+            "post": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38"
+                ],
+                "summary": "\uadf8\ub8f9 \uc9c8\ubb38 \ub2f5\ud558\uae30",
+                "description": "body `{ content }` \u2014 \uc55e\ub4a4 \uacf5\ubc31 \uc81c\uc678 1~200\uc790. \ud55c \uc0ac\ub78c\ub2f9 1\uac1c\uc774\uace0 \ub2e4\uc2dc \ubcf4\ub0b4\uba74 \uc218\uc815\ub41c\ub2e4. \uc751\ub2f5\uc740 \ub2f5\uc774 \ubc18\uc601\ub41c \uc9c8\ubb38.\n\uc9c0\ub09c \uc9c8\ubb38(ready)\uc5d0\ub3c4 \ub2f5\ud560 \uc218 \uc788\ub2e4.\n\n**400 code**: `ROOM_ANSWER_INVALID`(1~200\uc790\uac00 \uc544\ub2d8)\n**404 code**: `ROOM_QUESTION_NOT_FOUND`(\uc774 \uadf8\ub8f9\uc758 \uc9c8\ubb38\uc774 \uc544\ub2d8)\n**409 code**: `ROOM_QUESTION_NOT_READY`(generating\u00b7failed\uc778 \uc9c8\ubb38)\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
+                "operationId": "answer",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "questionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RoomQuestionAnswerRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseRoomQuestionView"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "code: ROOM_ANSWER_INVALID(\uc55e\ub4a4 \uacf5\ubc31 \uc81c\uc678 1~200\uc790\uac00 \uc544\ub2d8, content \ub204\ub77d \ud3ec\ud568)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\ub2f5\uc740 1~200\uc790\ub85c \uc785\ub825\ud574\uc8fc\uc138\uc694.",
+                                    "code": "ROOM_ANSWER_INVALID"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8. code: ROOM_FORBIDDEN",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29 \uba64\ubc84\ub9cc \uc774\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_FORBIDDEN"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "code: ROOM_NOT_FOUND(\uc5c6\ub294 \uadf8\ub8f9) \ub610\ub294 ROOM_QUESTION_NOT_FOUND(\uc774 \uadf8\ub8f9\uc758 \uc9c8\ubb38\uc774 \uc544\ub2d8)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "examples": {
+                                    "ROOM_NOT_FOUND": {
+                                        "description": "ROOM_NOT_FOUND",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uacf5\uc720\ubc29\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                            "code": "ROOM_NOT_FOUND"
+                                        }
+                                    },
+                                    "ROOM_QUESTION_NOT_FOUND": {
+                                        "description": "ROOM_QUESTION_NOT_FOUND",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uc9c8\ubb38\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                            "code": "ROOM_QUESTION_NOT_FOUND"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "code: ROOM_QUESTION_NOT_READY(generating\u00b7failed\uc778 \uc9c8\ubb38)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uc544\uc9c1 \uc9c8\ubb38\uc774 \uc900\ube44\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_QUESTION_NOT_READY"
                                 }
                             }
                         }
@@ -1097,7 +1546,7 @@
                     "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
                 ],
                 "summary": "\uba64\ubc84 \ubaa9\ub85d",
-                "description": "\ubc29\uc7a5\u00b7\uba64\ubc84\ub9cc \uc870\ud68c \uac00\ub2a5 (403).",
+                "description": "\ubc29\uc7a5\u00b7\uba64\ubc84\ub9cc \uc870\ud68c \uac00\ub2a5 (403). \ubc29 \ub2c9\ub124\uc784\u00b7\uc5ed\ud560 \ud3ec\ud568, \uba3c\uc800 \ub4e4\uc5b4\uc628 \uc21c.",
                 "operationId": "getRoomMembers",
                 "parameters": [
                     {
@@ -1116,7 +1565,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseListMemberResponse"
+                                    "$ref": "#/components/schemas/ApiResponseListDiaryRoomMemberResponse"
                                 }
                             }
                         }
@@ -1128,7 +1577,7 @@
                     "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
                 ],
                 "summary": "\uba64\ubc84 \ucd94\uac00(\ucd08\ub300)",
-                "description": "\ubc29\uc7a5\ub9cc \uac00\ub2a5 (403). \uc5c6\ub294 \uc0ac\uc6a9\uc790 404. \uc774\ubbf8 \uba64\ubc84\uc5ec\ub3c4 200.",
+                "description": "\ubc29\uc7a5\ub9cc \uac00\ub2a5 (403). \uc5c6\ub294 \uc0ac\uc6a9\uc790 404. \uc774\ubbf8 \uba64\ubc84\uc5ec\ub3c4 200(\ub2c9\ub124\uc784 \ubcc0\uacbd \uc5c6\uc74c). nickname\uc740 \uc774 \ubc29\uc5d0\uc11c \uc4f8 \ub2c9\ub124\uc784(1~10\uc790), \ube44\uc6b0\uba74 \uacc4\uc815 \ub2c9\ub124\uc784(\uc5c6\uc73c\uba74 \uc774\ub984). \uaf49 \ucc3c\uc73c\uba74 409 DIARY_ROOM_FULL, \ub2c9\ub124\uc784\uc774 \uacb9\uce58\uba74 409 DIARY_ROOM_NICKNAME_DUPLICATED.",
                 "operationId": "addMember",
                 "parameters": [
                     {
@@ -1145,7 +1594,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/AddMemberRequest"
+                                "$ref": "#/components/schemas/DiaryRoomAddMemberRequest"
                             }
                         }
                     },
@@ -1157,7 +1606,37 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseMembershipResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryRoomMembershipResponse"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "code: DIARY_ROOM_FULL(\ud604\uc7ac \uc778\uc6d0 >= maxMemberCount) \ub610\ub294 DIARY_ROOM_NICKNAME_DUPLICATED",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "examples": {
+                                    "DIARY_ROOM_FULL": {
+                                        "description": "DIARY_ROOM_FULL",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uacf5\uc720\ubc29 \uc778\uc6d0\uc774 \uac00\ub4dd \ucc3c\uc2b5\ub2c8\ub2e4. (\ucd5c\ub300 2\uba85)",
+                                            "code": "DIARY_ROOM_FULL"
+                                        }
+                                    },
+                                    "DIARY_ROOM_NICKNAME_DUPLICATED": {
+                                        "description": "DIARY_ROOM_NICKNAME_DUPLICATED",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uc774 \uacf5\uc720\ubc29\uc5d0\uc11c \uc774\ubbf8 \uc4f0\uace0 \uc788\ub294 \ub2c9\ub124\uc784\uc785\ub2c8\ub2e4.",
+                                            "code": "DIARY_ROOM_NICKNAME_DUPLICATED"
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1190,7 +1669,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseInviteCodeResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryRoomInviteCodeResponse"
                                 }
                             }
                         }
@@ -1221,7 +1700,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseInviteCodeResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryRoomInviteCodeResponse"
                                 }
                             }
                         }
@@ -1235,13 +1714,13 @@
                     "\uac10\uc815\uc77c\uae30 \uacf5\uc720\ubc29"
                 ],
                 "summary": "\ucd08\ub300 \ucf54\ub4dc\ub85c \ucc38\uc5ec",
-                "description": "\ucf54\ub4dc\ub97c \uc544\ub294 \uc0ac\ub78c\uc740 \ub204\uad6c\ub098 \ucc38\uc5ec \uac00\ub2a5 (\uc778\uc6d0 \uc81c\ud55c \uc5c6\uc74c). \ub300\uc18c\ubb38\uc790 \uad6c\ubd84 \uc5c6\uc74c. \uc774\ubbf8 \uba64\ubc84\uba74 200, \uc5c6\ub294 \ucf54\ub4dc\uba74 404.",
+                "description": "\ucf54\ub4dc\ub97c \uc544\ub294 \uc0ac\ub78c\uc740 \ucd5c\ub300 \uc778\uc6d0\uae4c\uc9c0 \ucc38\uc5ec \uac00\ub2a5. \ub300\uc18c\ubb38\uc790 \uad6c\ubd84 \uc5c6\uc74c. nickname\uc740 \uc774 \ubc29\uc5d0\uc11c \uc4f8 \ub2c9\ub124\uc784. \uc774\ubbf8 \uba64\ubc84\uba74 200(\ub2c9\ub124\uc784 \ubcc0\uacbd \uc5c6\uc74c), \uc5c6\ub294 \ucf54\ub4dc\uba74 404, \uc778\uc6d0\uc774 \uac00\ub4dd \ucc3c\uc73c\uba74 409 DIARY_ROOM_FULL, \uac19\uc740 \ubc29\uc5d0 \uac19\uc740 \ub2c9\ub124\uc784\uc774 \uc788\uc73c\uba74 409 DIARY_ROOM_NICKNAME_DUPLICATED.",
                 "operationId": "joinByInviteCode",
                 "requestBody": {
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/JoinRequest"
+                                "$ref": "#/components/schemas/DiaryRoomJoinRequest"
                             }
                         }
                     },
@@ -1249,11 +1728,67 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "\ucc38\uc5ec \uc644\ub8cc \ub610\ub294 \uc774\ubbf8 \uba64\ubc84(\uba71\ub4f1)",
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseMembershipResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryRoomMembershipResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "\uac80\uc99d \uc2e4\ud328(inviteCode\u00b7nickname \uacf5\ubc31, nickname 10\uc790 \ucd08\uacfc). code\ub294 null",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "\uc5c6\ub294 \ucd08\ub300 \ucf54\ub4dc(\uc7ac\ubc1c\uae09\u00b7\uac15\ud1f4\ub85c \ubc14\ub010 \uc774\uc804 \ucf54\ub4dc \ud3ec\ud568). code\ub294 null",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\ucd08\ub300 \ucf54\ub4dc\uac00 \uc62c\ubc14\ub974\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4. \ub2e4\uc2dc \ud655\uc778\ud574\uc8fc\uc138\uc694.",
+                                    "code": null
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "code: DIARY_ROOM_FULL(\ud604\uc7ac \uc778\uc6d0 >= maxMemberCount) \ub610\ub294 DIARY_ROOM_NICKNAME_DUPLICATED",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "examples": {
+                                    "DIARY_ROOM_FULL": {
+                                        "description": "DIARY_ROOM_FULL",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uacf5\uc720\ubc29 \uc778\uc6d0\uc774 \uac00\ub4dd \ucc3c\uc2b5\ub2c8\ub2e4. (\ucd5c\ub300 2\uba85)",
+                                            "code": "DIARY_ROOM_FULL"
+                                        }
+                                    },
+                                    "DIARY_ROOM_NICKNAME_DUPLICATED": {
+                                        "description": "DIARY_ROOM_NICKNAME_DUPLICATED",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uc774 \uacf5\uc720\ubc29\uc5d0\uc11c \uc774\ubbf8 \uc4f0\uace0 \uc788\ub294 \ub2c9\ub124\uc784\uc785\ub2c8\ub2e4.",
+                                            "code": "DIARY_ROOM_NICKNAME_DUPLICATED"
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1297,7 +1832,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseListResponse"
+                                    "$ref": "#/components/schemas/ApiResponseListDiaryResponse"
                                 }
                             }
                         }
@@ -1315,7 +1850,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/CreateRequest"
+                                "$ref": "#/components/schemas/DiaryCreateRequest"
                             }
                         }
                     },
@@ -1327,7 +1862,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryResponse"
                                 }
                             }
                         }
@@ -1358,7 +1893,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/ReactionRequest"
+                                "$ref": "#/components/schemas/DiaryReactionRequest"
                             }
                         }
                     },
@@ -1370,7 +1905,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseReactionResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryReactionResponse"
                                 }
                             }
                         }
@@ -1403,7 +1938,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseListResponse"
+                                    "$ref": "#/components/schemas/ApiResponseListDiaryCommentResponse"
                                 }
                             }
                         }
@@ -1432,7 +1967,7 @@
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/Request"
+                                "$ref": "#/components/schemas/DiaryCommentRequest"
                             }
                         }
                     },
@@ -1444,48 +1979,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseResponse"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/daily_questions/{questionId}/answer": {
-            "post": {
-                "tags": [
-                    "daily-question-controller"
-                ],
-                "operationId": "answer",
-                "parameters": [
-                    {
-                        "name": "questionId",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "integer",
-                            "format": "int64"
-                        }
-                    }
-                ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "$ref": "#/components/schemas/DailyQuestionAnswerRequest"
-                            }
-                        }
-                    },
-                    "required": true
-                },
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "*/*": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/MessageResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryCommentResponse"
                                 }
                             }
                         }
@@ -2682,6 +3176,71 @@
                 }
             }
         },
+        "/api/diary-rooms/{roomId}/questions/current": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38"
+                ],
+                "summary": "\uc9c0\uae08 \uadf8\ub8f9 \uc9c8\ubb38",
+                "description": "\uac00\uc7a5 \ucd5c\uadfc \ub0a0\uc9dc\uc758 \uc9c8\ubb38. \uc9c8\ubb38\uc774 \ud55c \ubc88\ub3c4 \uc5c6\uc73c\uba74 `data: null`.\ncontent\u00b7myAnswer\u00b7answers\ub294 `status: ready`\uc77c \ub54c\ub9cc \ucc44\uc6cc\uc9c4\ub2e4. answers\ub294 \ub0b4 \ub2f5\uc744 \ud3ec\ud568\ud55c \uba64\ubc84 \ub2f5(\uc791\uc131\uc21c)\uc774\ub2e4.\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
+                "operationId": "getCurrent",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseRoomQuestionView"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8. code: ROOM_FORBIDDEN",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29 \uba64\ubc84\ub9cc \uc774\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_FORBIDDEN"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "\uc5c6\ub294 \uadf8\ub8f9. code: ROOM_NOT_FOUND",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_NOT_FOUND"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/diary-rooms/{roomId}/diaries": {
             "get": {
                 "tags": [
@@ -2707,7 +3266,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseListFeedItem"
+                                    "$ref": "#/components/schemas/ApiResponseListDiaryFeedItem"
                                 }
                             }
                         }
@@ -2729,27 +3288,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseListFeedItem"
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/daily_questions/today": {
-            "get": {
-                "tags": [
-                    "daily-question-controller"
-                ],
-                "operationId": "getTodayQuestion",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "content": {
-                            "*/*": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/DailyQuestionTodayResponse"
+                                    "$ref": "#/components/schemas/ApiResponseListDiaryFeedItem"
                                 }
                             }
                         }
@@ -3136,6 +3675,94 @@
                 }
             }
         },
+        "/api/diary-rooms/{roomId}/questions/{questionId}/answers/me": {
+            "delete": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38"
+                ],
+                "summary": "\ub0b4 \uadf8\ub8f9 \uc9c8\ubb38 \ub2f5 \uc0ad\uc81c",
+                "description": "\ub0b4 \ub2f5\uc744 \uc9c0\uc6b4\ub2e4(\ub2f5\uc774 \uc5c6\uc5b4\ub3c4 200). \uadf8 \ub2f5\uc740 \ud559\uc2b5\uc5d0\uc11c\ub3c4 \ube60\uc9c4\ub2e4. \uc751\ub2f5\uc740 \uac31\uc2e0\ub41c \uc9c8\ubb38.\n\n**404 code**: `ROOM_QUESTION_NOT_FOUND`\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
+                "operationId": "deleteMyAnswer",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "questionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseRoomQuestionView"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8. code: ROOM_FORBIDDEN",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29 \uba64\ubc84\ub9cc \uc774\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_FORBIDDEN"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "code: ROOM_NOT_FOUND(\uc5c6\ub294 \uadf8\ub8f9) \ub610\ub294 ROOM_QUESTION_NOT_FOUND(\uc774 \uadf8\ub8f9\uc758 \uc9c8\ubb38\uc774 \uc544\ub2d8)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "examples": {
+                                    "ROOM_NOT_FOUND": {
+                                        "description": "ROOM_NOT_FOUND",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uacf5\uc720\ubc29\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                            "code": "ROOM_NOT_FOUND"
+                                        }
+                                    },
+                                    "ROOM_QUESTION_NOT_FOUND": {
+                                        "description": "ROOM_QUESTION_NOT_FOUND",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uc9c8\ubb38\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                            "code": "ROOM_QUESTION_NOT_FOUND"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/diary-rooms/{roomId}/members/me": {
             "delete": {
                 "tags": [
@@ -3161,7 +3788,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseMembershipResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryRoomMembershipResponse"
                                 }
                             }
                         }
@@ -3203,7 +3830,7 @@
                         "content": {
                             "*/*": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/ApiResponseKickResponse"
+                                    "$ref": "#/components/schemas/ApiResponseDiaryRoomKickResponse"
                                 }
                             }
                         }
@@ -3237,6 +3864,10 @@
                     },
                     "bio": {
                         "type": "string"
+                    },
+                    "learningEnabled": {
+                        "type": "boolean",
+                        "description": "\uac10\uc815\uc77c\uae30 \ud559\uc2b5 \ub3d9\uc758. \ubcf4\ub0b4\uc9c0 \uc54a\uc73c\uba74 \uae30\uc874 \uac12 \uc720\uc9c0"
                     }
                 }
             },
@@ -3248,26 +3879,68 @@
                     }
                 }
             },
-            "Request": {
+            "DiaryRoomUpdateRequest": {
                 "type": "object",
+                "description": "\ubc29\uc7a5\ub9cc \uac00\ub2a5. \ubaa8\ub4e0 \ud544\ub4dc\ub97c \ub2e4\uc2dc \ubcf4\ub0b8\ub2e4(PUT).",
                 "properties": {
                     "name": {
                         "type": "string",
+                        "description": "\uacf5\uc720\ubc29 \uc774\ub984. \uacf5\ubc31\ub9cc \uc788\uc73c\uba74 400",
                         "minLength": 1
                     },
                     "description": {
+                        "type": "string",
+                        "description": "\uacf5\uc720\ubc29 \uc18c\uac1c. \uc0dd\ub7b5 \uac00\ub2a5"
+                    },
+                    "maxMemberCount": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "\ucd5c\ub300 \uc778\uc6d0(\ubc29\uc7a5 \ud3ec\ud568). \ud604\uc7ac \uc778\uc6d0\ubcf4\ub2e4 \uc801\uc73c\uba74 409 DIARY_ROOM_MAX_BELOW_MEMBER_COUNT",
+                        "maximum": 6,
+                        "minimum": 2
+                    },
+                    "ownerNickname": {
+                        "type": "string",
+                        "description": "\ubc29\uc7a5 \ub2c9\ub124\uc784. \uacf5\ubc31\ub9cc \uc788\uc73c\uba74 400, 10\uc790 \uc774\ud558, \uc800\uc7a5\ud560 \ub54c \uc55e\ub4a4 \uacf5\ubc31\uc744 \ube80\ub2e4. \ub2e4\ub978 \uba64\ubc84\uc640 \uacb9\uce58\uba74 409 DIARY_ROOM_NICKNAME_DUPLICATED",
+                        "maxLength": 10,
+                        "minLength": 1
+                    }
+                },
+                "required": [
+                    "maxMemberCount",
+                    "name",
+                    "ownerNickname"
+                ]
+            },
+            "ApiErrorResponse": {
+                "type": "object",
+                "description": "\uc624\ub958 \uc751\ub2f5. success\ub294 \ud56d\uc0c1 false",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "data": {
+                        "type": "object",
+                        "description": "\ub300\ubd80\ubd84 null. \uc77c\ubd80 \uc624\ub958\ub9cc \ucd94\uac00 \uc815\ubcf4\ub97c \ub2f4\ub294\ub2e4"
+                    },
+                    "message": {
                         "type": "string"
+                    },
+                    "code": {
+                        "type": "string",
+                        "description": "machine code. \uc624\ub958\ub9c8\ub2e4 \ub2e4\ub974\uba70 code\uac00 \uc5c6\ub294 \uc624\ub958\ub294 null"
                     }
                 }
             },
-            "ApiResponseResponse": {
+            "ApiResponseDiaryRoomResponse": {
                 "type": "object",
                 "properties": {
                     "success": {
                         "type": "boolean"
                     },
                     "data": {
-                        "$ref": "#/components/schemas/Response"
+                        "$ref": "#/components/schemas/DiaryRoomResponse"
                     },
                     "message": {
                         "type": "string"
@@ -3277,8 +3950,9 @@
                     }
                 }
             },
-            "Response": {
+            "DiaryRoomResponse": {
                 "type": "object",
+                "description": "\uacf5\uc720\ubc29. \ubaa9\ub85d\u00b7\ub2e8\uac74 \uc870\ud68c\u00b7\uc0dd\uc131\u00b7\uc218\uc815 \uacf5\ud1b5",
                 "properties": {
                     "id": {
                         "type": "integer",
@@ -3287,13 +3961,28 @@
                     "name": {
                         "type": "string"
                     },
+                    "description": {
+                        "type": "string"
+                    },
                     "ownerId": {
                         "type": "integer",
                         "format": "int64"
+                    },
+                    "maxMemberCount": {
+                        "type": "integer",
+                        "format": "int32",
+                        "description": "\ucd5c\ub300 \uc778\uc6d0(\ubc29\uc7a5 \ud3ec\ud568)",
+                        "maximum": 6,
+                        "minimum": 2
+                    },
+                    "memberCount": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "\ud604\uc7ac \ucc38\uc5ec \uc778\uc6d0(\ubc29\uc7a5 \ud3ec\ud568). diary_room_member \ud589 \uc218"
                     }
                 }
             },
-            "UpdateRequest": {
+            "DiaryUpdateRequest": {
                 "type": "object",
                 "properties": {
                     "title": {
@@ -3305,6 +3994,103 @@
                         "type": "string",
                         "maxLength": 5000,
                         "minLength": 0
+                    }
+                }
+            },
+            "ApiResponseDiaryResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/DiaryResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "DiaryResponse": {
+                "type": "object",
+                "properties": {
+                    "diaryId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "roomId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "isMine": {
+                        "type": "boolean"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "DiaryCommentRequest": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "minLength": 1
+                    }
+                }
+            },
+            "ApiResponseDiaryCommentResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/DiaryCommentResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "DiaryCommentResponse": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "userId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
                     }
                 }
             },
@@ -3715,26 +4501,140 @@
                     }
                 }
             },
-            "AddMemberRequest": {
+            "DiaryRoomCreateRequest": {
                 "type": "object",
                 "properties": {
-                    "userId": {
+                    "name": {
+                        "type": "string",
+                        "description": "\uacf5\uc720\ubc29 \uc774\ub984. \uacf5\ubc31\ub9cc \uc788\uc73c\uba74 400",
+                        "minLength": 1
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "\uacf5\uc720\ubc29 \uc18c\uac1c. \uc0dd\ub7b5 \uac00\ub2a5"
+                    },
+                    "maxMemberCount": {
                         "type": "integer",
-                        "format": "int64"
+                        "format": "int32",
+                        "description": "\ucd5c\ub300 \uc778\uc6d0(\ubc29\uc7a5 \ud3ec\ud568). 2~6\uba85, \ubc94\uc704 \ubc16\uc774\uba74 400. \ud63c\uc790 \uc4f0\ub294 \ubc29(1\uba85)\uc740 \ud5c8\uc6a9\ud558\uc9c0 \uc54a\ub294\ub2e4",
+                        "maximum": 6,
+                        "minimum": 2
+                    },
+                    "ownerNickname": {
+                        "type": "string",
+                        "description": "\uc774 \ubc29\uc5d0\uc11c \uc4f8 \ubc29\uc7a5 \ub2c9\ub124\uc784(\uc694\uccad\uc790 \ubcf8\uc778\uc774 \ubc29\uc7a5\uc774 \ub41c\ub2e4). \uacf5\ubc31\ub9cc \uc788\uc73c\uba74 400, 10\uc790 \uc774\ud558, \uc800\uc7a5\ud560 \ub54c \uc55e\ub4a4 \uacf5\ubc31\uc744 \ube80\ub2e4",
+                        "maxLength": 10,
+                        "minLength": 1
                     }
                 },
                 "required": [
-                    "userId"
+                    "maxMemberCount",
+                    "name",
+                    "ownerNickname"
                 ]
             },
-            "ApiResponseMembershipResponse": {
+            "RoomQuestionAlreadyExistsError": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "example": false
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/RoomQuestionView",
+                        "description": "\uc774\ubbf8 \uc788\ub294 \uc624\ub298 \uc9c8\ubb38(\uc0dd\uc131 \uc911 \ud3ec\ud568)"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string",
+                        "enum": [
+                            "ROOM_QUESTION_ALREADY_EXISTS"
+                        ]
+                    }
+                }
+            },
+            "RoomQuestionAnswerItem": {
+                "type": "object",
+                "properties": {
+                    "answerId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "authorId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "authorNickname": {
+                        "type": "string"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                }
+            },
+            "RoomQuestionView": {
+                "type": "object",
+                "properties": {
+                    "questionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "roomId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "questionDate": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "\uc774 \uc9c8\ubb38\uc758 \ub0a0\uc9dc(KST). \uadf8\ub8f9\ub2f9 \ud558\ub8e8 1\uac1c"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "generating\uc774\uba74 1~3\ucd08 \uac04\uaca9\uc73c\ub85c GET current\ub97c \ub2e4\uc2dc \uc694\uccad. failed\uba74 POST\ub85c \ub2e4\uc2dc \uc0dd\uc131\ud560 \uc218 \uc788\ub2e4",
+                        "enum": [
+                            "generating",
+                            "ready",
+                            "failed"
+                        ]
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "myAnswer": {
+                        "$ref": "#/components/schemas/RoomQuestionAnswerItem",
+                        "description": "\ub0b4 \ub2f5. \uc5c6\uc73c\uba74 null"
+                    },
+                    "answers": {
+                        "type": "array",
+                        "description": "\uadf8\ub8f9 \uba64\ubc84\ub4e4\uc758 \ub2f5(\ub0b4 \ub2f5 \ud3ec\ud568), \uc791\uc131\uc21c",
+                        "items": {
+                            "$ref": "#/components/schemas/RoomQuestionAnswerItem"
+                        }
+                    }
+                }
+            },
+            "ApiResponseRoomQuestionView": {
                 "type": "object",
                 "properties": {
                     "success": {
                         "type": "boolean"
                     },
                     "data": {
-                        "$ref": "#/components/schemas/MembershipResponse"
+                        "$ref": "#/components/schemas/RoomQuestionView"
                     },
                     "message": {
                         "type": "string"
@@ -3744,7 +4644,52 @@
                     }
                 }
             },
-            "MembershipResponse": {
+            "RoomQuestionAnswerRequest": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "1~200\uc790(\uc55e\ub4a4 \uacf5\ubc31 \uc81c\uc678). \uc544\ub2c8\uba74 400 ROOM_ANSWER_INVALID",
+                        "maxLength": 200
+                    }
+                }
+            },
+            "DiaryRoomAddMemberRequest": {
+                "type": "object",
+                "properties": {
+                    "userId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "nickname": {
+                        "type": "string",
+                        "description": "\uc774 \ubc29\uc5d0\uc11c \uc4f8 \ub2c9\ub124\uc784. \uc55e\ub4a4 \uacf5\ubc31 \uc81c\uc678 1~10\uc790. \ube44\uc6b0\uba74 \uacc4\uc815 \ub2c9\ub124\uc784(\uc5c6\uc73c\uba74 \uc774\ub984)",
+                        "maxLength": 10,
+                        "minLength": 0
+                    }
+                },
+                "required": [
+                    "userId"
+                ]
+            },
+            "ApiResponseDiaryRoomMembershipResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/DiaryRoomMembershipResponse"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "DiaryRoomMembershipResponse": {
                 "type": "object",
                 "properties": {
                     "roomId": {
@@ -3764,14 +4709,14 @@
                     }
                 }
             },
-            "ApiResponseInviteCodeResponse": {
+            "ApiResponseDiaryRoomInviteCodeResponse": {
                 "type": "object",
                 "properties": {
                     "success": {
                         "type": "boolean"
                     },
                     "data": {
-                        "$ref": "#/components/schemas/InviteCodeResponse"
+                        "$ref": "#/components/schemas/DiaryRoomInviteCodeResponse"
                     },
                     "message": {
                         "type": "string"
@@ -3781,7 +4726,7 @@
                     }
                 }
             },
-            "InviteCodeResponse": {
+            "DiaryRoomInviteCodeResponse": {
                 "type": "object",
                 "properties": {
                     "roomId": {
@@ -3793,16 +4738,27 @@
                     }
                 }
             },
-            "JoinRequest": {
+            "DiaryRoomJoinRequest": {
                 "type": "object",
                 "properties": {
                     "inviteCode": {
                         "type": "string",
+                        "description": "8\uc790\ub9ac \ucd08\ub300 \ucf54\ub4dc. \ub300\uc18c\ubb38\uc790\u00b7\uc55e\ub4a4 \uacf5\ubc31 \ubb34\uc2dc",
+                        "minLength": 1
+                    },
+                    "nickname": {
+                        "type": "string",
+                        "description": "\uc774 \ubc29\uc5d0\uc11c \uc4f8 \ub2c9\ub124\uc784. \uacf5\ubc31\ub9cc \uc788\uc73c\uba74 400, 10\uc790 \uc774\ud558, \uc800\uc7a5\ud560 \ub54c \uc55e\ub4a4 \uacf5\ubc31\uc744 \ube80\ub2e4. \uc774\ubbf8 \uba64\ubc84\uba74 \ubb34\uc2dc\ub41c\ub2e4(\ub2c9\ub124\uc784 \ubcc0\uacbd \uc5c6\uc74c)",
+                        "maxLength": 10,
                         "minLength": 1
                     }
-                }
+                },
+                "required": [
+                    "inviteCode",
+                    "nickname"
+                ]
             },
-            "CreateRequest": {
+            "DiaryCreateRequest": {
                 "type": "object",
                 "properties": {
                     "roomId": {
@@ -3824,7 +4780,7 @@
                     "roomId"
                 ]
             },
-            "ReactionRequest": {
+            "DiaryReactionRequest": {
                 "type": "object",
                 "properties": {
                     "emoji": {
@@ -3833,14 +4789,14 @@
                     }
                 }
             },
-            "ApiResponseReactionResponse": {
+            "ApiResponseDiaryReactionResponse": {
                 "type": "object",
                 "properties": {
                     "success": {
                         "type": "boolean"
                     },
                     "data": {
-                        "$ref": "#/components/schemas/ReactionResponse"
+                        "$ref": "#/components/schemas/DiaryReactionResponse"
                     },
                     "message": {
                         "type": "string"
@@ -3850,7 +4806,7 @@
                     }
                 }
             },
-            "ReactionResponse": {
+            "DiaryReactionResponse": {
                 "type": "object",
                 "properties": {
                     "diaryId": {
@@ -3864,15 +4820,6 @@
                         "type": "boolean"
                     },
                     "likeCount": {
-                        "type": "integer",
-                        "format": "int64"
-                    }
-                }
-            },
-            "DailyQuestionAnswerRequest": {
-                "type": "object",
-                "properties": {
-                    "selectedOption": {
                         "type": "integer",
                         "format": "int64"
                     }
@@ -4956,6 +5903,10 @@
                     "latestSurveyResultId": {
                         "type": "string",
                         "format": "uuid"
+                    },
+                    "learningEnabled": {
+                        "type": "boolean",
+                        "description": "\uac10\uc815\uc77c\uae30 \ud559\uc2b5 \ub3d9\uc758. \ub044\uba74 \uc77c\uae30\u00b7\ub313\uae00\u00b7\uadf8\ub8f9 \ub2f5\uc744 \ub0b4 \ube75 \ud559\uc2b5\uc5d0 \uc4f0\uc9c0 \uc54a\ub294\ub2e4"
                     }
                 }
             },
@@ -5284,7 +6235,7 @@
                     }
                 }
             },
-            "ApiResponseListResponse": {
+            "ApiResponseListDiaryRoomResponse": {
                 "type": "object",
                 "properties": {
                     "success": {
@@ -5293,7 +6244,7 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/Response"
+                            "$ref": "#/components/schemas/DiaryRoomResponse"
                         }
                     },
                     "message": {
@@ -5304,7 +6255,7 @@
                     }
                 }
             },
-            "ApiResponseListMemberResponse": {
+            "ApiResponseListRoomQuestionHistoryItem": {
                 "type": "object",
                 "properties": {
                     "success": {
@@ -5313,7 +6264,7 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/MemberResponse"
+                            "$ref": "#/components/schemas/RoomQuestionHistoryItem"
                         }
                     },
                     "message": {
@@ -5324,7 +6275,59 @@
                     }
                 }
             },
-            "MemberResponse": {
+            "RoomQuestionHistoryItem": {
+                "type": "object",
+                "properties": {
+                    "questionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "questionDate": {
+                        "type": "string",
+                        "format": "date"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "generating",
+                            "ready",
+                            "failed"
+                        ]
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "answerCount": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                }
+            },
+            "ApiResponseListDiaryRoomMemberResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DiaryRoomMemberResponse"
+                        }
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "DiaryRoomMemberResponse": {
                 "type": "object",
                 "properties": {
                     "id": {
@@ -5336,10 +6339,21 @@
                     },
                     "email": {
                         "type": "string"
+                    },
+                    "nickname": {
+                        "type": "string",
+                        "description": "\uc774 \ubc29\uc5d0\uc11c \uc4f0\ub294 \ub2c9\ub124\uc784"
+                    },
+                    "role": {
+                        "type": "string",
+                        "enum": [
+                            "OWNER",
+                            "MEMBER"
+                        ]
                     }
                 }
             },
-            "ApiResponseListFeedItem": {
+            "ApiResponseListDiaryFeedItem": {
                 "type": "object",
                 "properties": {
                     "success": {
@@ -5348,7 +6362,7 @@
                     "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/FeedItem"
+                            "$ref": "#/components/schemas/DiaryFeedItem"
                         }
                     },
                     "message": {
@@ -5359,7 +6373,7 @@
                     }
                 }
             },
-            "FeedItem": {
+            "DiaryFeedItem": {
                 "type": "object",
                 "properties": {
                     "diaryId": {
@@ -5413,70 +6427,43 @@
                     }
                 }
             },
-            "DailyQuestionOptionResponse": {
+            "ApiResponseListDiaryResponse": {
                 "type": "object",
                 "properties": {
-                    "optionId": {
-                        "type": "integer",
-                        "format": "int64"
-                    },
-                    "content": {
-                        "type": "string"
-                    }
-                }
-            },
-            "DailyQuestionOptionResultResponse": {
-                "type": "object",
-                "properties": {
-                    "optionId": {
-                        "type": "integer",
-                        "format": "int64"
-                    },
-                    "content": {
-                        "type": "string"
-                    },
-                    "voteCount": {
-                        "type": "integer",
-                        "format": "int64"
-                    },
-                    "percentage": {
-                        "type": "number",
-                        "format": "double"
-                    }
-                }
-            },
-            "DailyQuestionTodayResponse": {
-                "type": "object",
-                "properties": {
-                    "questionId": {
-                        "type": "integer",
-                        "format": "int64"
-                    },
-                    "question": {
-                        "type": "string"
-                    },
-                    "options": {
-                        "type": "array",
-                        "items": {
-                            "$ref": "#/components/schemas/DailyQuestionOptionResponse"
-                        }
-                    },
-                    "answered": {
+                    "success": {
                         "type": "boolean"
                     },
-                    "selectedOptionId": {
-                        "type": "integer",
-                        "format": "int64"
-                    },
-                    "results": {
+                    "data": {
                         "type": "array",
                         "items": {
-                            "$ref": "#/components/schemas/DailyQuestionOptionResultResponse"
+                            "$ref": "#/components/schemas/DiaryResponse"
                         }
                     },
-                    "totalCount": {
-                        "type": "integer",
-                        "format": "int64"
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseListDiaryCommentResponse": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DiaryCommentResponse"
+                        }
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
@@ -6010,14 +6997,14 @@
                     }
                 }
             },
-            "ApiResponseKickResponse": {
+            "ApiResponseDiaryRoomKickResponse": {
                 "type": "object",
                 "properties": {
                     "success": {
                         "type": "boolean"
                     },
                     "data": {
-                        "$ref": "#/components/schemas/KickResponse"
+                        "$ref": "#/components/schemas/DiaryRoomKickResponse"
                     },
                     "message": {
                         "type": "string"
@@ -6027,7 +7014,7 @@
                     }
                 }
             },
-            "KickResponse": {
+            "DiaryRoomKickResponse": {
                 "type": "object",
                 "properties": {
                     "roomId": {
