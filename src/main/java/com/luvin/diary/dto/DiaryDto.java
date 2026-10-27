@@ -6,12 +6,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.List;
 
 public class DiaryDto {
 
-    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    public static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
     /**
      * 응답 시간을 한국 시간(+09:00)으로 맞춘다. DB에서 읽은 값(UTC)과 방금 저장한 값(서버 시간대)이
@@ -77,6 +79,15 @@ public class DiaryDto {
                     diary.getUpdatedAt()
             );
         }
+    }
+
+    /** 달력 하루. 그날(KST) 내가 쓴 일기 id를 작성순으로 담는다. */
+    @Schema(name = "DiaryCalendarDay")
+    public record CalendarDay(
+            @Schema(type = "string", format = "date", example = "2026-10-03")
+            LocalDate date,
+            List<Long> diaryIds
+    ) {
     }
 
     /** 이모지 반응 요청. 이모지 문자 그대로 보낸다 (예: "❤️", "😂"). */

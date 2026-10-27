@@ -261,6 +261,68 @@ class DiaryApiIntegrationTest {
         assertEquals(0, call(HttpMethod.GET, "/api/diaries/community", outsider, null).data().size());
     }
 
+    // ------------------------------------------------------------------ 댓글
+
+    @Test
+    void 댓글_응답에_작성자_정보와_내_댓글_여부가_있다() {
+        long roomId = createRoomWithMember();
+        long diaryId = createDiary(member, roomId).data().get("diaryId").asLong();
+
+        Res created = call(HttpMethod.POST, "/api/diaries/" + diaryId + "/comments", owner, Map.of("content", "댓글"));
+        assertEquals(200, created.status(), String.valueOf(created.body()));
+        assertEquals("방장", created.data().get("authorNickname").asText());
+        assertEquals("salt_bread", created.data().get("authorBreadType").asText());
+        assertTrue(created.data().get("isMine").asBoolean());
+        long commentId = created.data().get("id").asLong();
+
+        Res updated = call(HttpMethod.PUT, "/api/diaries/" + diaryId + "/comments/" + commentId, owner,
+                Map.of("content", "수정"));
+        assertEquals("방장", updated.data().get("authorNickname").asText());
+        assertTrue(updated.data().get("isMine").asBoolean());
+
+        call(HttpMethod.POST, "/api/diaries/" + diaryId + "/comments", member, Map.of("content", "답글"));
+        JsonNode list = call(HttpMethod.GET, "/api/diaries/" + diaryId + "/comments", member, null).data();
+        assertEquals(2, list.size());
+        assertEquals("방장", list.get(0).get("authorNickname").asText());
+        assertFalse(list.get(0).get("isMine").asBoolean());
+        assertEquals(owner.id(), list.get(0).get("userId").asLong());
+        assertEquals("멤버", list.get(1).get("authorNickname").asText());
+        assertTrue(list.get(1).get("authorBreadType").isNull());  // 설문 전
+        assertTrue(list.get(1).get("isMine").asBoolean());
+    }
+
+    // ------------------------------------------------------------------ 달력
+
+    @Test
+    void 달력은_한국_시간_기준으로_그달_내_일기를_날짜별로_묶는다() {
+        long roomA = createRoomWithMember();
+        long roomB = createRoom(member, "방B");
+        // UTC 9/30 15:30 = KST 10/1 00:30 → 10월 1일
+        long firstDay = diaryAt(member, roomA, "2026-09-30T15:30:00Z");
+        // KST 10/15에 두 개(다른 방 포함) → 하루 항목 하나에 작성순
+        long later = diaryAt(member, roomB, "2026-10-15T09:00:00Z");
+        long earlier = diaryAt(member, roomA, "2026-10-15T01:00:00Z");
+        // UTC 9/30 14:59 = KST 9/30 23:59, UTC 10/31 15:00 = KST 11/1 00:00 → 10월이 아니다
+        diaryAt(member, roomA, "2026-09-30T14:59:00Z");
+        diaryAt(member, roomA, "2026-10-31T15:00:00Z");
+        // 다른 사람 일기는 빠진다
+        diaryAt(owner, roomA, "2026-10-20T03:00:00Z");
+
+        Res res = call(HttpMethod.GET, "/api/diaries/calendar?year=2026&month=10", member, null);
+        assertEquals(200, res.status(), String.valueOf(res.body()));
+        JsonNode days = res.data();
+        assertEquals(2, days.size(), days.toString());
+        assertEquals("2026-10-01", days.get(0).get("date").asText());
+        assertEquals(List.of(firstDay), longs(days.get(0).get("diaryIds")));
+        assertEquals("2026-10-15", days.get(1).get("date").asText());
+        assertEquals(List.of(earlier, later), longs(days.get(1).get("diaryIds")));
+        assertFalse(days.get(0).has("content"));
+
+        assertEquals(0, call(HttpMethod.GET, "/api/diaries/calendar?year=2026&month=12", member, null).data().size());
+        assertEquals(400, call(HttpMethod.GET, "/api/diaries/calendar?year=2026&month=13", member, null).status());
+        assertEquals(400, call(HttpMethod.GET, "/api/diaries/calendar?year=2026", member, null).status());
+    }
+
     // ------------------------------------------------------------------ 공유방
 
     @Test
@@ -682,6 +744,19 @@ class DiaryApiIntegrationTest {
 
     private Res createDiary(TestUser who, long roomId) {
         return call(HttpMethod.POST, "/api/diaries", who, Map.of("roomId", roomId, "title", "제목", "content", "내용"));
+    }
+
+    /** 일기를 쓰고 작성 시각을 utcInstant로 바꾼다. */
+    private long diaryAt(TestUser who, long roomId, String utcInstant) {
+        long diaryId = createDiary(who, roomId).data().get("diaryId").asLong();
+        jdbc.update("update diary set created_at = ?::timestamptz where id = ?", utcInstant, diaryId);
+        return diaryId;
+    }
+
+    private static List<Long> longs(JsonNode array) {
+        List<Long> values = new ArrayList<>();
+        array.forEach(n -> values.add(n.asLong()));
+        return values;
     }
 
     private Res react(TestUser who, long diaryId, String emoji) {

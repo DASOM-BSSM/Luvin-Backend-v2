@@ -8,11 +8,16 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 public interface DiaryRepository extends JpaRepository<Diary, Long> {
 
     List<Diary> findAllByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+
+    /** 달력: [from, to) 사이에 내가 쓴 일기. 작성순. */
+    List<Diary> findAllByUserIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
+            Long userId, OffsetDateTime from, OffsetDateTime to);
 
     /** 일기 하나 삭제 전 반응 정리 (DB FK에 ON DELETE CASCADE가 없음). */
     @Modifying(clearAutomatically = true)

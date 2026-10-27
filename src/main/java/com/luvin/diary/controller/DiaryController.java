@@ -37,6 +37,21 @@ public class DiaryController {
         return ApiResponse.ok(diaryService.getAllDiaries(memberId, page, size));
     }
 
+    @Operation(summary = "내 일기 달력", description = """
+            year년 month월(한국 시간 기준으로 그 달 1일 00:00 ~ 다음 달 1일 00:00 전)에 내가 쓴 일기의 날짜와 id.
+            모든 공유방의 내 일기가 대상이고 본문은 주지 않는다(상세는 GET /api/diaries/{diaryId}).
+
+            - 날짜(`date`, yyyy-MM-dd)는 작성 시각을 한국 시간으로 바꾼 날짜이고, 오름차순이다.
+            - 하루에 여러 개면 그날 항목 하나의 `diaryIds`에 작성순(오래된 것 먼저)으로 모두 담는다.
+            - 일기가 없는 날은 목록에 없다. 그 달에 일기가 없으면 빈 배열.
+            - month가 1~12가 아니면 400.
+            """)
+    @GetMapping("/calendar")
+    public ApiResponse<List<DiaryDto.CalendarDay>> getMyCalendar(@RequestParam int year, @RequestParam int month) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(diaryService.getMyCalendar(memberId, year, month));
+    }
+
     @Operation(summary = "일기 상세", description = "작성자 또는 일기가 속한 방의 방장·멤버만 조회 가능 (아니면 403).")
     @GetMapping("/{diaryId}")
     public ApiResponse<DiaryDto.Response> getDiary(@PathVariable Long diaryId) {
