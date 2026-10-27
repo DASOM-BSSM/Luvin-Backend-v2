@@ -28,7 +28,7 @@ public class DiaryRoomDto {
             Long ownerId,
             @Schema(description = "최대 인원(방장 포함)", minimum = "2", maximum = "6")
             int maxMemberCount,
-            @Schema(description = "현재 인원(방장 포함)")
+            @Schema(description = "현재 참여 인원(방장 포함). diary_room_member 행 수")
             long memberCount
     ) {
         public Response(DiaryRoom room, long memberCount) {
@@ -55,48 +55,57 @@ public class DiaryRoomDto {
 
     @Schema(name = "DiaryRoomCreateRequest")
     public record CreateRequest(
+            @Schema(description = "공유방 이름. 공백만 있으면 400", requiredMode = Schema.RequiredMode.REQUIRED, minLength = 1)
             @NotBlank(message = "공유방 이름은 필수 입력값입니다.")
             String name,
 
+            @Schema(description = "공유방 소개. 생략 가능", nullable = true)
             String description,
 
-            @Schema(description = "최대 인원(방장 포함)", minimum = "2", maximum = "6")
+            @Schema(description = "최대 인원(방장 포함). 2~6명, 범위 밖이면 400. 혼자 쓰는 방(1명)은 허용하지 않는다",
+                    requiredMode = Schema.RequiredMode.REQUIRED, minimum = "2", maximum = "6")
             @NotNull(message = "최대 인원을 선택해주세요.")
             @Min(value = MIN_MEMBER_COUNT, message = "최대 인원은 2~6명입니다.")
             @Max(value = MAX_MEMBER_COUNT, message = "최대 인원은 2~6명입니다.")
             Integer maxMemberCount,
 
-            @Schema(description = "이 방에서 쓸 방장 닉네임. 앞뒤 공백 제외 1~10자", maxLength = NICKNAME_MAX_LENGTH)
+            @Schema(description = "이 방에서 쓸 방장 닉네임(요청자 본인이 방장이 된다). 공백만 있으면 400, 10자 이하, "
+                    + "저장할 때 앞뒤 공백을 뺀다", requiredMode = Schema.RequiredMode.REQUIRED,
+                    minLength = 1, maxLength = NICKNAME_MAX_LENGTH)
             @NotBlank(message = "닉네임을 입력해주세요.")
-            @Size(max = NICKNAME_MAX_LENGTH, message = "닉네임은 10자 이하로 입력해주세요.")
+            @Size(min = 1, max = NICKNAME_MAX_LENGTH, message = "닉네임은 1~10자로 입력해주세요.")
             String ownerNickname
     ) {
     }
 
     @Schema(name = "DiaryRoomUpdateRequest", description = "방장만 가능. 모든 필드를 다시 보낸다(PUT).")
     public record UpdateRequest(
+            @Schema(description = "공유방 이름. 공백만 있으면 400", requiredMode = Schema.RequiredMode.REQUIRED, minLength = 1)
             @NotBlank(message = "공유방 이름은 필수 입력값입니다.")
             String name,
 
+            @Schema(description = "공유방 소개. 생략 가능", nullable = true)
             String description,
 
             @Schema(description = "최대 인원(방장 포함). 현재 인원보다 적으면 409 DIARY_ROOM_MAX_BELOW_MEMBER_COUNT",
-                    minimum = "2", maximum = "6")
+                    requiredMode = Schema.RequiredMode.REQUIRED, minimum = "2", maximum = "6")
             @NotNull(message = "최대 인원을 선택해주세요.")
             @Min(value = MIN_MEMBER_COUNT, message = "최대 인원은 2~6명입니다.")
             @Max(value = MAX_MEMBER_COUNT, message = "최대 인원은 2~6명입니다.")
             Integer maxMemberCount,
 
-            @Schema(description = "방장 닉네임. 앞뒤 공백 제외 1~10자. 다른 멤버와 겹치면 409 DIARY_ROOM_NICKNAME_DUPLICATED",
-                    maxLength = NICKNAME_MAX_LENGTH)
+            @Schema(description = "방장 닉네임. 공백만 있으면 400, 10자 이하, 저장할 때 앞뒤 공백을 뺀다. "
+                    + "다른 멤버와 겹치면 409 DIARY_ROOM_NICKNAME_DUPLICATED", requiredMode = Schema.RequiredMode.REQUIRED,
+                    minLength = 1, maxLength = NICKNAME_MAX_LENGTH)
             @NotBlank(message = "닉네임을 입력해주세요.")
-            @Size(max = NICKNAME_MAX_LENGTH, message = "닉네임은 10자 이하로 입력해주세요.")
+            @Size(min = 1, max = NICKNAME_MAX_LENGTH, message = "닉네임은 1~10자로 입력해주세요.")
             String ownerNickname
     ) {
     }
 
     @Schema(name = "DiaryRoomAddMemberRequest")
     public record AddMemberRequest(
+            @Schema(requiredMode = Schema.RequiredMode.REQUIRED)
             @NotNull(message = "추가할 사람을 선택해주세요.")
             Long userId,
 
@@ -127,12 +136,15 @@ public class DiaryRoomDto {
     /** 초대 코드로 참여 요청. 대소문자는 구분하지 않는다. */
     @Schema(name = "DiaryRoomJoinRequest")
     public record JoinRequest(
+            @Schema(description = "8자리 초대 코드. 대소문자·앞뒤 공백 무시", requiredMode = Schema.RequiredMode.REQUIRED, minLength = 1)
             @NotBlank(message = "초대 코드를 입력해주세요.")
             String inviteCode,
 
-            @Schema(description = "이 방에서 쓸 닉네임. 앞뒤 공백 제외 1~10자", maxLength = NICKNAME_MAX_LENGTH)
+            @Schema(description = "이 방에서 쓸 닉네임. 공백만 있으면 400, 10자 이하, 저장할 때 앞뒤 공백을 뺀다. "
+                    + "이미 멤버면 무시된다(닉네임 변경 없음)", requiredMode = Schema.RequiredMode.REQUIRED,
+                    minLength = 1, maxLength = NICKNAME_MAX_LENGTH)
             @NotBlank(message = "닉네임을 입력해주세요.")
-            @Size(max = NICKNAME_MAX_LENGTH, message = "닉네임은 10자 이하로 입력해주세요.")
+            @Size(min = 1, max = NICKNAME_MAX_LENGTH, message = "닉네임은 1~10자로 입력해주세요.")
             String nickname
     ) {
     }

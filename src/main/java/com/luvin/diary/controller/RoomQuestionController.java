@@ -1,10 +1,14 @@
 package com.luvin.diary.controller;
 
+import com.luvin.common.response.ApiErrorView;
 import com.luvin.common.response.ApiResponse;
 import com.luvin.common.security.SecurityUtils;
 import com.luvin.diary.dto.RoomQuestionDto;
 import com.luvin.diary.service.RoomQuestionService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -30,6 +34,19 @@ public class RoomQuestionController {
             **공통 오류**: 404 `ROOM_NOT_FOUND`(없는 그룹) / 403 `ROOM_FORBIDDEN`(그룹 멤버가 아님)
             """;
 
+    // 오류 본문 예시. 모두 CodedApiException이라 code가 채워진다.
+    private static final String JSON = "application/json";
+    private static final String ROOM_FORBIDDEN_EXAMPLE = """
+            {"success": false, "data": null, "message": "공유방 멤버만 이용할 수 있습니다.", "code": "ROOM_FORBIDDEN"}""";
+    private static final String ROOM_NOT_FOUND_EXAMPLE = """
+            {"success": false, "data": null, "message": "공유방을 찾을 수 없습니다.", "code": "ROOM_NOT_FOUND"}""";
+    private static final String QUESTION_NOT_FOUND_EXAMPLE = """
+            {"success": false, "data": null, "message": "질문을 찾을 수 없습니다.", "code": "ROOM_QUESTION_NOT_FOUND"}""";
+    private static final String ANSWER_INVALID_EXAMPLE = """
+            {"success": false, "data": null, "message": "답은 1~200자로 입력해주세요.", "code": "ROOM_ANSWER_INVALID"}""";
+    private static final String QUESTION_NOT_READY_EXAMPLE = """
+            {"success": false, "data": null, "message": "아직 질문이 준비되지 않았습니다.", "code": "ROOM_QUESTION_NOT_READY"}""";
+
     private final RoomQuestionService roomQuestionService;
 
     @Operation(summary = "그룹 질문 생성", description = """
@@ -43,6 +60,16 @@ public class RoomQuestionController {
             """ + COMMON_ERRORS)
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "202", useReturnTypeSchema = true,
             description = "생성 시작. data.status = generating")
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+            description = "code: ROOM_QUESTION_ALREADY_EXISTS. 오늘 질문이 이미 있다(생성 중 포함). data에 그 질문",
+            content = @Content(mediaType = JSON,
+                    schema = @Schema(implementation = RoomQuestionDto.AlreadyExistsError.class)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "그룹 멤버가 아님. code: ROOM_FORBIDDEN",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = @ExampleObject(value = ROOM_FORBIDDEN_EXAMPLE)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "없는 그룹. code: ROOM_NOT_FOUND",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = @ExampleObject(value = ROOM_NOT_FOUND_EXAMPLE)))
     @PostMapping
     public ResponseEntity<ApiResponse<RoomQuestionDto.QuestionView>> create(@PathVariable Long roomId) {
         Long memberId = SecurityUtils.getCurrentUserId();
@@ -54,6 +81,13 @@ public class RoomQuestionController {
             가장 최근 날짜의 질문. 질문이 한 번도 없으면 `data: null`.
             content·myAnswer·answers는 `status: ready`일 때만 채워진다. answers는 내 답을 포함한 멤버 답(작성순)이다.
             """ + COMMON_ERRORS)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", useReturnTypeSchema = true)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "그룹 멤버가 아님. code: ROOM_FORBIDDEN",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = @ExampleObject(value = ROOM_FORBIDDEN_EXAMPLE)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "없는 그룹. code: ROOM_NOT_FOUND",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = @ExampleObject(value = ROOM_NOT_FOUND_EXAMPLE)))
     @GetMapping("/current")
     public ApiResponse<RoomQuestionDto.QuestionView> getCurrent(@PathVariable Long roomId) {
         Long memberId = SecurityUtils.getCurrentUserId();
@@ -68,6 +102,25 @@ public class RoomQuestionController {
             **404 code**: `ROOM_QUESTION_NOT_FOUND`(이 그룹의 질문이 아님)
             **409 code**: `ROOM_QUESTION_NOT_READY`(generating·failed인 질문)
             """ + COMMON_ERRORS)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", useReturnTypeSchema = true)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400",
+            description = "code: ROOM_ANSWER_INVALID(앞뒤 공백 제외 1~200자가 아님, content 누락 포함)",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = @ExampleObject(value = ANSWER_INVALID_EXAMPLE)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "그룹 멤버가 아님. code: ROOM_FORBIDDEN",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = @ExampleObject(value = ROOM_FORBIDDEN_EXAMPLE)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+            description = "code: ROOM_NOT_FOUND(없는 그룹) 또는 ROOM_QUESTION_NOT_FOUND(이 그룹의 질문이 아님)",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = {
+                            @ExampleObject(name = "ROOM_NOT_FOUND", value = ROOM_NOT_FOUND_EXAMPLE),
+                            @ExampleObject(name = "ROOM_QUESTION_NOT_FOUND", value = QUESTION_NOT_FOUND_EXAMPLE)
+                    }))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
+            description = "code: ROOM_QUESTION_NOT_READY(generating·failed인 질문)",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = @ExampleObject(value = QUESTION_NOT_READY_EXAMPLE)))
     @PostMapping("/{questionId}/answers")
     public ApiResponse<RoomQuestionDto.QuestionView> answer(@PathVariable Long roomId,
                                                             @PathVariable Long questionId,
@@ -81,6 +134,17 @@ public class RoomQuestionController {
 
             **404 code**: `ROOM_QUESTION_NOT_FOUND`
             """ + COMMON_ERRORS)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", useReturnTypeSchema = true)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "그룹 멤버가 아님. code: ROOM_FORBIDDEN",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = @ExampleObject(value = ROOM_FORBIDDEN_EXAMPLE)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404",
+            description = "code: ROOM_NOT_FOUND(없는 그룹) 또는 ROOM_QUESTION_NOT_FOUND(이 그룹의 질문이 아님)",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = {
+                            @ExampleObject(name = "ROOM_NOT_FOUND", value = ROOM_NOT_FOUND_EXAMPLE),
+                            @ExampleObject(name = "ROOM_QUESTION_NOT_FOUND", value = QUESTION_NOT_FOUND_EXAMPLE)
+                    }))
     @DeleteMapping("/{questionId}/answers/me")
     public ApiResponse<RoomQuestionDto.QuestionView> deleteMyAnswer(@PathVariable Long roomId,
                                                                     @PathVariable Long questionId) {
@@ -88,10 +152,18 @@ public class RoomQuestionController {
         return ApiResponse.ok(roomQuestionService.deleteMyAnswer(memberId, roomId, questionId));
     }
 
-    @Operation(summary = "지난 그룹 질문 목록", description = """
+    // 메서드 이름이 TokenController.getHistory와 같아서, 기존 토큰 API의 operationId(getHistory)가 _1로 밀리지 않도록 고정한다.
+    @Operation(operationId = "getRoomQuestionHistory", summary = "지난 그룹 질문 목록", description = """
             최신순. page는 0부터, size 기본 20·최대 50. 답 수(answerCount) 포함 — 답 내용은 GET current처럼 상세가 필요하면
             따로 요청한다(지금은 current만 상세를 준다).
             """ + COMMON_ERRORS)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", useReturnTypeSchema = true)
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "그룹 멤버가 아님. code: ROOM_FORBIDDEN",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = @ExampleObject(value = ROOM_FORBIDDEN_EXAMPLE)))
+    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "없는 그룹. code: ROOM_NOT_FOUND",
+            content = @Content(mediaType = JSON, schema = @Schema(implementation = ApiErrorView.class),
+                    examples = @ExampleObject(value = ROOM_NOT_FOUND_EXAMPLE)))
     @GetMapping
     public ApiResponse<List<RoomQuestionDto.HistoryItem>> getHistory(@PathVariable Long roomId,
                                                                      @RequestParam(defaultValue = "0") int page,
