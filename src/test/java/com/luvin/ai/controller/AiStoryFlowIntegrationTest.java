@@ -379,6 +379,24 @@ class AiStoryFlowIntegrationTest {
     }
 
     @Test
+    void 생성이_실패하면_다음_요청은_failed이고_그다음_요청부터_다시_생성한다() throws Exception {
+        TestUser user = createUser(22);
+        Season season = createSeason(user);
+        readyContent(user, 1);
+        // 생성 실패 직후 상태(아직 아무 요청도 failed를 받지 못함)로 만든다.
+        jdbcTemplate.update("UPDATE ai_episode_contents SET status = 'FAILED', error_code = 'STORY_GENERATION_FAILED', "
+                + "failure_reported_at = NULL WHERE season_id = ? AND episode_order = 1", season.pk());
+
+        // 폴링 중인 앱이 failed를 받아야 "다시 시도"를 띄울 수 있다 — 이 요청이 재생성을 시작하면 안 된다.
+        JsonNode failed = data(get(user, "/episodes/1/content"));
+        assertEquals("failed", failed.get("status").asText(), failed.toString());
+        assertEquals("STORY_GENERATION_FAILED", failed.get("errorCode").asText());
+
+        // 다시 시도: 그다음 요청부터 생성을 다시 시작한다.
+        assertEquals("ready", readyContent(user, 1).get("status").asText());
+    }
+
+    @Test
     void 혼자_있기와_거절은_흐름을_solo로_만든다() throws Exception {
         TestUser user = createUser(30);
         Season season = createSeason(user);

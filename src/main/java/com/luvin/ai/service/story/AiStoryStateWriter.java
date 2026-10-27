@@ -173,8 +173,9 @@ public class AiStoryStateWriter {
     }
 
     /**
-     * 회차 생성을 접수한다. 처음이거나, FAILED였거나, GENERATING인 채 staleBefore보다 오래 멈춰 있으면 started=true로
-     * 돌려주고 호출부가 생성을 시작한다. 동시에 처음 요청한 두 요청 중 진 쪽은 unique 제약 위반을 이 짧은 트랜잭션
+     * 회차 생성을 접수한다. 처음이거나, 이미 앱에 알린 FAILED였거나, GENERATING인 채 staleBefore보다 오래 멈춰 있으면
+     * started=true로 돌려주고 호출부가 생성을 시작한다. 아직 알리지 않은 FAILED는 다시 생성하지 않고 그대로 두어 이번
+     * 응답이 failed가 되게 한다 — 그다음 요청(앱의 "다시 시도")부터 다시 생성한다. 동시에 처음 요청한 두 요청 중 진 쪽은 unique 제약 위반을 이 짧은 트랜잭션
      * 안에서만 받고(REQUIRES_NEW + saveAndFlush) 이긴 쪽 row를 그대로 쓴다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -194,6 +195,10 @@ public class AiStoryStateWriter {
         }
         boolean stale = existing.getStatus() == AiStoryContentStatus.GENERATING
                 && existing.getRequestedAt().isBefore(staleBefore);
+        if (existing.getStatus() == AiStoryContentStatus.FAILED && existing.reportFailureOnce()) {
+            contentRepository.saveAndFlush(existing);
+            return new GenerationTicket(existing.getId(), false);
+        }
         if (existing.getStatus() == AiStoryContentStatus.FAILED || stale) {
             existing.restartGeneration(route);
             contentRepository.saveAndFlush(existing);

@@ -85,6 +85,14 @@ public class AiEpisodeContent {
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
 
+    /**
+     * FAILED를 앱에 처음 응답한 시각. null이면 아직 아무 GET content도 failed를 받지 못했다 — 그 GET은 다시 생성하지
+     * 않고 failed를 그대로 돌려준다. 같은 GET이 폴링이자 재시도라, 이 구분이 없으면 폴링이 failed를 보기 전에 매번
+     * 재생성을 시작해 앱이 generating에서 빠져나오지 못한다.
+     */
+    @Column(name = "failure_reported_at")
+    private LocalDateTime failureReportedAt;
+
     @Version
     @Column(name = "jpa_version", nullable = false)
     private Long jpaVersion;
@@ -103,6 +111,7 @@ public class AiEpisodeContent {
         this.route = route;
         this.status = AiStoryContentStatus.GENERATING;
         this.errorCode = null;
+        this.failureReportedAt = null;
         this.requestedAt = LocalDateTime.now();
     }
 
@@ -118,6 +127,16 @@ public class AiEpisodeContent {
     public void markFailed(String errorCode) {
         this.status = AiStoryContentStatus.FAILED;
         this.errorCode = errorCode;
+        this.failureReportedAt = null;
+    }
+
+    /** 이 실패를 앱에 처음 알린다. 이미 알린 실패면 false — 호출부는 다시 생성한다. */
+    public boolean reportFailureOnce() {
+        if (failureReportedAt != null) {
+            return false;
+        }
+        this.failureReportedAt = LocalDateTime.now();
+        return true;
     }
 
     public void markCompleted(String summaryJson) {
