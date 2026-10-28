@@ -7,6 +7,7 @@ import com.luvin.common.security.AuthenticatedUser;
 import com.luvin.common.security.JwtTokenProvider;
 import com.luvin.user.domain.User;
 import com.luvin.user.repository.UserRepository;
+import com.zaxxer.hikari.HikariDataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,7 @@ import org.springframework.util.StreamUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +35,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+
+import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -54,6 +58,8 @@ class DiaryApiIntegrationTest {
     private JwtTokenProvider jwtTokenProvider;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private DataSource dataSource;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final List<Long> createdUserIds = new ArrayList<>();
@@ -107,18 +113,20 @@ class DiaryApiIntegrationTest {
     }
 
     @Test
-    void 공개범위_컬럼이_남은_옛_diary_테이블도_V14_마이그레이션_뒤에는_일기를_쓸_수_있다() throws IOException {
+    void 공개범위_컬럼이_남은_옛_diary_테이블도_V14_마이그레이션_뒤에는_일기를_쓸_수_있다() throws IOException, SQLException {
         long roomId = createRoomWithMember();
         // 스테이징처럼 10-04 이전 구조를 재현한다: visibility NOT NULL + CHECK, room_id NULL 허용
         jdbc.execute("alter table diary add column visibility varchar(255) not null"
                 + " check (visibility in ('PRIVATE','ROOM','PUBLIC'))");
         jdbc.execute("alter table diary alter column room_id drop not null");
+        evictPooledConnections();
         try {
             assertEquals(500, createDiary(member, roomId).status());
 
             jdbc.execute(StreamUtils.copyToString(
                     new ClassPathResource("db/migration/V14__drop_legacy_diary_visibility.sql").getInputStream(),
                     StandardCharsets.UTF_8));
+            evictPooledConnections();
 
             Res created = createDiary(member, roomId);
             assertEquals(200, created.status(), String.valueOf(created.body()));
@@ -129,7 +137,16 @@ class DiaryApiIntegrationTest {
         } finally {
             jdbc.execute("alter table diary drop column if exists visibility");
             jdbc.execute("alter table diary alter column room_id set not null");
+            evictPooledConnections();
         }
+    }
+
+    /**
+     * 테이블 컬럼을 바꾼 뒤 풀의 커넥션을 새로 연다. 커넥션마다 서버에 준비해 둔 INSERT(RETURNING)를 그대로 쓰면
+     * "cached plan must not change result type"으로 실패한다. 실제 배포는 Flyway가 앱 커넥션보다 먼저 돌아 해당 없다.
+     */
+    private void evictPooledConnections() throws SQLException {
+        dataSource.unwrap(HikariDataSource.class).getHikariPoolMXBean().softEvictConnections();
     }
 
     @Test
