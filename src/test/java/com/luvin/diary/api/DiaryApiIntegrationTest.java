@@ -14,13 +14,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.util.StreamUtils;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -100,6 +104,32 @@ class DiaryApiIntegrationTest {
         assertEquals(404, createDiary(member, 999_999L).status());
         assertEquals(400, call(HttpMethod.POST, "/api/diaries", member,
                 Map.of("title", "제목", "content", "내용")).status());
+    }
+
+    @Test
+    void 공개범위_컬럼이_남은_옛_diary_테이블도_V14_마이그레이션_뒤에는_일기를_쓸_수_있다() throws IOException {
+        long roomId = createRoomWithMember();
+        // 스테이징처럼 10-04 이전 구조를 재현한다: visibility NOT NULL + CHECK, room_id NULL 허용
+        jdbc.execute("alter table diary add column visibility varchar(255) not null"
+                + " check (visibility in ('PRIVATE','ROOM','PUBLIC'))");
+        jdbc.execute("alter table diary alter column room_id drop not null");
+        try {
+            assertEquals(500, createDiary(member, roomId).status());
+
+            jdbc.execute(StreamUtils.copyToString(
+                    new ClassPathResource("db/migration/V14__drop_legacy_diary_visibility.sql").getInputStream(),
+                    StandardCharsets.UTF_8));
+
+            Res created = createDiary(member, roomId);
+            assertEquals(200, created.status(), String.valueOf(created.body()));
+            assertEquals(0, jdbc.queryForObject("select count(*) from information_schema.columns"
+                    + " where table_name = 'diary' and column_name = 'visibility'", Integer.class));
+            assertEquals("NO", jdbc.queryForObject("select is_nullable from information_schema.columns"
+                    + " where table_name = 'diary' and column_name = 'room_id'", String.class));
+        } finally {
+            jdbc.execute("alter table diary drop column if exists visibility");
+            jdbc.execute("alter table diary alter column room_id set not null");
+        }
     }
 
     @Test
