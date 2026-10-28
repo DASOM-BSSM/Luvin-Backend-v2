@@ -33,7 +33,9 @@ public record AiStoryStateView(
             /** completing | failed */
             @Schema(allowableValues = {"completing", "failed"}) String status,
             /** failed일 때만: STORY_GENERATION_FAILED */
-            @Schema(types = {"string", "null"}) String errorCode
+            @Schema(types = {"string", "null"}) String errorCode,
+            /** completing일 때만: 완료 단계(summarize | episode-note | season-report)와 다시 쓰는 중인지. 그 외 null */
+            @Schema(types = {"object", "null"}) AiGenerationProgressView progress
     ) {
         public static final String COMPLETING = "completing";
         public static final String FAILED = "failed";

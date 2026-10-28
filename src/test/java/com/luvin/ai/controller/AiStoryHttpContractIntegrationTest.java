@@ -67,6 +67,10 @@ class AiStoryHttpContractIntegrationTest {
     private static final AiStoryStubClient STUB = new AiStoryStubClient();
     /** (경로, 요청 원문 JSON) 받은 순서대로. */
     private static final List<Map.Entry<String, JsonNode>> RECEIVED = Collections.synchronizedList(new ArrayList<>());
+    /** 비동기 생성 job: Idempotency-Key → job. 같은 키로 다시 접수하면 같은 job을 돌려준다. */
+    private static final Map<String, Map<String, Object>> JOBS = new java.util.concurrent.ConcurrentHashMap<>();
+    /** 받은 Idempotency-Key(접수 순서대로, 다시 접수한 것 포함). */
+    private static final List<String> JOB_KEYS = Collections.synchronizedList(new ArrayList<>());
     private static final HttpServer FAKE_FASTAPI = startFakeFastApi();
 
     @DynamicPropertySource
@@ -431,11 +435,83 @@ class AiStoryHttpContractIntegrationTest {
         }
     }
 
+    /**
+     * 비동기 생성 job(POST /luvin/generation-jobs, GET /luvin/generation-jobs/{id})도 받는다. job의 input은 기존 동기
+     * endpoint 요청과 같으므로 "/luvin/{task}"로 기록하고 같은 stub 로직으로 결과를 만든다. 첫 조회는 generating이다.
+     */
     private static void handle(HttpExchange exchange) throws IOException {
         String path = exchange.getRequestURI().getPath();
         byte[] raw = exchange.getRequestBody().readAllBytes();
-        RECEIVED.add(Map.entry(path, CONTRACT.readTree(raw)));
-        Object response = switch (path) {
+        if (path.startsWith("/luvin/generation-jobs")) {
+            handleJob(exchange, path, raw);
+            return;
+        }
+        respond(exchange, 200, answer(path, raw));
+    }
+
+    private static void handleJob(HttpExchange exchange, String path, byte[] raw) throws IOException {
+        if ("POST".equals(exchange.getRequestMethod())) {
+            JsonNode submit = CONTRACT.readTree(raw);
+            String key = exchange.getRequestHeaders().getFirst("Idempotency-Key");
+            JOB_KEYS.add(key);
+            String taskPath = "/luvin/" + submit.get("task").asText();
+            byte[] input = CONTRACT.writeValueAsBytes(submit.get("input"));
+            Map<String, Object> job = JOBS.computeIfAbsent(key, k -> {
+                Map<String, Object> created = new java.util.concurrent.ConcurrentHashMap<>();
+                created.put("jobId", UUID.randomUUID().toString());
+                created.put("status", "queued");
+                created.put("attempt", 0);
+                try {
+                    created.put("pending", CONTRACT.valueToTree(answer(taskPath, input)));
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+                return created;
+            });
+            respond(exchange, 202, jobView(job));
+            return;
+        }
+        String jobId = path.substring("/luvin/generation-jobs/".length());
+        Map<String, Object> job = JOBS.values().stream().filter(j -> jobId.equals(j.get("jobId"))).findFirst()
+                .orElse(null);
+        if (job == null) {
+            respond(exchange, 404, Map.of("detail", Map.of("code", "GENERATION_JOB_NOT_FOUND")));
+            return;
+        }
+        if ("queued".equals(job.get("status"))) {
+            job.put("status", "generating");
+            job.put("attempt", 1);
+        } else {
+            job.put("status", "succeeded");
+            job.put("result", job.get("pending"));
+        }
+        respond(exchange, 200, jobView(job));
+    }
+
+    private static Map<String, Object> jobView(Map<String, Object> job) {
+        Map<String, Object> view = new java.util.HashMap<>();
+        view.put("jobId", job.get("jobId"));
+        view.put("status", job.get("status"));
+        view.put("attempt", job.get("attempt"));
+        view.put("result", job.get("result"));
+        view.put("errorCode", null);
+        return view;
+    }
+
+    private static void respond(HttpExchange exchange, int status, Object response) throws IOException {
+        byte[] body = CONTRACT.writeValueAsBytes(response);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(response == null ? 404 : status, body.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(body);
+        }
+    }
+
+    private static Object answer(String path, byte[] raw) throws IOException {
+        if (!path.startsWith("/luvin/generation-jobs")) {
+            RECEIVED.add(Map.entry(path, CONTRACT.readTree(raw)));
+        }
+        return switch (path) {
             case "/luvin/stage-intro" -> STUB.stageIntro(null, CONTRACT.readValue(raw, StageIntroRequest.class));
             case "/luvin/episode" -> STUB.writeEpisode(null, CONTRACT.readValue(raw, EpisodeRequest.class));
             case "/luvin/choice-result" -> STUB.writeChoiceResult(null, CONTRACT.readValue(raw, ChoiceResultRequest.class));
@@ -445,11 +521,5 @@ class AiStoryHttpContractIntegrationTest {
             case "/luvin/season-report" -> STUB.writeSeasonReport(null, CONTRACT.readValue(raw, SeasonReportRequest.class));
             default -> null;
         };
-        byte[] body = CONTRACT.writeValueAsBytes(response);
-        exchange.getResponseHeaders().set("Content-Type", "application/json");
-        exchange.sendResponseHeaders(response == null ? 404 : 200, body.length);
-        try (OutputStream out = exchange.getResponseBody()) {
-            out.write(body);
-        }
     }
 }

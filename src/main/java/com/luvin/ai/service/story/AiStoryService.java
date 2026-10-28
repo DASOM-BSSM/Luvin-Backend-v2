@@ -8,6 +8,7 @@ import com.luvin.ai.client.story.ChoiceResultResponse;
 import com.luvin.ai.client.story.EpisodeNoteRequest;
 import com.luvin.ai.client.story.EpisodeNoteResponse;
 import com.luvin.ai.client.story.EpisodeRequest;
+import com.luvin.ai.client.story.GenerationCall;
 import com.luvin.ai.client.story.EpisodeResponse;
 import com.luvin.ai.client.story.InterviewRequest;
 import com.luvin.ai.client.story.InterviewResponse;
@@ -33,6 +34,7 @@ import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.story.AiChoiceOutcomeView;
 import com.luvin.ai.dto.story.AiEpisodeContentView;
 import com.luvin.ai.dto.story.AiEpisodeUnlockView;
+import com.luvin.ai.dto.story.AiGenerationProgressView;
 import com.luvin.ai.dto.story.AiSceneBlockView;
 import com.luvin.ai.dto.story.AiStageIntroView;
 import com.luvin.ai.dto.story.AiStoryFeedbackView;
@@ -71,7 +73,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * 장면 블록 회차(1~10화) 흐름. 설계·판정은 코드({@link AiEpisodePlanner}, {@link AiChoiceJudge})로 하고,
@@ -185,7 +187,8 @@ public class AiStoryService {
         if (ticket != null && ticket.started()) {
             Long contentPk = ticket.contentPk();
             Long seasonPk = season.getId();
-            executor.execute(() -> generate(memberId, seasonPk, order, contentPk));
+            int round = ticket.round();
+            executor.execute(() -> generate(memberId, seasonPk, order, contentPk, round));
         }
         AiStorySnapshot latest = stateWriter.snapshot(season.getId());
         return toContentView(latest, latest.content(order).orElseThrow());
@@ -238,14 +241,21 @@ public class AiStoryService {
         return new AiEpisodeUnlockView(order, true, stateWriter.tokenBalance(memberId));
     }
 
-    /** 백그라운드 생성. 어떤 오류든 FAILED로 남겨 다음 GET content가 다시 시도하게 한다(스레드 밖으로 던지지 않는다). */
-    void generate(Long memberId, Long seasonPk, int order, Long contentPk) {
+    /**
+     * 백그라운드 생성. 어떤 오류든 FAILED로 남겨 다음 GET content가 다시 시도하게 한다(스레드 밖으로 던지지 않는다).
+     * 결과와 실패는 같은 생성 회차(round)일 때만 저장한다. 단계마다 AI job 키를 회차 row·회차 번호·단계·시도로 만들어,
+     * 재시작 뒤 같은 회차를 다시 돌리면 이미 접수한 job을 이어서 본다.
+     */
+    void generate(Long memberId, Long seasonPk, int order, Long contentPk, int round) {
         try {
             AiStorySnapshot snapshot = stateWriter.snapshot(seasonPk);
+            StoryRun run = new StoryRun(jobKeyBase(snapshot, contentPk, "gen", round),
+                    (stage, jobId, regenerating) ->
+                            stateWriter.recordGenerationProgress(contentPk, round, stage, jobId, regenerating));
             String ownerSubject = ownerSubjectProvider.resolve(memberId);
             int age = userWithAge(memberId).getAge();
             AiStageIntroView stageIntro = order == AiStoryCatalog.FIRST_ORDER
-                    ? requestStageIntro(ownerSubject, snapshot, age)
+                    ? requestStageIntro(ownerSubject, snapshot, age, run)
                     : storedStageIntro(snapshot);
             AiStoryContractMapper mapper = new AiStoryContractMapper(snapshot, stageIntro);
             StoryTypes.GenerationContext context = context(snapshot, mapper, age, memberId);
@@ -257,29 +267,29 @@ public class AiStoryService {
                     mapper.contractIdOrNull(snapshot.romancePartnerId()), plan.referencePlot(),
                     designed.stream().map(mapper::design).toList(), plan.openThreads(), mapper.relationRecords(),
                     mapper.choiceRecords(), usedMaterials(snapshot, order));
-            EpisodeResponse episode = callWithRetry("episode",
-                    () -> storyClient.writeEpisode(ownerSubject, request),
+            EpisodeResponse episode = callWithRetry("episode", run,
+                    call -> storyClient.writeEpisode(ownerSubject, request, call),
                     r -> AiStoryResponseValidator.validateEpisode(r, designed.stream().map(mapper::expected).toList()));
 
             Map<String, StoryTypes.GeneratedBlock> generated = new HashMap<>();
             episode.blocks().forEach(b -> generated.put(b.id(), b));
             Map<String, List<StoryTypes.Message>> interviews = plan.interviewBlocks().isEmpty()
-                    ? Map.of() : requestInterviews(ownerSubject, snapshot, mapper, context);
+                    ? Map.of() : requestInterviews(ownerSubject, snapshot, mapper, context, run);
 
             List<AiSceneBlockView> blocks = toBlockViews(plan, generated, interviews, snapshot, mapper);
             AiStoryIntroView intro = new AiStoryIntroView(episode.intro().title(), episode.intro().episodeName(),
                     episode.intro().situation());
-            stateWriter.saveGenerated(contentPk, AiStoryJson.write(intro),
+            stateWriter.saveGenerated(contentPk, round, AiStoryJson.write(intro),
                     order == AiStoryCatalog.FIRST_ORDER ? AiStoryJson.write(stageIntro) : null,
                     AiStoryJson.write(blocks));
         } catch (Exception e) {
             log.warn("story episode generation failed: seasonPk={}, order={}, cause={}",
                     seasonPk, order, e.getClass().getSimpleName());
-            stateWriter.markGenerationFailed(contentPk, AiStoryGenerationFailedException.CODE);
+            stateWriter.markGenerationFailed(contentPk, round, AiStoryGenerationFailedException.CODE);
         }
     }
 
-    private AiStageIntroView requestStageIntro(String ownerSubject, AiStorySnapshot snapshot, int age) {
+    private AiStageIntroView requestStageIntro(String ownerSubject, AiStorySnapshot snapshot, int age, StoryRun run) {
         List<StageIntroRequest.Cast> cast = snapshot.cast().stream()
                 .map(m -> new StageIntroRequest.Cast(m.castRole().contractId(), m.name(), m.breadType(), m.gender(),
                         m.castRole().fastApiCastRole(), m.castRole().attachmentStyle().wireValue(),
@@ -288,8 +298,8 @@ public class AiStoryService {
         StageIntroRequest request = new StageIntroRequest(snapshot.setting().wireValue(),
                 AiSeasonSettingPolicy.audience(age), AiSeasonSettingPolicy.ageGroup(age), cast);
         List<String> castIds = cast.stream().map(StageIntroRequest.Cast::breadId).toList();
-        StageIntroResponse response = callWithRetry("stage-intro",
-                () -> storyClient.stageIntro(ownerSubject, request),
+        StageIntroResponse response = callWithRetry("stage-intro", run,
+                call -> storyClient.stageIntro(ownerSubject, request, call),
                 r -> AiStoryResponseValidator.validateStageIntro(r, castIds));
         Map<String, StageIntroResponse.Cast> byId = new HashMap<>();
         response.cast().forEach(c -> byId.put(c.breadId(), c));
@@ -310,7 +320,8 @@ public class AiStoryService {
     /** 10화 인터뷰룸(5-4). 빵별 관계 기록과 그 빵에게 한 선택(거절 사유 포함)을 보낸다. */
     private Map<String, List<StoryTypes.Message>> requestInterviews(String ownerSubject, AiStorySnapshot snapshot,
                                                                     AiStoryContractMapper mapper,
-                                                                    StoryTypes.GenerationContext context) {
+                                                                    StoryTypes.GenerationContext context,
+                                                                    StoryRun run) {
         List<InterviewRequest.Item> items = snapshot.relations().stream()
                 .map(r -> new InterviewRequest.Item(mapper.contractId(r.breadId()), mapper.relationRecord(r.breadId()),
                         snapshot.choices().stream()
@@ -323,8 +334,8 @@ public class AiStoryService {
                 snapshot.route() == null ? null : snapshot.route().wireValue(),
                 mapper.contractIdOrNull(snapshot.romancePartnerId()), items);
         List<String> interviewees = items.stream().map(InterviewRequest.Item::breadId).toList();
-        InterviewResponse response = callWithRetry("interview",
-                () -> storyClient.writeInterview(ownerSubject, request),
+        InterviewResponse response = callWithRetry("interview", run,
+                call -> storyClient.writeInterview(ownerSubject, request, call),
                 r -> AiStoryResponseValidator.validateInterview(r, interviewees));
         Map<String, List<StoryTypes.Message>> byBread = new HashMap<>();
         response.interviews().forEach(i -> byBread.put(i.breadId(), i.messages()));
@@ -378,8 +389,12 @@ public class AiStoryService {
                     AiChoiceRules.rejectReason(decision.accepted(), decision.reasonCode()), decision.shortReply(),
                     mapper.relationRecord(breadId));
             Set<String> speakers = mapper.contractIds(reaction.participantIds());
-            ChoiceResultResponse response = callWithRetry("choice-result",
-                    () -> storyClient.writeChoiceResult(ownerSubject, request),
+            // 선택은 결과를 저장해야 남으므로, 실패 뒤 다시 보낸 요청이 같은 job(검증에서 버린 결과 포함)을 다시 받지 않게
+            // 요청마다 새 키를 쓴다. 이 요청 안의 재시도는 attempt로 구분한다.
+            StoryRun run = new StoryRun(jobKeyBase(snapshot, content.id(), "choice-p" + pointId, 0) + ":"
+                    + UUID.randomUUID(), StepRecorder.NONE);
+            ChoiceResultResponse response = callWithRetry("choice-result", run,
+                    call -> storyClient.writeChoiceResult(ownerSubject, request, call),
                     r -> AiStoryResponseValidator.validateChoiceResult(r, speakers, decision.accepted(), friendId));
 
             blocks.add(new AiSceneBlockView(reaction.id(), AiSceneBlockType.CHOICE_RESULT.wireValue(),
@@ -444,7 +459,8 @@ public class AiStoryService {
         if (ticket != null && ticket.started()) {
             Long seasonPk = season.getId();
             Long contentPk = ticket.contentPk();
-            executor.execute(() -> runCompletion(memberId, seasonPk, order, contentPk));
+            int round = ticket.round();
+            executor.execute(() -> runCompletion(memberId, seasonPk, order, contentPk, round));
         }
         return toStateView(stateWriter.snapshot(season.getId()));
     }
@@ -453,18 +469,21 @@ public class AiStoryService {
      * 백그라운드 회차 완료: 정리 단계(5-5) → 회차 쪽지(5-6) → (10화면) 최종 리포트(5-7)를 FastAPI로 만들고 한 트랜잭션에
      * 저장한다. 하나라도 실패하면 아무것도 저장하지 않고 완료 실패로 남긴다(스레드 밖으로 던지지 않는다).
      */
-    void runCompletion(Long memberId, Long seasonPk, int order, Long contentPk) {
+    void runCompletion(Long memberId, Long seasonPk, int order, Long contentPk, int round) {
         try {
-            completeEpisode(memberId, seasonPk, order);
+            completeEpisode(memberId, seasonPk, order, contentPk, round);
         } catch (Exception e) {
             log.warn("story episode completion failed: seasonPk={}, order={}, cause={}",
                     seasonPk, order, e.getClass().getSimpleName());
-            stateWriter.markCompletionFailed(contentPk, AiStoryGenerationFailedException.CODE);
+            stateWriter.markCompletionFailed(contentPk, round, AiStoryGenerationFailedException.CODE);
         }
     }
 
-    private void completeEpisode(Long memberId, Long seasonPk, int order) {
+    private void completeEpisode(Long memberId, Long seasonPk, int order, Long contentPk, int round) {
         AiStorySnapshot snapshot = stateWriter.snapshot(seasonPk);
+        StoryRun run = new StoryRun(jobKeyBase(snapshot, contentPk, "done", round),
+                (stage, jobId, regenerating) ->
+                        stateWriter.recordCompletionProgress(contentPk, round, stage, jobId, regenerating));
         AiStorySnapshot.Content content = readyContent(snapshot, order);
         Integer pointId = AiStoryCatalog.pointOf(order);
         String ownerSubject = ownerSubjectProvider.resolve(memberId);
@@ -478,8 +497,8 @@ public class AiStoryService {
         SummarizeRequest summarizeRequest = new SummarizeRequest(context, order,
                 mapper.sceneBlocks(AiStoryJson.read(content.blocksJson(), BLOCK_LIST), resultBlocks),
                 mapper.relationRecords());
-        SummarizeResponse summary = callWithRetry("summarize",
-                () -> storyClient.summarize(ownerSubject, summarizeRequest),
+        SummarizeResponse summary = callWithRetry("summarize", run,
+                call -> storyClient.summarize(ownerSubject, summarizeRequest, call),
                 r -> AiStoryResponseValidator.validateSummary(r, relationIds));
 
         String settingScene = AiStoryCatalog.settingScene(snapshot.setting(), order);
@@ -501,8 +520,8 @@ public class AiStoryService {
                         sender.castRole().attachmentStyle().wireValue(), senderStatus),
                 stateWriter.findEpisodeNoteBodies(snapshot.seasonPk()).stream().map(AiStoryService::firstSentence)
                         .toList());
-        EpisodeNoteResponse note = callWithRetry("episode-note",
-                () -> storyClient.writeEpisodeNote(ownerSubject, noteRequest),
+        EpisodeNoteResponse note = callWithRetry("episode-note", run,
+                call -> storyClient.writeEpisodeNote(ownerSubject, noteRequest, call),
                 r -> AiStoryResponseValidator.validateNote(r, castIds));
 
         String reportJson = null;
@@ -512,8 +531,8 @@ public class AiStoryService {
                     snapshot.route() == null ? null : snapshot.route().wireValue(),
                     mapper.contractIdOrNull(snapshot.romancePartnerId()), summaries, mapper.choiceRecordsWithReason(),
                     mapper.relationRecords());
-            SeasonReportResponse report = callWithRetry("season-report",
-                    () -> storyClient.writeSeasonReport(ownerSubject, reportRequest),
+            SeasonReportResponse report = callWithRetry("season-report", run,
+                    call -> storyClient.writeSeasonReport(ownerSubject, reportRequest, call),
                     r -> AiStoryResponseValidator.validateReport(r, castIds));
             reportJson = AiStoryJson.write(toReportView(report, snapshot));
         }
@@ -528,7 +547,7 @@ public class AiStoryService {
         // 생성 결과는 그대로 두고 저장만 다시 한다. 그사이 같은 시즌을 다른 요청(피드백 등)이 바꾸면 낙관적 락 충돌이 난다.
         for (int attempt = 1; ; attempt++) {
             try {
-                stateWriter.completeEpisode(seasonPk, order, summary.episodeSummary(), changes, episodeNote,
+                stateWriter.completeEpisode(seasonPk, order, round, summary.episodeSummary(), changes, episodeNote,
                         reportJson);
                 return;
             } catch (ObjectOptimisticLockingFailureException e) {
@@ -610,6 +629,27 @@ public class AiStoryService {
         return new SceneMessage(season.getId(), message);
     }
 
+    // ---------------------------------------------------------------- 재시작 복구
+
+    /**
+     * 끝나지 않은 회차 생성·완료를 이어서 진행한다(기동 때 한 번). 멈춘 것으로 보기 전(stale 전)에 시작한 것만 고른다.
+     * 같은 회차 번호로 다시 돌리므로 같은 AI job 키로 접수해, 이미 접수했거나 끝난 job을 이어서 본다(유료 생성을 새로
+     * 하지 않는다). 결과 저장은 회차 번호와 상태를 다시 확인하므로, 다른 서버가 같은 작업을 끝냈어도 한 번만 반영된다.
+     */
+    public void resumeInterrupted() {
+        List<AiStoryStateWriter.PendingWork> generations = stateWriter.findInterruptedGenerations(staleBefore());
+        List<AiStoryStateWriter.PendingWork> completions =
+                stateWriter.findInterruptedCompletions(completionStaleBefore());
+        generations.forEach(w -> executor.execute(
+                () -> generate(w.memberId(), w.seasonPk(), w.order(), w.contentPk(), w.round())));
+        completions.forEach(w -> executor.execute(
+                () -> runCompletion(w.memberId(), w.seasonPk(), w.order(), w.contentPk(), w.round())));
+        if (!generations.isEmpty() || !completions.isEmpty()) {
+            log.info("resuming interrupted story work: generations={}, completions={}", generations.size(),
+                    completions.size());
+        }
+    }
+
     // ---------------------------------------------------------------- 다른 흐름에서 쓰는 조회
 
     /**
@@ -659,11 +699,19 @@ public class AiStoryService {
 
     // ---------------------------------------------------------------- 내부 헬퍼
 
-    private <T> T callWithRetry(String operation, Supplier<T> call, Consumer<T> validate) {
+    /**
+     * 생성 한 단계. AI가 실패를 돌려주거나 Spring 검증이 결과를 버리면 1회 다시 시도한다. 시도마다 job 키가 달라 다시
+     * 시도하면 새 job이 되고, 같은 단계·시도를 다시 돌리면(재시작) 같은 job을 이어서 본다.
+     */
+    private <T> T callWithRetry(String operation, StoryRun run, Function<GenerationCall, T> call,
+                                Consumer<T> validate) {
+        run.recorder().record(operation, null, false);
         RuntimeException last = null;
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             try {
-                T response = call.get();
+                GenerationCall generationCall = new GenerationCall(run.key(operation, attempt),
+                        progress -> run.recorder().record(operation, progress.jobId(), progress.regenerating()));
+                T response = call.apply(generationCall);
                 validate.accept(response);
                 return response;
             } catch (AiStoryInvalidResponseException | AiServiceException e) {
@@ -672,6 +720,28 @@ public class AiStoryService {
             }
         }
         throw new AiStoryGenerationFailedException(operation, last);
+    }
+
+    /** 한 번의 생성·완료 실행: AI job 키 접두사와 진행 상태 기록. */
+    private record StoryRun(String keyBase, StepRecorder recorder) {
+
+        String key(String operation, int attempt) {
+            return keyBase + ":" + operation + ":a" + attempt;
+        }
+    }
+
+    /** 진행 중인 단계(operation), 그 단계의 AI job, 다시 쓰는 중인지 저장한다. */
+    @FunctionalInterface
+    private interface StepRecorder {
+        StepRecorder NONE = (stage, jobId, regenerating) -> {
+        };
+
+        void record(String stage, UUID jobId, boolean regenerating);
+    }
+
+    /** luvin:{AI 시즌 id}:c{회차 row id}:{종류}{회차 번호}. 회차 row id가 들어가 개발용 초기화 뒤 새 row와 겹치지 않는다. */
+    private static String jobKeyBase(AiStorySnapshot snapshot, Long contentPk, String kind, int round) {
+        return "luvin:" + snapshot.seasonId() + ":c" + contentPk + ":" + kind + round;
     }
 
     /** 회차 생성이 이 시각보다 먼저 시작한 채 끝나지 않았으면(서버 재시작 등) 멈춘 것으로 본다. */
@@ -884,8 +954,10 @@ public class AiStoryService {
     private AiEpisodeContentView toContentView(AiStorySnapshot snapshot, AiStorySnapshot.Content content) {
         String status = content.status().name().toLowerCase();
         if (content.status() != AiStoryContentStatus.READY) {
+            AiGenerationProgressView progress = content.status() == AiStoryContentStatus.GENERATING
+                    ? new AiGenerationProgressView(content.generationStage(), content.generationRegenerating()) : null;
             return new AiEpisodeContentView(content.order(), status, content.errorCode(), null, null, null,
-                    content.completed(), List.of(), List.of());
+                    content.completed(), List.of(), List.of(), progress);
         }
         List<AiStoryFeedbackView> feedbacks = stateWriter.findFeedbacks(snapshot.seasonPk(), content.order()).stream()
                 .map(f -> new AiStoryFeedbackView(f.getEpisodeOrder(), f.getBlockId(), f.getMessageId(), f.getText()))
@@ -894,7 +966,7 @@ public class AiStoryService {
                 AiStoryJson.read(content.introJson(), AiStoryIntroView.class),
                 AiStoryJson.read(content.stageIntroJson(), AiStageIntroView.class),
                 blocksWithChoiceResult(snapshot, content), content.completed(), feedbacks,
-                stateWriter.findLikedMessageIds(snapshot.seasonPk(), content.order()));
+                stateWriter.findLikedMessageIds(snapshot.seasonPk(), content.order()), null);
     }
 
     /**
@@ -955,9 +1027,10 @@ public class AiStoryService {
                 .filter(c -> !c.completed() && c.completionRequestedAt() != null)
                 .findFirst()
                 .map(c -> c.completing() && !c.completionRequestedAt().isBefore(staleBefore)
-                        ? new AiStoryStateView.Completion(c.order(), AiStoryStateView.Completion.COMPLETING, null)
+                        ? new AiStoryStateView.Completion(c.order(), AiStoryStateView.Completion.COMPLETING, null,
+                                new AiGenerationProgressView(c.completionStage(), c.completionRegenerating()))
                         : new AiStoryStateView.Completion(c.order(), AiStoryStateView.Completion.FAILED,
-                                c.completing() ? AiStoryGenerationFailedException.CODE : c.completionErrorCode()))
+                                c.completing() ? AiStoryGenerationFailedException.CODE : c.completionErrorCode(), null))
                 .orElse(null);
     }
 

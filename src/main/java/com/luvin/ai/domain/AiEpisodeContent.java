@@ -20,6 +20,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 /**
  * 장면 블록 회차 콘텐츠. 한 번 생성하면 저장해서 재사용한다(season_id + episode_order unique).
@@ -102,6 +103,39 @@ public class AiEpisodeContent {
     @Column(name = "completion_error_code", length = 100)
     private String completionErrorCode;
 
+    /**
+     * 생성 회차 번호. 실패 뒤 다시 생성하면 올라가고, 멈춘 생성을 다시 시작할 때는 그대로다(같은 AI job을 이어서 본다).
+     * 결과는 같은 회차일 때만 저장해, 늦게 끝난 이전 회차 결과가 새 생성을 덮어쓰지 않게 한다. 이전 row는 null(0으로 본다).
+     */
+    @Column(name = "generation_round")
+    private Integer generationRound;
+
+    /** 생성 중인 단계(stage-intro | episode | interview). 앱 폴링 응답의 진행 표시용. */
+    @Column(name = "generation_stage", length = 30)
+    private String generationStage;
+
+    /** 지금 단계의 AI 생성 job id(비동기 job으로 부를 때). */
+    @Column(name = "generation_job_id", columnDefinition = "uuid")
+    private UUID generationJobId;
+
+    /** AI가 첫 시도를 검증에서 버리고 다시 쓰는 중이다. */
+    @Column(name = "generation_regenerating")
+    private Boolean generationRegenerating;
+
+    /** 회차 완료 회차 번호. 규칙은 generationRound와 같다. */
+    @Column(name = "completion_round")
+    private Integer completionRound;
+
+    /** 완료 중인 단계(summarize | episode-note | season-report). */
+    @Column(name = "completion_stage", length = 30)
+    private String completionStage;
+
+    @Column(name = "completion_job_id", columnDefinition = "uuid")
+    private UUID completionJobId;
+
+    @Column(name = "completion_regenerating")
+    private Boolean completionRegenerating;
+
     @Version
     @Column(name = "jpa_version", nullable = false)
     private Long jpaVersion;
@@ -113,15 +147,32 @@ public class AiEpisodeContent {
         this.route = route;
         this.status = AiStoryContentStatus.GENERATING;
         this.requestedAt = LocalDateTime.now();
+        this.generationRound = 1;
     }
 
-    /** FAILED였거나 생성이 너무 오래 멈춰 있던 회차를 다시 생성한다. */
+    /**
+     * FAILED였거나 생성이 너무 오래 멈춰 있던 회차를 다시 생성한다. 실패 뒤면 새 회차(새 AI job), 멈춘 것이면 같은 회차다.
+     */
     public void restartGeneration(AiStoryRoute route) {
+        if (status == AiStoryContentStatus.FAILED) {
+            this.generationRound = currentGenerationRound() + 1;
+        }
         this.route = route;
         this.status = AiStoryContentStatus.GENERATING;
         this.errorCode = null;
         this.failureReportedAt = null;
         this.requestedAt = LocalDateTime.now();
+        this.generationStage = null;
+        this.generationJobId = null;
+        this.generationRegenerating = null;
+    }
+
+    public int currentGenerationRound() {
+        return generationRound == null ? 0 : generationRound;
+    }
+
+    public int currentCompletionRound() {
+        return completionRound == null ? 0 : completionRound;
     }
 
     public void markReady(String introJson, String stageIntroJson, String blocksJson) {
@@ -153,9 +204,16 @@ public class AiEpisodeContent {
         this.completedAt = LocalDateTime.now();
     }
 
+    /** 처음이거나 실패 뒤면 새 완료 회차(새 AI job), 멈춘 완료를 다시 시작하는 것이면 같은 회차다. */
     public void beginCompletion() {
+        if (completionRequestedAt == null || completionErrorCode != null) {
+            this.completionRound = currentCompletionRound() + 1;
+        }
         this.completionRequestedAt = LocalDateTime.now();
         this.completionErrorCode = null;
+        this.completionStage = null;
+        this.completionJobId = null;
+        this.completionRegenerating = null;
     }
 
     public void markCompletionFailed(String errorCode) {
