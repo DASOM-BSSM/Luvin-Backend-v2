@@ -166,7 +166,7 @@ class AiStoryHttpContractIntegrationTest {
         }
         assertEquals(200, send("POST", "/api/ai/seasons/episodes/1/scene-feedback",
                 "{\"blockId\":\"b3\",\"messageId\":\"" + myLine + "\",\"text\":\"말투가 어색해\"}").statusCode());
-        assertEquals(200, send("POST", "/api/ai/seasons/episodes/1/complete", null).statusCode());
+        complete(1);
         JsonNode summarize = last("/luvin/summarize");
         assertEquals("narrator", summarize.get("blocks").get(0).get("messages").get(0).get("speakerId").asText());
         JsonNode note1 = last("/luvin/episode-note");
@@ -187,7 +187,7 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals(1, feedbacks.size());
         assertEquals("말투가 어색해", feedbacks.get(0).get("text").asText());
         assertEquals(1, feedbacks.get(0).get("order").asInt());
-        send("POST", "/api/ai/seasons/episodes/2/complete", null);
+        complete(2);
         // 2화 쪽지 요청에는 1화 쪽지 첫 문장이 들어간다.
         assertEquals(1, last("/luvin/episode-note").get("previousNoteOpenings").size());
 
@@ -229,7 +229,7 @@ class AiStoryHttpContractIntegrationTest {
                 assertEquals(200, send("POST", "/api/ai/seasons/episodes/" + order + "/choices",
                         "{\"pointId\":" + point + ",\"breadId\":\"" + breadId + "\"}").statusCode());
             }
-            assertEquals(200, send("POST", "/api/ai/seasons/episodes/" + order + "/complete", null).statusCode());
+            complete(order);
         }
 
         // 쪽지 요청은 계약 5-6 필드 그대로다(계약에 없는 필드는 보내지 않는다). 시즌 요약은 최종 리포트(5-7)에만 간다.
@@ -263,7 +263,7 @@ class AiStoryHttpContractIntegrationTest {
             if (order == 3) {
                 send("POST", "/api/ai/seasons/episodes/3/choices", "{\"pointId\":1,\"breadId\":null}");
             }
-            send("POST", "/api/ai/seasons/episodes/" + order + "/complete", null);
+            complete(order);
         }
 
         HttpResponse<String> locked = send("GET", "/api/ai/seasons/episodes/4/content", null);
@@ -320,6 +320,18 @@ class AiStoryHttpContractIntegrationTest {
             }
             assertEquals("generating", content.get("status").asText(), content.toString());
             assertTrue(System.currentTimeMillis() < deadline, order + "화 생성이 끝나지 않습니다.");
+            Thread.sleep(100);
+        }
+    }
+
+    /** 완료는 접수만 하고 백그라운드에서 끝난다 — 저장될 때까지 기다린다. */
+    private void complete(int order) throws Exception {
+        HttpResponse<String> res = send("POST", "/api/ai/seasons/episodes/" + order + "/complete", null);
+        assertEquals(200, res.statusCode(), res.body());
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (jdbcTemplate.queryForObject("SELECT count(*) FROM ai_episode_contents WHERE season_id = ? "
+                + "AND episode_order = ? AND completed_at IS NOT NULL", Integer.class, seasonPk, order) == 0) {
+            assertTrue(System.currentTimeMillis() < deadline, order + "화 완료가 끝나지 않습니다.");
             Thread.sleep(100);
         }
     }

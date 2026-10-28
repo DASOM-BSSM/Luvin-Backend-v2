@@ -58,6 +58,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -90,6 +91,10 @@ public class AiStoryService {
 
     private static final Logger log = LoggerFactory.getLogger(AiStoryService.class);
     private static final int MAX_ATTEMPTS = 2;
+    /** 회차 완료 저장이 낙관적 락 충돌로 실패하면 FastAPI를 다시 부르지 않고 저장만 다시 하는 횟수. */
+    private static final int SAVE_ATTEMPTS = 3;
+    /** 회차 완료 한 번에 부르는 FastAPI 생성 호출 수의 최대값(정리·쪽지·10화 최종 리포트). */
+    private static final int COMPLETION_CALLS = 3;
     private static final String DEFAULT_MEMORY = "아직 함께한 기억이 없어요";
     public static final String FORMAT_BLOCKS = "blocks";
     /** 1화 무대 소개에서 내 빵의 역할 표기. */
@@ -173,7 +178,7 @@ public class AiStoryService {
         AiStoryStateWriter.GenerationTicket ticket;
         try {
             ticket = stateWriter.beginGeneration(season.getId(), order, order >= 7 ? snapshot.route() : null,
-                    LocalDateTime.now().minus(properties.generationStaleAfter()));
+                    staleBefore());
         } catch (ObjectOptimisticLockingFailureException concurrentRestart) {
             ticket = null; // 다른 요청이 먼저 다시 시작했다 — 그쪽 생성 상태를 그대로 보여준다.
         }
@@ -412,8 +417,9 @@ public class AiStoryService {
     // ---------------------------------------------------------------- 회차 완료
 
     /**
-     * 회차 완료: 정리 단계(5-5) → 회차 쪽지(5-6) → (10화면) 최종 리포트(5-7)를 FastAPI로 만들고 한 트랜잭션에 저장한다.
-     * 하나라도 실패하면 아무것도 저장하지 않는다. 이미 완료한 회차면 상태만 돌려준다.
+     * 회차 완료 접수. 완료(정리·쪽지·리포트 생성)는 FastAPI 호출을 여러 번 기다려 수십 초가 걸리므로 백그라운드에서 하고,
+     * 바로 상태를 돌려준다 — 진행 중이면 completion.status가 completing, 실패하면 failed다. 앱은 시즌 상태를 폴링하다가
+     * failed면 이 요청을 다시 보내 재시도한다. 이미 완료한 회차면 상태만 돌려주고, 완료 중에 다시 보내도 새로 시작하지 않는다.
      */
     public AiStoryStateView complete(Long memberId, int order) {
         validateOrder(order);
@@ -427,7 +433,40 @@ public class AiStoryService {
         if (pointId != null && snapshot.choice(pointId).isEmpty()) {
             throw new AiStoryConflictException(AiStoryConflictException.CHOICE_REQUIRED, "선택을 먼저 해주세요.");
         }
+        userWithAge(memberId); // AGE_REQUIRED는 백그라운드로 넘기기 전에 409로 알린다.
 
+        AiStoryStateWriter.GenerationTicket ticket;
+        try {
+            ticket = stateWriter.beginCompletion(season.getId(), order, completionStaleBefore());
+        } catch (ObjectOptimisticLockingFailureException concurrentStart) {
+            ticket = null; // 다른 요청이 먼저 시작했다 — 그쪽 완료 상태를 그대로 보여준다.
+        }
+        if (ticket != null && ticket.started()) {
+            Long seasonPk = season.getId();
+            Long contentPk = ticket.contentPk();
+            executor.execute(() -> runCompletion(memberId, seasonPk, order, contentPk));
+        }
+        return toStateView(stateWriter.snapshot(season.getId()));
+    }
+
+    /**
+     * 백그라운드 회차 완료: 정리 단계(5-5) → 회차 쪽지(5-6) → (10화면) 최종 리포트(5-7)를 FastAPI로 만들고 한 트랜잭션에
+     * 저장한다. 하나라도 실패하면 아무것도 저장하지 않고 완료 실패로 남긴다(스레드 밖으로 던지지 않는다).
+     */
+    void runCompletion(Long memberId, Long seasonPk, int order, Long contentPk) {
+        try {
+            completeEpisode(memberId, seasonPk, order);
+        } catch (Exception e) {
+            log.warn("story episode completion failed: seasonPk={}, order={}, cause={}",
+                    seasonPk, order, e.getClass().getSimpleName());
+            stateWriter.markCompletionFailed(contentPk, AiStoryGenerationFailedException.CODE);
+        }
+    }
+
+    private void completeEpisode(Long memberId, Long seasonPk, int order) {
+        AiStorySnapshot snapshot = stateWriter.snapshot(seasonPk);
+        AiStorySnapshot.Content content = readyContent(snapshot, order);
+        Integer pointId = AiStoryCatalog.pointOf(order);
         String ownerSubject = ownerSubjectProvider.resolve(memberId);
         AiStoryContractMapper mapper = new AiStoryContractMapper(snapshot, storedStageIntro(snapshot));
         StoryTypes.GenerationContext context = context(snapshot, mapper, userWithAge(memberId).getAge(), memberId);
@@ -484,11 +523,21 @@ public class AiStoryService {
                         u.recentMemory(), u.newFacts(), u.threadsAdd(), u.threadsResolved(), u.statusText(),
                         u.affinityDelta(), u.choiceMemory(), u.speechLevel()))
                 .toList();
-        stateWriter.completeEpisode(season.getId(), order, summary.episodeSummary(), changes,
-                new AiStoryStateWriter.EpisodeNote(sender.breadId(), note.body(),
-                        note.renderMode()),
-                reportJson);
-        return toStateView(stateWriter.snapshot(season.getId()));
+        AiStoryStateWriter.EpisodeNote episodeNote = new AiStoryStateWriter.EpisodeNote(sender.breadId(), note.body(),
+                note.renderMode());
+        // 생성 결과는 그대로 두고 저장만 다시 한다. 그사이 같은 시즌을 다른 요청(피드백 등)이 바꾸면 낙관적 락 충돌이 난다.
+        for (int attempt = 1; ; attempt++) {
+            try {
+                stateWriter.completeEpisode(seasonPk, order, summary.episodeSummary(), changes, episodeNote,
+                        reportJson);
+                return;
+            } catch (ObjectOptimisticLockingFailureException e) {
+                if (attempt >= SAVE_ATTEMPTS) {
+                    throw e;
+                }
+                log.info("story completion save conflict, retrying: seasonPk={}, order={}", seasonPk, order);
+            }
+        }
     }
 
     // ---------------------------------------------------------------- 1:1 장면 피드백·좋아요
@@ -623,6 +672,22 @@ public class AiStoryService {
             }
         }
         throw new AiStoryGenerationFailedException(operation, last);
+    }
+
+    /** 회차 생성이 이 시각보다 먼저 시작한 채 끝나지 않았으면(서버 재시작 등) 멈춘 것으로 본다. */
+    private LocalDateTime staleBefore() {
+        return LocalDateTime.now().minus(properties.generationStaleAfter());
+    }
+
+    /**
+     * 회차 완료는 FastAPI 호출이 최대 3번(정리·쪽지·10화 리포트)이고 각각 1회 재시도하므로, 그 최대 대기 시간이 지나도록
+     * 끝나지 않아야 멈춘 것으로 본다. 더 짧으면 느리게 진행 중인 완료를 failed로 보여 재시도가 중복 완료를 시작한다.
+     */
+    private LocalDateTime completionStaleBefore() {
+        Duration worstCase = properties.readTimeout().multipliedBy((long) COMPLETION_CALLS * MAX_ATTEMPTS);
+        Duration staleAfter = worstCase.compareTo(properties.generationStaleAfter()) > 0
+                ? worstCase : properties.generationStaleAfter();
+        return LocalDateTime.now().minus(staleAfter);
     }
 
     private AiSeason currentSeason(Long memberId) {
@@ -877,7 +942,23 @@ public class AiStoryService {
                 .forEach(c -> unlocked.add(c.order()));
         return new AiStoryStateView(snapshot.setting().wireValue(), snapshot.currentOrder(), completedOrders,
                 snapshot.route() == null ? null : snapshot.route().wireValue(), snapshot.romancePartnerId(),
-                choices, breads, List.copyOf(unlocked), properties.episodeTokenCost());
+                choices, breads, List.copyOf(unlocked), properties.episodeTokenCost(), completionOf(snapshot));
+    }
+
+    /**
+     * 진행 중이거나 실패한 회차 완료. 없으면 null. 완료 중인 채 오래 멈춘 것(서버 재시작 등)은 failed로 보여 앱이 다시
+     * 요청하게 한다 — 그 요청이 완료를 새로 시작한다.
+     */
+    private AiStoryStateView.Completion completionOf(AiStorySnapshot snapshot) {
+        LocalDateTime staleBefore = completionStaleBefore();
+        return snapshot.contents().stream()
+                .filter(c -> !c.completed() && c.completionRequestedAt() != null)
+                .findFirst()
+                .map(c -> c.completing() && !c.completionRequestedAt().isBefore(staleBefore)
+                        ? new AiStoryStateView.Completion(c.order(), AiStoryStateView.Completion.COMPLETING, null)
+                        : new AiStoryStateView.Completion(c.order(), AiStoryStateView.Completion.FAILED,
+                                c.completing() ? AiStoryGenerationFailedException.CODE : c.completionErrorCode()))
+                .orElse(null);
     }
 
     /**

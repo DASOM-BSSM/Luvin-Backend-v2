@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
  * 장면 블록 회차 콘텐츠. 한 번 생성하면 저장해서 재사용한다(season_id + episode_order unique).
  * 생성은 GET content 요청이 시작하고 백그라운드에서 끝난다 — 그동안 status가 GENERATING이다.
  * summaryJson은 회차 완료 시 정리 단계가 돌려준 회차 요약으로, 쪽지·최종 리포트 생성 재료로 쓴다.
+ * 회차 완료(정리·쪽지·리포트 생성)도 POST complete가 시작하고 백그라운드에서 끝난다 — 그동안 completing이다.
  */
 @Entity
 @Table(name = "ai_episode_contents", uniqueConstraints = @UniqueConstraint(columnNames = {"season_id", "episode_order"}))
@@ -93,6 +94,14 @@ public class AiEpisodeContent {
     @Column(name = "failure_reported_at")
     private LocalDateTime failureReportedAt;
 
+    /** 회차 완료를 백그라운드에서 시작한 시각. 완료되면 completedAt이 생긴다. */
+    @Column(name = "completion_requested_at")
+    private LocalDateTime completionRequestedAt;
+
+    /** 회차 완료가 실패한 오류 코드. 다시 완료를 요청하면 지운다. */
+    @Column(name = "completion_error_code", length = 100)
+    private String completionErrorCode;
+
     @Version
     @Column(name = "jpa_version", nullable = false)
     private Long jpaVersion;
@@ -142,6 +151,22 @@ public class AiEpisodeContent {
     public void markCompleted(String summaryJson) {
         this.summaryJson = summaryJson;
         this.completedAt = LocalDateTime.now();
+    }
+
+    public void beginCompletion() {
+        this.completionRequestedAt = LocalDateTime.now();
+        this.completionErrorCode = null;
+    }
+
+    public void markCompletionFailed(String errorCode) {
+        if (!isCompleted()) {
+            this.completionErrorCode = errorCode;
+        }
+    }
+
+    /** 완료를 시작했고 아직 끝나지도, 실패하지도 않았다. */
+    public boolean isCompleting() {
+        return !isCompleted() && completionRequestedAt != null && completionErrorCode == null;
     }
 
     public boolean isReady() {

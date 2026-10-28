@@ -45,7 +45,13 @@ public record AiStorySnapshot(
 
     public record Content(Long id, int order, AiStoryContentStatus status, AiStoryRoute route, String errorCode,
                           String introJson, String stageIntroJson, String blocksJson, String summaryJson,
-                          LocalDateTime requestedAt, boolean completed) {
+                          LocalDateTime requestedAt, boolean completed, LocalDateTime completionRequestedAt,
+                          String completionErrorCode) {
+
+        /** 완료를 시작했고 아직 끝나지도, 실패하지도 않았다. */
+        public boolean completing() {
+            return !completed && completionRequestedAt != null && completionErrorCode == null;
+        }
     }
 
     public boolean isStarted() {
