@@ -288,13 +288,17 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 | POST | `/api/ai/seasons/episodes/{order}/unlock` | 회차 열기. 1~3화 무료, 4~10화는 처음 열 때만 토큰 차감. `{ order, unlocked, tokenBalance }` |
 | GET | `/api/ai/seasons/episodes/{order}/content` | 회차 블록. 처음 요청이면 생성을 시작하고 `status: generating` |
 | POST | `/api/ai/seasons/episodes/{order}/choices` | `{ pointId, breadId \| null }` → choice_result 블록 + 시즌 상태 |
-| POST | `/api/ai/seasons/episodes/{order}/complete` | 관계 기록 갱신 + 회차 쪽지. 10화면 최종 리포트 + 시즌 완료 |
+| POST | `/api/ai/seasons/episodes/{order}/complete` | 관계 기록 갱신 + 회차 쪽지. 10화면 최종 리포트 + 시즌 완료. 접수만 하고 바로 응답(비동기) |
 | POST | `/api/ai/seasons/episodes/{order}/scene-feedback` | 1:1 장면(상대가 있는 pair 블록)에서 내 빵 대사(독백 제외)에 피드백. `{ blockId, messageId, text }`, 메시지당 1개 |
 | POST | `/api/ai/seasons/episodes/{order}/scene-likes` | 1:1 장면에서 내 빵 대사(독백 제외) 좋아요. `{ blockId, messageId, liked }` |
 
 - 블록 JSON 형식과 오류 code는 `openapi.json`(`AiEpisodeContentView`, `AiSceneBlockView`)을 따릅니다.
 - 생성 중에는 jobId가 없어 job SSE를 쓰지 않습니다. `status`가 `ready`가 될 때까지 GET content를 1~3초 간격으로
   다시 부릅니다. `failed`면 다시 부를 때 생성을 다시 시작합니다.
+- 회차 완료도 AI 생성을 여러 번 기다려 수십 초가 걸리므로 POST complete는 접수만 하고 시즌 상태를 바로 돌려줍니다.
+  `story.completion`이 `{ order, status: "completing" }`이면 `GET /api/ai/seasons/me`를 2~3초 간격으로 폴링하고,
+  `completion`이 null이 되고 `completedOrders`에 들어가면 끝난 것입니다. `status: "failed"`
+  (`errorCode: STORY_GENERATION_FAILED`)면 아무것도 저장되지 않았으니 POST complete를 다시 보내 재시도합니다.
 - 진행 순서: 이전 회차 완료(409 `PREVIOUS_EPISODE_NOT_COMPLETED`) → (4화 이상이면) 회차 열기(열지 않았으면 409
   `EPISODE_NOT_UNLOCKED`) → content. 선택 회차(3·5·6·8화)는 선택해야 완료됩니다(409 `CHOICE_REQUIRED`).
   그래서 4화는 ①, 6화는 ②, 7화는 ③, 9화는 ④ 이후에만 생성됩니다.

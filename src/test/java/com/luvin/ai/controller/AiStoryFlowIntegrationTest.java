@@ -35,6 +35,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -397,6 +398,47 @@ class AiStoryFlowIntegrationTest {
     }
 
     @Test
+    void 회차_완료는_비동기이고_완료_중에는_다시_시작하지_않으며_실패하면_다시_요청해_재시도한다() throws Exception {
+        TestUser user = createUser(22);
+        Season season = createSeason(user);
+        readyContent(user, 1);
+
+        // 다른 요청이 막 완료를 시작한 상태: 다시 보내도 새로 시작하지 않고 completing을 돌려준다.
+        jdbcTemplate.update("UPDATE ai_episode_contents SET completion_requested_at = ? "
+                + "WHERE season_id = ? AND episode_order = 1", LocalDateTime.now(), season.pk());
+        JsonNode completing = data(post(user, "/episodes/1/complete", null)).get("completion");
+        assertEquals(1, completing.get("order").asInt());
+        assertEquals("completing", completing.get("status").asText());
+        assertTrue(completing.get("errorCode").isNull());
+        Thread.sleep(300);
+        JsonNode stillCompleting = data(get(user, "/me")).get("story");
+        assertEquals(List.of(), intList(stillCompleting.get("completedOrders")));
+        assertEquals("completing", stillCompleting.get("completion").get("status").asText());
+
+        // 완료 중인 채 오래 멈춘 것(서버 재시작 등)은 failed로 보인다.
+        jdbcTemplate.update("UPDATE ai_episode_contents SET completion_requested_at = ? "
+                + "WHERE season_id = ? AND episode_order = 1", LocalDateTime.now().minusHours(1), season.pk());
+        JsonNode stale = data(get(user, "/me")).get("story").get("completion");
+        assertEquals("failed", stale.get("status").asText());
+        assertEquals("STORY_GENERATION_FAILED", stale.get("errorCode").asText());
+
+        // 완료 실패: 아무것도 저장되지 않았고, 다시 요청하면 처음부터 다시 완료한다.
+        jdbcTemplate.update("UPDATE ai_episode_contents SET completion_requested_at = ?, "
+                + "completion_error_code = 'STORY_GENERATION_FAILED' WHERE season_id = ? AND episode_order = 1",
+                LocalDateTime.now(), season.pk());
+        JsonNode failed = data(get(user, "/me")).get("story");
+        assertEquals("failed", failed.get("completion").get("status").asText());
+        assertEquals("STORY_GENERATION_FAILED", failed.get("completion").get("errorCode").asText());
+        assertEquals(1, failed.get("currentOrder").asInt());
+
+        JsonNode done = complete(user, 1);
+        assertEquals(List.of(1), intList(done.get("completedOrders")));
+        assertEquals(2, done.get("currentOrder").asInt());
+        // 이미 완료한 회차는 상태만 돌려준다.
+        assertTrue(data(post(user, "/episodes/1/complete", null)).get("completion").isNull());
+    }
+
+    @Test
     void 혼자_있기와_거절은_흐름을_solo로_만든다() throws Exception {
         TestUser user = createUser(30);
         Season season = createSeason(user);
@@ -557,10 +599,25 @@ class AiStoryFlowIntegrationTest {
         }
     }
 
+    /** 완료는 접수만 하고 백그라운드에서 끝난다 — 시즌 상태를 폴링해 완료된 상태를 돌려준다. */
     private JsonNode complete(TestUser user, int order) throws Exception {
         HttpResponse<String> res = post(user, "/episodes/" + order + "/complete", null);
         assertEquals(200, res.statusCode(), res.body());
-        return data(res);
+        return awaitCompleted(user, order);
+    }
+
+    private JsonNode awaitCompleted(TestUser user, int order) throws Exception {
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (true) {
+            JsonNode story = data(get(user, "/me")).get("story");
+            if (intList(story.get("completedOrders")).contains(order)) {
+                assertTrue(story.get("completion").isNull(), story.toString());
+                return story;
+            }
+            assertEquals("completing", story.get("completion").get("status").asText(), story.toString());
+            assertTrue(System.currentTimeMillis() < deadline, order + "화 완료가 끝나지 않습니다.");
+            Thread.sleep(100);
+        }
     }
 
     private String pairFocus(JsonNode content, TestUser user) {

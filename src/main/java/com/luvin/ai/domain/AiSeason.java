@@ -15,6 +15,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -152,7 +153,14 @@ public class AiSeason {
         this.updatedAt = LocalDateTime.now();
     }
 
+    /**
+     * 값이 바뀔 때만 쓴다. 시즌 상태 조회(GET /me)가 폴링마다 부르는데, 매번 쓰면 row 버전이 올라가 같은 시즌을 저장하는
+     * 백그라운드 작업(회차 완료 등)이 낙관적 락 충돌로 실패한다.
+     */
     public void syncFromAi(Integer revision, Integer currentEpisode) {
+        if (Objects.equals(this.revision, revision) && Objects.equals(this.currentEpisode, currentEpisode)) {
+            return;
+        }
         this.revision = revision;
         this.currentEpisode = currentEpisode;
         this.updatedAt = LocalDateTime.now();

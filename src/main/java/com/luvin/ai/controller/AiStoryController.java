@@ -134,10 +134,17 @@ public class AiStoryController {
 
     @Operation(summary = "회차 완료", description = """
             관계 기록을 갱신하고(정리 단계) 회차 쪽지를 만든다. 10화면 최종 리포트를 만들고 시즌을 완료한다.
-            이미 완료한 회차면 상태만 돌려준다.
+            AI 생성을 여러 번 기다려 수십 초가 걸리므로 **접수만 하고 바로 응답한다**(비동기).
 
-            **오류**: 409 `CONTENT_NOT_READY`, `CHOICE_REQUIRED`(선택 회차인데 선택 전), `STORY_NOT_STARTED`
-            / 502 `STORY_GENERATION_FAILED`(아무것도 저장되지 않음, 다시 요청 가능)
+            - 응답의 `completion`이 `{"order":N,"status":"completing"}`이면 진행 중이다.
+              `GET /api/ai/seasons/me`의 `story.completion`을 2~3초 간격으로 폴링한다.
+            - 끝나면 `completion`이 null이 되고 `completedOrders`에 N이 들어간다(다음 회차 진행 가능).
+            - `status`가 `failed`(`errorCode` `STORY_GENERATION_FAILED`)면 아무것도 저장되지 않았다.
+              이 API를 다시 보내면 처음부터 다시 시도한다.
+            - 완료 중에 다시 보내도 새로 시작하지 않고 진행 상태만 돌려준다. 이미 완료한 회차면 상태만 돌려준다.
+
+            **오류**: 409 `CONTENT_NOT_READY`, `CHOICE_REQUIRED`(선택 회차인데 선택 전), `STORY_NOT_STARTED`,
+            `AGE_REQUIRED`
             """)
     @PostMapping("/{order}/complete")
     public ApiResponse<AiStoryStateView> complete(@PathVariable("order") int order) {

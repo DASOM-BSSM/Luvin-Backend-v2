@@ -79,7 +79,7 @@ public class AiStoryStateWriter {
     private final UserTokenRepository userTokenRepository;
     private final TokenHistoryRepository tokenHistoryRepository;
 
-    /** GET content 한 번에 시작 여부를 확인하기 위해 생성 접수 결과로 돌려준다. */
+    /** 생성(GET content)·완료(POST complete) 접수 결과. started면 호출부가 백그라운드 작업을 시작한다. */
     public record GenerationTicket(Long contentPk, boolean started) {
     }
 
@@ -165,7 +165,8 @@ public class AiStoryStateWriter {
                 .stream()
                 .map(c -> new AiStorySnapshot.Content(c.getId(), c.getEpisodeOrder(), c.getStatus(), c.getRoute(),
                         c.getErrorCode(), c.getIntroJson(), c.getStageIntroJson(), c.getBlocksJson(),
-                        c.getSummaryJson(), c.getRequestedAt(), c.isCompleted()))
+                        c.getSummaryJson(), c.getRequestedAt(), c.isCompleted(), c.getCompletionRequestedAt(),
+                        c.getCompletionErrorCode()))
                 .toList();
         return new AiStorySnapshot(season.getId(), season.getSeasonId(), season.getMemberId(), season.getSeasonNumber(),
                 season.getStatus(), season.getSetting(), season.getCurrentOrder(), season.getRoute(),
@@ -215,6 +216,28 @@ public class AiStoryStateWriter {
     @Transactional
     public void markGenerationFailed(Long contentPk, String errorCode) {
         contentRepository.findById(contentPk).ifPresent(c -> c.markFailed(errorCode));
+    }
+
+    /**
+     * 회차 완료를 접수한다. 이미 완료했거나, 완료 중인데 staleBefore보다 최근에 시작했으면 started=false(진행 중인 쪽을
+     * 그대로 둔다). 처음이거나, 실패했거나, 완료 중인 채 오래 멈춰 있으면(서버 재시작 등) started=true로 돌려주고 호출부가
+     * 백그라운드 완료를 시작한다. 동시에 두 요청이 오면 진 쪽은 낙관적 락 충돌을 이 짧은 트랜잭션 안에서만 받는다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public GenerationTicket beginCompletion(Long seasonPk, int order, LocalDateTime staleBefore) {
+        AiEpisodeContent content = contentRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order).orElseThrow();
+        if (content.isCompleted()
+                || (content.isCompleting() && !content.getCompletionRequestedAt().isBefore(staleBefore))) {
+            return new GenerationTicket(content.getId(), false);
+        }
+        content.beginCompletion();
+        contentRepository.saveAndFlush(content);
+        return new GenerationTicket(content.getId(), true);
+    }
+
+    @Transactional
+    public void markCompletionFailed(Long contentPk, String errorCode) {
+        contentRepository.findById(contentPk).ifPresent(c -> c.markCompletionFailed(errorCode));
     }
 
     /**
