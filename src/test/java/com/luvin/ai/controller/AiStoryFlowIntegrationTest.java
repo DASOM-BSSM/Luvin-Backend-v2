@@ -67,6 +67,8 @@ class AiStoryFlowIntegrationTest {
             "ai_episode_progresses");
 
     private static final HttpServer FAKE_AI = startFakeAi();
+    /** true면 가짜 AI의 시즌 조회(GET /me가 부른다)를 늦춰, 그사이 백그라운드 회차 완료가 커밋되게 한다. */
+    private static volatile boolean slowSeasonLookup;
 
     @DynamicPropertySource
     static void aiBaseUrl(DynamicPropertyRegistry registry) {
@@ -431,9 +433,16 @@ class AiStoryFlowIntegrationTest {
         assertEquals("STORY_GENERATION_FAILED", failed.get("completion").get("errorCode").asText());
         assertEquals(1, failed.get("currentOrder").asInt());
 
-        JsonNode done = complete(user, 1);
-        assertEquals(List.of(1), intList(done.get("completedOrders")));
-        assertEquals(2, done.get("currentOrder").asInt());
+        // GET /me가 시즌을 읽은 뒤 회차 상태를 읽기 전에 완료가 커밋되어도 completedOrders와 currentOrder가 어긋나지 않는다.
+        slowSeasonLookup = true;
+        JsonNode done;
+        try {
+            done = complete(user, 1);
+        } finally {
+            slowSeasonLookup = false;
+        }
+        assertEquals(List.of(1), intList(done.get("completedOrders")), done.toString());
+        assertEquals(2, done.get("currentOrder").asInt(), done.toString());
         // 이미 완료한 회차는 상태만 돌려준다.
         assertTrue(data(post(user, "/episodes/1/complete", null)).get("completion").isNull());
     }
@@ -715,6 +724,13 @@ class AiStoryFlowIntegrationTest {
             HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
             server.createContext("/v1/seasons", exchange -> {
                 exchange.getRequestBody().readAllBytes();
+                if ("GET".equals(exchange.getRequestMethod()) && slowSeasonLookup) {
+                    try {
+                        Thread.sleep(300);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
                 String[] path = exchange.getRequestURI().getPath().split("/");
                 String seasonId = path.length > 3 ? path[3] : UUID.randomUUID().toString();
                 StringBuilder characters = new StringBuilder("{\"id\":\"" + UUID.randomUUID()
