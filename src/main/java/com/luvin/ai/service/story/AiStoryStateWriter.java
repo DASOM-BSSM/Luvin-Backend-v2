@@ -85,7 +85,7 @@ public class AiStoryStateWriter {
     private final TokenHistoryRepository tokenHistoryRepository;
 
     /** 생성(GET content)·완료(POST complete) 접수 결과. started면 호출부가 백그라운드 작업을 시작한다. */
-    public record GenerationTicket(Long contentPk, boolean started) {
+    public record GenerationTicket(Long contentPk, boolean started, int round) {
     }
 
     /**
@@ -181,7 +181,9 @@ public class AiStoryStateWriter {
                 .map(c -> new AiStorySnapshot.Content(c.getId(), c.getEpisodeOrder(), c.getStatus(), c.getRoute(),
                         c.getErrorCode(), c.getIntroJson(), c.getStageIntroJson(), c.getBlocksJson(),
                         c.getSummaryJson(), c.getRequestedAt(), c.isCompleted(), c.getCompletionRequestedAt(),
-                        c.getCompletionErrorCode()))
+                        c.getCompletionErrorCode(), c.getGenerationStage(),
+                        Boolean.TRUE.equals(c.getGenerationRegenerating()), c.getCompletionStage(),
+                        Boolean.TRUE.equals(c.getCompletionRegenerating())))
                 .toList();
         return new AiStorySnapshot(season.getId(), season.getSeasonId(), season.getMemberId(), season.getSeasonNumber(),
                 season.getStatus(), season.getSetting(), season.getCurrentOrder(), season.getRoute(),
@@ -202,35 +204,69 @@ public class AiStoryStateWriter {
             try {
                 AiEpisodeContent created = contentRepository.saveAndFlush(
                         new AiEpisodeContent(season.getMemberId(), season, order, route));
-                return new GenerationTicket(created.getId(), true);
+                return new GenerationTicket(created.getId(), true, created.currentGenerationRound());
             } catch (DataIntegrityViolationException raceLoser) {
                 AiEpisodeContent winner = contentRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order)
                         .orElseThrow(() -> raceLoser);
-                return new GenerationTicket(winner.getId(), false);
+                return new GenerationTicket(winner.getId(), false, winner.currentGenerationRound());
             }
         }
         boolean stale = existing.getStatus() == AiStoryContentStatus.GENERATING
                 && existing.getRequestedAt().isBefore(staleBefore);
         if (existing.getStatus() == AiStoryContentStatus.FAILED && existing.reportFailureOnce()) {
             contentRepository.saveAndFlush(existing);
-            return new GenerationTicket(existing.getId(), false);
+            return new GenerationTicket(existing.getId(), false, existing.currentGenerationRound());
         }
         if (existing.getStatus() == AiStoryContentStatus.FAILED || stale) {
             existing.restartGeneration(route);
             contentRepository.saveAndFlush(existing);
-            return new GenerationTicket(existing.getId(), true);
+            return new GenerationTicket(existing.getId(), true, existing.currentGenerationRound());
         }
-        return new GenerationTicket(existing.getId(), false);
+        return new GenerationTicket(existing.getId(), false, existing.currentGenerationRound());
+    }
+
+    /** 생성 결과 저장. 아직 생성 중이고 같은 생성 회차일 때만 저장한다(늦게 끝난 이전 회차 결과는 버린다). */
+    @Transactional
+    public void saveGenerated(Long contentPk, int round, String introJson, String stageIntroJson, String blocksJson) {
+        contentRepository.findById(contentPk)
+                .filter(c -> isCurrentGeneration(c, round))
+                .ifPresent(c -> c.markReady(introJson, stageIntroJson, blocksJson));
     }
 
     @Transactional
-    public void saveGenerated(Long contentPk, String introJson, String stageIntroJson, String blocksJson) {
-        contentRepository.findById(contentPk).ifPresent(c -> c.markReady(introJson, stageIntroJson, blocksJson));
+    public void markGenerationFailed(Long contentPk, int round, String errorCode) {
+        contentRepository.findById(contentPk)
+                .filter(c -> isCurrentGeneration(c, round))
+                .ifPresent(c -> c.markFailed(errorCode));
+    }
+
+    /** 이어서 진행할 회차 생성·완료 한 건. round는 그때의 생성(또는 완료) 회차 번호다. */
+    public record PendingWork(Long contentPk, Long memberId, Long seasonPk, int order, int round) {
+    }
+
+    @Transactional(readOnly = true)
+    public List<PendingWork> findInterruptedGenerations(LocalDateTime staleBefore) {
+        return contentRepository.findGeneratingSince(staleBefore).stream()
+                .map(c -> new PendingWork(c.getId(), c.getMemberId(), c.getSeason().getId(), c.getEpisodeOrder(),
+                        c.currentGenerationRound()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PendingWork> findInterruptedCompletions(LocalDateTime staleBefore) {
+        return contentRepository.findCompletingSince(staleBefore).stream()
+                .map(c -> new PendingWork(c.getId(), c.getMemberId(), c.getSeason().getId(), c.getEpisodeOrder(),
+                        c.currentCompletionRound()))
+                .toList();
     }
 
     @Transactional
-    public void markGenerationFailed(Long contentPk, String errorCode) {
-        contentRepository.findById(contentPk).ifPresent(c -> c.markFailed(errorCode));
+    public void recordGenerationProgress(Long contentPk, int round, String stage, UUID jobId, boolean regenerating) {
+        contentRepository.updateGenerationProgress(contentPk, round, stage, jobId, regenerating);
+    }
+
+    private static boolean isCurrentGeneration(AiEpisodeContent content, int round) {
+        return content.getStatus() == AiStoryContentStatus.GENERATING && content.currentGenerationRound() == round;
     }
 
     /**
@@ -243,16 +279,23 @@ public class AiStoryStateWriter {
         AiEpisodeContent content = contentRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order).orElseThrow();
         if (content.isCompleted()
                 || (content.isCompleting() && !content.getCompletionRequestedAt().isBefore(staleBefore))) {
-            return new GenerationTicket(content.getId(), false);
+            return new GenerationTicket(content.getId(), false, content.currentCompletionRound());
         }
         content.beginCompletion();
         contentRepository.saveAndFlush(content);
-        return new GenerationTicket(content.getId(), true);
+        return new GenerationTicket(content.getId(), true, content.currentCompletionRound());
     }
 
     @Transactional
-    public void markCompletionFailed(Long contentPk, String errorCode) {
-        contentRepository.findById(contentPk).ifPresent(c -> c.markCompletionFailed(errorCode));
+    public void markCompletionFailed(Long contentPk, int round, String errorCode) {
+        contentRepository.findById(contentPk)
+                .filter(c -> c.currentCompletionRound() == round)
+                .ifPresent(c -> c.markCompletionFailed(errorCode));
+    }
+
+    @Transactional
+    public void recordCompletionProgress(Long contentPk, int round, String stage, UUID jobId, boolean regenerating) {
+        contentRepository.updateCompletionProgress(contentPk, round, stage, jobId, regenerating);
     }
 
     /**
@@ -301,12 +344,12 @@ public class AiStoryStateWriter {
      * 다음 회차로 진행. 10화면 최종 리포트를 저장하고 시즌을 완료 처리한다. 이미 완료한 회차면 아무것도 하지 않는다.
      */
     @Transactional
-    public void completeEpisode(Long seasonPk, int order, String episodeSummary, List<RelationChange> changes,
-                                EpisodeNote note, String reportJson) {
+    public void completeEpisode(Long seasonPk, int order, int round, String episodeSummary,
+                                List<RelationChange> changes, EpisodeNote note, String reportJson) {
         AiSeason season = seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
         AiEpisodeContent content = contentRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order).orElseThrow();
-        if (content.isCompleted()) {
-            return;
+        if (content.isCompleted() || content.currentCompletionRound() != round) {
+            return; // 이미 반영했거나(중복 완료) 그사이 새 완료 회차가 시작됐다(늦은 결과는 버린다).
         }
 
         Map<UUID, AiBreadRelation> relations = relationRepository.findAllBySeason_Id(seasonPk).stream()

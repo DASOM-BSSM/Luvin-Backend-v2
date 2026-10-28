@@ -43,6 +43,9 @@ public class AiStoryController {
             (choices 응답과 같은 순서, 완료한 회차를 다시 볼 때도 같다).
             저장된 회차가 있으면 그대로, 없으면 생성을 시작하고 `status: generating`으로 응답한다(1~3초 간격으로 다시 요청).
             실패하면 그다음 요청 한 번은 `failed`(errorCode 포함)로 응답하고, 그 뒤에 다시 요청하면 생성을 다시 시도한다. 1화 요청이 새 흐름의 시작이다(나이로 배경 결정, 1화에 stageIntro 포함).
+            `generating`이면 `progress`에 생성 단계(`stage`: stage-intro | episode | interview)와 `regenerating`이 있다.
+            `regenerating: true`는 AI가 문장을 다시 다듬는 중이라는 뜻이고 실패가 아니다("문장을 다듬고 있어요" 등으로 표시).
+            생성이 오래 걸려도 같은 요청을 계속 보내면 같은 생성의 진행 상태를 이어서 본다.
 
             **409 code**
             - `AGE_REQUIRED`: 나이 또는 성별이 없다 — 둘 다 입력(PUT /api/users/me `{ age, gender }`) 후 다시 요청
@@ -138,6 +141,7 @@ public class AiStoryController {
 
             - 응답의 `completion`이 `{"order":N,"status":"completing"}`이면 진행 중이다.
               `GET /api/ai/seasons/me`의 `story.completion`을 2~3초 간격으로 폴링한다.
+              `completion.progress`에 완료 단계(`stage`: summarize | episode-note | season-report)와 `regenerating`이 있다.
             - 끝나면 `completion`이 null이 되고 `completedOrders`에 N이 들어간다(다음 회차 진행 가능).
             - `status`가 `failed`(`errorCode` `STORY_GENERATION_FAILED`)면 아무것도 저장되지 않았다.
               이 API를 다시 보내면 처음부터 다시 시도한다.

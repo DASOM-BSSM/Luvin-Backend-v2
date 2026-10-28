@@ -91,7 +91,7 @@ public class AiServiceClient {
     public SeasonResponseDto getSeason(String ownerSubject, UUID seasonId) {
         return withNetworkErrorTranslation("GET /v1/seasons/{id}", () -> restClient.get()
                 .uri("/v1/seasons/{seasonId}", seasonId)
-                .headers(h -> applyHeaders(h, ownerSubject, null))
+                .headers(h -> applyHeaders(h, ownerSubject, (String) null))
                 .exchange((req, resp) -> handle(resp, "GET /v1/seasons/{id}", SeasonResponseDto.class)));
     }
 
@@ -118,7 +118,7 @@ public class AiServiceClient {
     public JobResponseDto getJob(String ownerSubject, UUID jobId) {
         return withNetworkErrorTranslation("GET /v1/jobs/{id}", () -> restClient.get()
                 .uri("/v1/jobs/{jobId}", jobId)
-                .headers(h -> applyHeaders(h, ownerSubject, null))
+                .headers(h -> applyHeaders(h, ownerSubject, (String) null))
                 .exchange((req, resp) -> handle(resp, "GET /v1/jobs/{id}", JobResponseDto.class)));
     }
 
@@ -138,14 +138,14 @@ public class AiServiceClient {
                     }
                     return uriBuilder.build(seasonId, episodeNumber);
                 })
-                .headers(h -> applyHeaders(h, ownerSubject, null))
+                .headers(h -> applyHeaders(h, ownerSubject, (String) null))
                 .exchange((req, resp) -> handle(resp, "GET .../episodes/{number}", EpisodeResponseDto.class)));
     }
 
     public ReportResponseDto getReport(String ownerSubject, UUID seasonId) {
         return withNetworkErrorTranslation("GET .../report", () -> restClient.get()
                 .uri("/v1/seasons/{seasonId}/report", seasonId)
-                .headers(h -> applyHeaders(h, ownerSubject, null))
+                .headers(h -> applyHeaders(h, ownerSubject, (String) null))
                 .exchange((req, resp) -> handle(resp, "GET .../report", ReportResponseDto.class)));
     }
 
@@ -163,7 +163,7 @@ public class AiServiceClient {
     public LetterResponseDto getLetter(String ownerSubject, UUID seasonId) {
         return withNetworkErrorTranslation("GET .../letter", () -> restClient.get()
                 .uri("/v1/seasons/{seasonId}/letter", seasonId)
-                .headers(h -> applyHeaders(h, ownerSubject, null))
+                .headers(h -> applyHeaders(h, ownerSubject, (String) null))
                 .exchange((req, resp) -> handle(resp, "GET .../letter", LetterResponseDto.class)));
     }
 
@@ -174,12 +174,28 @@ public class AiServiceClient {
      */
     public <T> T post(RestClient client, ObjectMapper responseMapper, String path, String ownerSubject,
                       UUID idempotencyKey, Object request, Class<T> type) {
+        return post(client, responseMapper, path, ownerSubject, idempotencyKey.toString(), request, type);
+    }
+
+    /** Idempotency-Key를 Spring의 논리 작업 키(문자열)로 보낸다. 같은 키로 다시 보내면 AI가 같은 작업을 돌려준다. */
+    public <T> T post(RestClient client, ObjectMapper responseMapper, String path, String ownerSubject,
+                      String idempotencyKey, Object request, Class<T> type) {
         String opName = "POST " + path;
         return withNetworkErrorTranslation(opName, () -> client.post()
                 .uri(path)
                 .headers(h -> applyHeaders(h, ownerSubject, idempotencyKey))
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
+                .exchange((req, resp) -> handle(resp, opName, type, responseMapper)));
+    }
+
+    /** opName은 로그용 경로(식별자 없는 템플릿)다. */
+    public <T> T get(RestClient client, ObjectMapper responseMapper, String opPath, String uri, String ownerSubject,
+                     Class<T> type) {
+        String opName = "GET " + opPath;
+        return withNetworkErrorTranslation(opName, () -> client.get()
+                .uri(uri)
+                .headers(h -> applyHeaders(h, ownerSubject, (String) null))
                 .exchange((req, resp) -> handle(resp, opName, type, responseMapper)));
     }
 
@@ -243,10 +259,14 @@ public class AiServiceClient {
     }
 
     private void applyHeaders(HttpHeaders headers, String ownerSubject, UUID idempotencyKey) {
+        applyHeaders(headers, ownerSubject, idempotencyKey == null ? null : idempotencyKey.toString());
+    }
+
+    private void applyHeaders(HttpHeaders headers, String ownerSubject, String idempotencyKey) {
         headers.set("X-Owner-Subject", ownerSubject);
         headers.setAccept(java.util.List.of(MediaType.APPLICATION_JSON));
         if (idempotencyKey != null) {
-            headers.set("Idempotency-Key", idempotencyKey.toString());
+            headers.set("Idempotency-Key", idempotencyKey);
         }
     }
 
