@@ -432,8 +432,8 @@ class AiStoryFlowIntegrationTest {
         assertEquals(1, failed.get("currentOrder").asInt());
 
         JsonNode done = complete(user, 1);
-        assertEquals(List.of(1), intList(done.get("completedOrders")));
-        assertEquals(2, done.get("currentOrder").asInt());
+        assertEquals(List.of(1), intList(done.get("completedOrders")), done.toString());
+        assertEquals(2, done.get("currentOrder").asInt(), done.toString());
         // 이미 완료한 회차는 상태만 돌려준다.
         assertTrue(data(post(user, "/episodes/1/complete", null)).get("completion").isNull());
     }

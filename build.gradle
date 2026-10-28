@@ -54,6 +54,11 @@ tasks.named('test') {
     useJUnitPlatform {
         excludeTags 'manual'
     }
+    // CI 로그에 실패한 assertion의 기대값·실제값이 남도록 전체 메시지를 출력한다(기본값은 예외 클래스와 줄 번호뿐).
+    testLogging {
+        events 'failed'
+        exceptionFormat = 'full'
+    }
 }
 
 // 실제 AI 서버/배포된 ALB 등 외부 인프라에 의존하는 수동 통합 테스트.
