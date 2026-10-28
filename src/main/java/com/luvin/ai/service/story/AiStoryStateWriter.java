@@ -34,6 +34,8 @@ import com.luvin.token.domain.TokenHistoryType;
 import com.luvin.token.domain.UserToken;
 import com.luvin.token.repository.TokenHistoryRepository;
 import com.luvin.token.repository.UserTokenRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -78,6 +80,8 @@ public class AiStoryStateWriter {
     private final AiStoryMessageLikeRepository likeRepository;
     private final AiEpisodeUnlockRepository unlockRepository;
     private final UserTokenRepository userTokenRepository;
+    @PersistenceContext
+    private EntityManager entityManager;
     private final TokenHistoryRepository tokenHistoryRepository;
 
     /** 생성(GET content)·완료(POST complete) 접수 결과. started면 호출부가 백그라운드 작업을 시작한다. */
@@ -143,11 +147,17 @@ public class AiStoryStateWriter {
     }
 
     /**
-     * REPEATABLE_READ: 시즌·회차·관계를 한 시점의 스냅샷으로 읽는다. READ COMMITTED면 쿼리마다 스냅샷이 달라, 백그라운드
-     * 회차 완료가 커밋되는 사이에 읽을 때 completedOrders에는 들어갔는데 currentOrder는 그대로인 상태가 보인다.
+     * 시즌·회차·관계를 한 시점의 값으로 읽는다. 백그라운드 회차 완료가 커밋되는 사이에 읽어도 completedOrders와
+     * currentOrder가 어긋나지 않게 하기 위해서다.
+     * - 영속성 컨텍스트 비우기: open-in-view라 요청 앞부분(GET /me의 시즌 조회 등)에서 읽은 엔티티가 요청의 컨텍스트에
+     *   남아 있다. 그 컨텍스트에 트랜잭션이 없으면 REQUIRES_NEW도 같은 컨텍스트를 쓰므로, 그대로 읽으면 시즌은 그때의
+     *   값(완료 전)이 오고 회차는 새로 조회한 값(완료 후)이 온다. 바깥 트랜잭션 안이면 REQUIRES_NEW가 새 컨텍스트를
+     *   쓰므로 비워도 영향이 없다. 호출부는 이 뒤에 엔티티의 기본 컬럼만 읽는다(지연 로딩 없음).
+     * - REPEATABLE_READ: READ COMMITTED면 쿼리마다 DB 스냅샷이 달라 같은 어긋남이 생길 수 있다.
      */
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public AiStorySnapshot snapshot(Long seasonPk) {
+        entityManager.clear();
         AiSeason season = seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
         List<AiStoryCastMember> cast = characterRepository.findAllBySeason_Id(seasonPk).stream()
                 .filter(c -> c.getCastRole() != null)
