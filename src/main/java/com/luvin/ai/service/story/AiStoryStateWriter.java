@@ -37,6 +37,7 @@ import com.luvin.token.repository.UserTokenRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -141,7 +142,11 @@ public class AiStoryStateWriter {
         season.startStory(setting);
     }
 
-    @Transactional(readOnly = true)
+    /**
+     * REPEATABLE_READ: 시즌·회차·관계를 한 시점의 스냅샷으로 읽는다. READ COMMITTED면 쿼리마다 스냅샷이 달라, 백그라운드
+     * 회차 완료가 커밋되는 사이에 읽을 때 completedOrders에는 들어갔는데 currentOrder는 그대로인 상태가 보인다.
+     */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public AiStorySnapshot snapshot(Long seasonPk) {
         AiSeason season = seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
         List<AiStoryCastMember> cast = characterRepository.findAllBySeason_Id(seasonPk).stream()
