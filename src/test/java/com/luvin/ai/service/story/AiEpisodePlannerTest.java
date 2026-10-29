@@ -222,6 +222,25 @@ class AiEpisodePlannerTest {
     }
 
     @Test
+    void 이번_회차_장면에_나오지_않는_빵의_떡밥은_보내지_않는다() {
+        Map<UUID, Integer> affinity = new HashMap<>();
+        cast.forEach(c -> affinity.put(c.breadId(), 25));
+        Map<UUID, List<StoryTypes.Thread>> threads = new HashMap<>();
+        cast.stream().filter(c -> !c.isMe())
+                .forEach(c -> threads.put(c.breadId(), List.of(new StoryTypes.Thread("t-" + c.breadId(), "떡밥"))));
+        for (int order = 1; order <= 10; order++) {
+            AiEpisodePlan plan = AiEpisodePlanner.plan(new AiEpisodePlanner.Input(order, AiSeasonSetting.SCHOOL,
+                    AiStoryRoute.SOLO, null, cast, affinity, threads, Map.of()));
+            java.util.Set<UUID> appearing = new java.util.HashSet<>();
+            plan.blocks().forEach(b -> appearing.addAll(b.participantIds()));
+            for (StoryTypes.Thread thread : plan.openThreads()) {
+                UUID owner = UUID.fromString(thread.id().substring(2));
+                assertTrue(appearing.contains(owner), order + "화: " + thread.id());
+            }
+        }
+    }
+
+    @Test
     void 선택_반응_장면은_고른_빵과_내_빵이고_혼자_있기면_내_빵만() {
         AiChoiceJudge.Decision shortAccept = new AiChoiceJudge.Decision(true, AiChoiceRules.REASON_AVOIDANT_SHORT, true);
         AiChoiceJudge.Decision alone = new AiChoiceJudge.Decision(false, AiChoiceRules.REASON_ALONE, false);

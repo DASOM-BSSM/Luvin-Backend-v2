@@ -101,6 +101,8 @@ public class AiStoryService {
     /** 회차 완료 한 번에 부르는 FastAPI 생성 호출 수의 최대값(정리·쪽지·10화 최종 리포트). */
     private static final int COMPLETION_CALLS = 3;
     private static final String DEFAULT_MEMORY = "아직 함께한 기억이 없어요";
+    /** 본문 입력 usedMaterials 최대 개수(계약). */
+    static final int USED_MATERIALS_MAX = 100;
     public static final String FORMAT_BLOCKS = "blocks";
     /** 1화 무대 소개에서 내 빵의 역할 표기. */
     static final String MY_BREAD_STAGE_ROLE = "나";
@@ -972,6 +974,15 @@ public class AiStoryService {
         return (matcher.find() ? matcher.group() : body.strip()).strip();
     }
 
+    /** 완료한 회차의 정리 단계 요약. 아직 완료하지 않았으면 null. */
+    private static String episodeSummaryOf(AiStorySnapshot.Content content) {
+        if (content.summaryJson() == null) {
+            return null;
+        }
+        Object summary = AiStoryJson.read(content.summaryJson(), Map.class).get("episodeSummary");
+        return summary == null || summary.toString().isBlank() ? null : summary.toString();
+    }
+
     /** 1화부터 이번 회차까지의 회차 요약(이번 회차는 방금 받은 정리 결과). */
     private static List<StoryTypes.EpisodeSummary> episodeSummaries(AiStorySnapshot snapshot, int order,
                                                                     String currentSummary) {
@@ -985,6 +996,11 @@ public class AiStoryService {
     }
 
     /** 시즌에서 이미 쓴 장면 소재: 이전 회차의 배경 장면, 상황 소개 제목, 전환 카드 문구. 같은 소재를 반복하지 않게 한다. */
+    /**
+     * 이전 회차에서 이미 쓴 장면·소재(본문 입력 usedMaterials, 최대 100개). 장면 이름·회차 제목·장면 전환에 더해, 완료한
+     * 회차는 정리 단계 요약의 첫 문장을 "N화: …"로 넣는다 — 장면 이름만으로는 실제로 쓴 소재(예: 축제 포스터 정하기)가
+     * 드러나지 않는다. 요약은 그 회차에 실제로 있었던 일이라 완료하지 않은 사건을 완료했다고 적지 않는다.
+     */
     private static List<String> usedMaterials(AiStorySnapshot snapshot, int order) {
         List<String> materials = new ArrayList<>();
         snapshot.contents().stream()
@@ -999,8 +1015,12 @@ public class AiStoryService {
                             .map(AiSceneBlockView::transitionText)
                             .filter(Objects::nonNull)
                             .forEach(materials::add);
+                    String summary = episodeSummaryOf(c);
+                    if (summary != null) {
+                        materials.add(c.order() + "화: " + firstSentence(summary));
+                    }
                 });
-        return materials.stream().distinct().toList();
+        return materials.stream().distinct().limit(USED_MATERIALS_MAX).toList();
     }
 
     private static AiEpisodePlanner.Input planInput(AiStorySnapshot snapshot, int order) {
