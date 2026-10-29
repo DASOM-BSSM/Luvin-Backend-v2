@@ -1,5 +1,7 @@
 package com.luvin.ai.service.story;
 
+import com.luvin.ai.client.dto.TraitsDto;
+import com.luvin.ai.client.story.SeasonDesignResponse;
 import com.luvin.ai.client.story.StoryTypes;
 import com.luvin.ai.domain.AiBreadRelation;
 import com.luvin.ai.domain.AiCastRole;
@@ -9,6 +11,7 @@ import com.luvin.ai.domain.AiEpisodeUnlock;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSpeechLevel;
 import com.luvin.ai.domain.AiSeasonCharacter;
+import com.luvin.ai.domain.AiSeasonDesign;
 import com.luvin.ai.domain.AiSeasonChoice;
 import com.luvin.ai.domain.AiSeasonSetting;
 import com.luvin.ai.domain.AiSeasonStoryReport;
@@ -16,11 +19,15 @@ import com.luvin.ai.domain.AiStoryContentStatus;
 import com.luvin.ai.domain.AiStoryFeedback;
 import com.luvin.ai.domain.AiStoryMessageLike;
 import com.luvin.ai.domain.AiStoryRoute;
+import com.luvin.ai.dto.AiReportView;
+import com.luvin.ai.dto.story.AiStageIntroView;
 import com.luvin.ai.domain.PartnerLetter;
 import com.luvin.ai.repository.AiBreadRelationRepository;
 import com.luvin.ai.repository.AiEpisodeContentRepository;
 import com.luvin.ai.repository.AiEpisodeUnlockRepository;
 import com.luvin.ai.repository.AiSeasonCharacterRepository;
+import com.luvin.ai.repository.AiSeasonCreationInputRepository;
+import com.luvin.ai.repository.AiSeasonDesignRepository;
 import com.luvin.ai.repository.AiSeasonChoiceRepository;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.ai.repository.AiSeasonStoryReportRepository;
@@ -79,6 +86,8 @@ public class AiStoryStateWriter {
     private final AiStoryFeedbackRepository feedbackRepository;
     private final AiStoryMessageLikeRepository likeRepository;
     private final AiEpisodeUnlockRepository unlockRepository;
+    private final AiSeasonDesignRepository designRepository;
+    private final AiSeasonCreationInputRepository creationInputRepository;
     private final UserTokenRepository userTokenRepository;
     @PersistenceContext
     private EntityManager entityManager;
@@ -147,6 +156,101 @@ public class AiStoryStateWriter {
                     AiSpeechLevel.initial(setting)));
         }
         season.startStory(setting);
+    }
+
+    // ---------------------------------------------------------------- 새 시즌 설정(2시즌부터)
+
+    @Transactional(readOnly = true)
+    public Optional<AiSeasonDesignRecord> findSeasonDesign(Long seasonPk) {
+        return designRepository.findBySeason_Id(seasonPk)
+                .map(d -> AiStoryJson.read(d.getDesignJson(), AiSeasonDesignRecord.class));
+    }
+
+    /** 이 시즌 생성 입력(설문 결과로 만든 내 빵 성향)의 13개 점수. 입력이 없으면 empty. */
+    @Transactional(readOnly = true)
+    public Optional<TraitsDto> seasonTraits(Long memberId, int seasonNumber) {
+        return creationInputRepository.findByMemberIdAndSeasonNumber(memberId, seasonNumber)
+                .map(input -> AiStoryJson.read(input.getProfileJson(), CreationProfile.class))
+                .map(CreationProfile::traits);
+    }
+
+    /** 시즌 생성 입력(CharacterProfileDto JSON) 중 traits만 읽는다(나머지 필드는 무시). */
+    private record CreationProfile(TraitsDto traits) {
+    }
+
+    /** seasonNumber보다 앞선 시즌 전부를 최근 순으로 읽는다(새 시즌 설정 입력). */
+    @Transactional(readOnly = true)
+    public List<AiPastSeason> pastSeasons(Long memberId, int seasonNumber) {
+        return seasonRepository.findAllByMemberIdOrderBySeasonNumberDesc(memberId).stream()
+                .filter(s -> s.getSeasonNumber() < seasonNumber)
+                .map(this::pastSeason)
+                .toList();
+    }
+
+    private AiPastSeason pastSeason(AiSeason season) {
+        Long seasonPk = season.getId();
+        Map<UUID, AiSeasonCharacter> cast = characterRepository.findAllBySeason_Id(seasonPk).stream()
+                .filter(c -> c.getCastRole() != null)
+                .collect(Collectors.toMap(AiSeasonCharacter::getCharacterId, Function.identity()));
+        AiStageIntroView stageIntro = contentRepository.findBySeason_IdAndEpisodeOrder(seasonPk, AiStoryCatalog.FIRST_ORDER)
+                .map(c -> AiStoryJson.read(c.getStageIntroJson(), AiStageIntroView.class))
+                .orElse(null);
+        AiPastSeason.Partner partner = null;
+        AiSeasonCharacter partnerCharacter = season.getRomancePartnerId() == null ? null
+                : cast.get(season.getRomancePartnerId());
+        if (partnerCharacter != null) {
+            String oneLine = stageIntro == null ? null : stageIntro.cast().stream()
+                    .filter(c -> c.breadId().equals(partnerCharacter.getCharacterId()))
+                    .map(AiStageIntroView.StageCast::description)
+                    .findFirst().orElse(null);
+            partner = new AiPastSeason.Partner(partnerCharacter.getName(), partnerCharacter.getCastRole(), oneLine);
+        }
+        List<AiPastSeason.Choice> choices = choiceRepository.findAllBySeason_IdOrderByPointIdAsc(seasonPk).stream()
+                .map(c -> {
+                    AiSeasonCharacter chosen = c.getBreadId() == null ? null : cast.get(c.getBreadId());
+                    return new AiPastSeason.Choice(c.getPointId(), c.getEpisodeOrder(),
+                            chosen == null ? null : chosen.getName(), chosen == null ? null : chosen.getCastRole(),
+                            c.isAccepted(), c.getReasonCode());
+                })
+                .toList();
+        AiReportView report = reportRepository.findBySeason_Id(seasonPk)
+                .map(r -> AiStoryJson.read(r.getReportJson(), AiReportView.class))
+                .orElse(null);
+        List<String> feedbacks = feedbackRepository.findTop10BySeason_IdOrderByUpdatedAtDesc(seasonPk).stream()
+                .map(AiStoryFeedback::getText).toList();
+        List<String> likedLines = likeRepository.findTop10BySeason_IdOrderByCreatedAtDesc(seasonPk).stream()
+                .map(AiStoryMessageLike::getMessageText).toList();
+        List<String> castNames = cast.values().stream()
+                .filter(c -> c.getCastRole() != AiCastRole.MY_BREAD)
+                .sorted(Comparator.comparing(AiSeasonCharacter::getCastRole))
+                .map(AiSeasonCharacter::getName)
+                .toList();
+        return new AiPastSeason(season.getSeasonNumber(), season.getSetting(), season.getRoute(), partner, choices,
+                report, feedbacks, likedLines, castNames, stageIntro == null ? null : stageIntro.subtitle());
+    }
+
+    /**
+     * 새 시즌 설정을 한 번만 반영한다: 시즌을 잠그고, 아직 설정이 없을 때만 NPC 이름·빵 종류를 설정대로 바꾸고 설정을 저장한다
+     * (출연진 UUID·성별·만나는 순서는 시즌 시작 때 정한 그대로). 이미 저장한 설정이 있으면 바꾸지 않고 그 값을 돌려준다 —
+     * 늦게 끝난 다른 생성이 결과를 다시 덮어쓰지 않는다.
+     */
+    @Transactional
+    public AiSeasonDesignRecord applySeasonDesign(Long seasonPk, AiSeasonDesignRecord record) {
+        AiSeason season = seasonRepository.findWithLockById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
+        Optional<AiSeasonDesign> existing = designRepository.findBySeason_Id(seasonPk);
+        if (existing.isPresent()) {
+            return AiStoryJson.read(existing.get().getDesignJson(), AiSeasonDesignRecord.class);
+        }
+        Map<AiCastRole, SeasonDesignResponse.Cast> assigned = AiSeasonDesigns.assign(record.design());
+        for (AiSeasonCharacter character : characterRepository.findAllBySeason_Id(seasonPk)) {
+            SeasonDesignResponse.Cast designed = character.getCastRole() == null ? null
+                    : assigned.get(character.getCastRole());
+            if (designed != null) {
+                character.renameForSeasonDesign(designed.name(), designed.breadType());
+            }
+        }
+        designRepository.save(new AiSeasonDesign(season, AiStoryJson.write(record)));
+        return record;
     }
 
     /**
@@ -513,6 +617,7 @@ public class AiStoryStateWriter {
         feedbackRepository.deleteAllBySeason_Id(seasonPk);
         likeRepository.deleteAllBySeason_Id(seasonPk);
         unlockRepository.deleteAllBySeason_Id(seasonPk);
+        designRepository.deleteAllBySeason_Id(seasonPk);
         letterRepository.deleteAllBySeason_IdAndEpisodeOrderIsNotNull(seasonPk);
         characterRepository.deleteAllBySeason_IdAndRole(seasonPk, AiCharacterRole.SUPPORTING);
         characterRepository.findAllBySeason_Id(seasonPk).forEach(AiSeasonCharacter::clearCast);

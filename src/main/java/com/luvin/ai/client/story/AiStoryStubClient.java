@@ -1,11 +1,13 @@
 package com.luvin.ai.client.story;
 
+import com.luvin.ai.client.dto.TraitsDto;
 import com.luvin.ai.client.story.StoryTypes.ChoiceCandidate;
 import com.luvin.ai.client.story.StoryTypes.GeneratedBlock;
 import com.luvin.ai.client.story.StoryTypes.Message;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,6 +65,46 @@ public class AiStoryStubClient implements AiStoryClient {
                 .map(c -> new StageIntroResponse.Cast(c.breadId(), cut(c.role(), 10), c.description() == null
                         ? null : cut(c.description(), 25)))
                 .toList());
+    }
+
+    /** 새 시즌 설정 stub의 이름 후보(한글 2~3자). 이전 시즌에 쓴 이름은 건너뛴다. */
+    private static final List<String> DESIGN_NAMES = List.of("하림", "수빈", "도윤", "서진", "지안", "태오", "유나", "시우",
+            "다온", "은재", "하율", "로운", "채원", "이안", "윤슬", "가온", "새봄", "도하", "라온", "해솔");
+    private static final Map<String, String> STAGE_TITLES = Map.of("school", "In School", "campus", "In Campus",
+            "office", "In Office", "cafe", "In Cafe");
+    private static final Map<Integer, Integer> CHOICE_POINTS = Map.of(3, 1, 5, 2, 6, 3, 8, 4);
+
+    /**
+     * 받은 목록 안에서 겹치지 않게 고른 NPC 5명과 10화 뼈대. 후보 셋은 회피·불안 성향 점수를 다르게 두어 Spring의 애착 유형
+     * 배정이 갈리게 한다. 직전 시즌 약점이 있으면 3·5화가 그 약점을 시험한다.
+     */
+    @Override
+    public SeasonDesignResponse designSeason(String ownerSubject, SeasonDesignRequest request) {
+        List<String> names = DESIGN_NAMES.stream().filter(n -> !request.previousCastNames().contains(n)).toList();
+        List<String> roles = List.of(SeasonDesignResponse.CANDIDATE, SeasonDesignResponse.CANDIDATE,
+                SeasonDesignResponse.CANDIDATE, SeasonDesignResponse.FRIEND, SeasonDesignResponse.HOST);
+        List<SeasonDesignResponse.Cast> cast = new ArrayList<>();
+        for (int i = 0; i < roles.size(); i++) {
+            cast.add(new SeasonDesignResponse.Cast(roles.get(i), names.get(i), request.allowedBreadTypes().get(i),
+                    "새로 만난 사람", names.get(i) + "와 처음 만났어요", designTraits(i), "새 시즌 stub 설계"));
+        }
+        List<String> weaknesses = request.previousSeasons().get(0).report().weaknesses();
+        String weakness = weaknesses.isEmpty() ? null : weaknesses.get(0);
+        List<SeasonDesignResponse.Episode> episodes = new ArrayList<>();
+        for (int order = 1; order <= 10; order++) {
+            episodes.add(new SeasonDesignResponse.Episode(order, order + "화 초안", order + "화의 상황 첫 줄\n둘째 줄",
+                    "저녁, 교실 앞", CHOICE_POINTS.get(order), order == 3 || order == 5 ? weakness : null));
+        }
+        return new SeasonDesignResponse(new SeasonDesignResponse.Stage(STAGE_TITLES.get(request.setting()),
+                request.seasonNumber() + "번째 만남 속 내 반죽의 이야기"), cast, episodes);
+    }
+
+    private static TraitsDto designTraits(int index) {
+        BigDecimal mid = BigDecimal.valueOf(50);
+        BigDecimal avoidance = BigDecimal.valueOf(index == 1 ? 80 : 40);
+        BigDecimal anxiety = BigDecimal.valueOf(index == 2 ? 80 : 40);
+        return new TraitsDto(mid, anxiety, avoidance, mid, mid, mid, mid, mid, mid, mid, mid,
+                mid, mid);
     }
 
     @Override

@@ -56,7 +56,7 @@ public class AiSeasonCharacter {
     @Column(name = "attachment_style", length = 20)
     private AiAttachmentStyle attachmentStyle;
 
-    /** 출연진 표시 이름. 내 빵은 사용자 닉네임, 나머지는 시즌 시작 때 정한 "형용사 + 빵 종류"다. */
+    /** 출연진 표시 이름. 내 빵은 사용자 닉네임, 나머지는 시즌 시작 때 정한 "형용사 + 빵 종류"다(2시즌부터는 새 시즌 설정의 이름). */
     @Column(name = "name", length = 50)
     private String name;
 
@@ -90,6 +90,12 @@ public class AiSeasonCharacter {
         this.breadType = breadType;
         this.gender = gender;
         this.candidateOrder = candidateOrder;
+    }
+
+    /** 2시즌부터: 새 시즌 설정이 정한 이름·빵 종류로 바꾼다. 역할·성별·만나는 순서는 그대로다. */
+    public void renameForSeasonDesign(String name, String breadType) {
+        this.name = name;
+        this.breadType = breadType;
     }
 
     /** 개발 전용 초기화에서 출연진 배정을 되돌린다. */

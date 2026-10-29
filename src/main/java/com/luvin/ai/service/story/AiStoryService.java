@@ -12,6 +12,8 @@ import com.luvin.ai.client.story.GenerationCall;
 import com.luvin.ai.client.story.EpisodeResponse;
 import com.luvin.ai.client.story.InterviewRequest;
 import com.luvin.ai.client.story.InterviewResponse;
+import com.luvin.ai.client.story.SeasonDesignRequest;
+import com.luvin.ai.client.story.SeasonDesignResponse;
 import com.luvin.ai.client.story.SeasonReportRequest;
 import com.luvin.ai.client.story.SeasonReportResponse;
 import com.luvin.ai.client.story.StageIntroRequest;
@@ -253,10 +255,21 @@ public class AiStoryService {
                     (stage, jobId, regenerating) ->
                             stateWriter.recordGenerationProgress(contentPk, round, stage, jobId, regenerating));
             String ownerSubject = ownerSubjectProvider.resolve(memberId);
-            int age = userWithAge(memberId).getAge();
-            AiStageIntroView stageIntro = order == AiStoryCatalog.FIRST_ORDER
-                    ? requestStageIntro(ownerSubject, snapshot, age, run)
-                    : storedStageIntro(snapshot);
+            User user = userWithAge(memberId);
+            int age = user.getAge();
+            AiSeasonDesignRecord seasonDesign = stateWriter.findSeasonDesign(seasonPk).orElse(null);
+            AiStageIntroView stageIntro;
+            if (order != AiStoryCatalog.FIRST_ORDER) {
+                stageIntro = storedStageIntro(snapshot);
+            } else {
+                if (seasonDesign == null && snapshot.seasonNumber() > 1) {
+                    seasonDesign = designSeason(ownerSubject, snapshot, user, run).orElse(null);
+                    // 설정을 반영하면 NPC 이름·빵 종류가 바뀐다 — 본문 입력은 바뀐 출연진으로 만든다.
+                    snapshot = stateWriter.snapshot(seasonPk);
+                }
+                stageIntro = seasonDesign != null ? AiSeasonDesigns.stageIntro(snapshot, seasonDesign)
+                        : requestStageIntro(ownerSubject, snapshot, age, run);
+            }
             AiStoryContractMapper mapper = new AiStoryContractMapper(snapshot, stageIntro);
             StoryTypes.GenerationContext context = context(snapshot, mapper, age, memberId);
 
@@ -264,9 +277,13 @@ public class AiStoryService {
             List<BlockPlan> designed = plan.episodeBlocks();
             EpisodeRequest request = new EpisodeRequest(context, order, plan.commonEvent(), plan.settingScene(),
                     plan.route() == null ? null : plan.route().wireValue(),
-                    mapper.contractIdOrNull(snapshot.romancePartnerId()), plan.referencePlot(),
+                    mapper.contractIdOrNull(snapshot.romancePartnerId()),
+                    seasonDesign == null ? plan.referencePlot()
+                            : AiSeasonDesigns.referencePlot(plan.referencePlot(), seasonDesign, order),
                     designed.stream().map(mapper::design).toList(), plan.openThreads(), mapper.relationRecords(),
-                    mapper.choiceRecords(), usedMaterials(snapshot, order));
+                    mapper.choiceRecords(), usedMaterials(snapshot, order),
+                    seasonDesign == null ? null
+                            : AiSeasonDesigns.episodeContext(snapshot.seasonNumber(), seasonDesign, order));
             EpisodeResponse episode = callWithRetry("episode", run,
                     call -> storyClient.writeEpisode(ownerSubject, request, call),
                     r -> AiStoryResponseValidator.validateEpisode(r, designed.stream().map(mapper::expected).toList()));
@@ -287,6 +304,33 @@ public class AiStoryService {
                     seasonPk, order, e.getClass().getSimpleName());
             stateWriter.markGenerationFailed(contentPk, round, AiStoryGenerationFailedException.CODE);
         }
+    }
+
+    /**
+     * 2시즌부터 1화 무대 소개 대신 새 시즌 설정을 만든다(FastAPI season-design). 설정이 끝나 저장(출연진 이름·빵 종류 반영)된
+     * 뒤에 본문을 부른다. 같은 생성 회차를 다시 돌리면 같은 job 키라 같은 설정 job을 이어서 보고, 저장은 시즌당 한 번만
+     * 한다. 직전 시즌에 비교할 기록(흐름·리포트)이 없으면 empty — 호출부는 기존 무대 소개를 쓴다.
+     */
+    private Optional<AiSeasonDesignRecord> designSeason(String ownerSubject, AiStorySnapshot snapshot, User user,
+                                                        StoryRun run) {
+        List<AiPastSeason> past = stateWriter.pastSeasons(snapshot.memberId(), snapshot.seasonNumber());
+        String myBreadType = snapshot.me().breadType();
+        List<String> allowedBreads = breadCatalog.allBreadLabels().stream()
+                .filter(bread -> !bread.equals(myBreadType))
+                .toList();
+        Optional<SeasonDesignRequest> request = AiSeasonDesigns.request(snapshot.seasonNumber(), user.getGender(),
+                user.getAge(), stateWriter.seasonTraits(snapshot.memberId(), snapshot.seasonNumber()).orElse(null),
+                snapshot.setting(), past, allowedBreads);
+        if (request.isEmpty()) {
+            log.info("season design skipped, no comparable previous season: seasonPk={}, seasonNumber={}",
+                    snapshot.seasonPk(), snapshot.seasonNumber());
+            return Optional.empty();
+        }
+        SeasonDesignResponse response = callWithRetry("season-design", run,
+                call -> storyClient.designSeason(ownerSubject, request.get(), call),
+                r -> AiSeasonDesigns.validate(r, request.get()));
+        return Optional.of(stateWriter.applySeasonDesign(snapshot.seasonPk(),
+                AiSeasonDesigns.record(request.get(), response, past)));
     }
 
     private AiStageIntroView requestStageIntro(String ownerSubject, AiStorySnapshot snapshot, int age, StoryRun run) {
@@ -527,10 +571,13 @@ public class AiStoryService {
         String reportJson = null;
         if (order == AiStoryCatalog.FINAL_ORDER) {
             List<StoryTypes.EpisodeSummary> summaries = episodeSummaries(snapshot, order, summary.episodeSummary());
+            StoryTypes.ReportSeasonContext seasonContext = stateWriter.findSeasonDesign(seasonPk)
+                    .map(design -> AiSeasonDesigns.reportContext(snapshot.seasonNumber(), design))
+                    .orElse(null);
             SeasonReportRequest reportRequest = new SeasonReportRequest(context,
                     snapshot.route() == null ? null : snapshot.route().wireValue(),
                     mapper.contractIdOrNull(snapshot.romancePartnerId()), summaries, mapper.choiceRecordsWithReason(),
-                    mapper.relationRecords());
+                    mapper.relationRecords(), seasonContext);
             SeasonReportResponse report = callWithRetry("season-report", run,
                     call -> storyClient.writeSeasonReport(ownerSubject, reportRequest, call),
                     r -> AiStoryResponseValidator.validateReport(r, castIds));

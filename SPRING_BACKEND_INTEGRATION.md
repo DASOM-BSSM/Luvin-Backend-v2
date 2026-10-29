@@ -359,7 +359,8 @@ Spring ↔ FastAPI 형식은 「러빈지옥 에피소드 재구성: 공통 데�
 
 | 경로 | 호출 시점 | 응답 |
 |---|---|---|
-| `POST /luvin/stage-intro` (5-1) | 1화 생성 전 | 출연진 배경별 역할·소개 |
+| `POST /luvin/stage-intro` (5-1) | 1시즌 1화 생성 전 | 출연진 배경별 역할·소개 |
+| `POST /luvin/season-design` (task `season-design`) | 2시즌부터 1화 생성 전(무대 소개 대신) | 무대 부제, NPC 5명(이름·빵 종류·역할·소개·13개 성향), 1~10화 뼈대 초안 |
 | `POST /luvin/episode` (5-2) | 회차 생성 | intro + 설계 블록별 대사, choice 후보별 기억 한 줄 |
 | `POST /luvin/interview` (5-4) | 10화 생성 | 빵별 인터뷰 대사 |
 | `POST /luvin/choice-result` (5-3) | 선택(혼자 있기는 호출 안 함) | 반응 대사 + 거절이면 대체 장면 |
@@ -386,6 +387,24 @@ Spring ↔ FastAPI 형식은 「러빈지옥 에피소드 재구성: 공통 데�
   기억 한 줄 20자, 역할 10자, 소개 25자), 실패하면 1회 재시도, 그래도 실패하면 저장하지 않고 오류를 돌려줍니다
   (502 `STORY_GENERATION_FAILED`).
 - 생성 호출 timeout은 `app.ai.story.read-timeout`(기본 60초)입니다.
+
+#### 새 시즌 설정(2시즌부터, AI `docs/NEW_SEASON_API.md`)
+
+- 1화 생성 때 무대 소개(5-1) 대신 `season-design`을 부르고, 성공한 결과를 저장한 **뒤에** 1화 본문을 부릅니다. 같은 생성
+  회차를 다시 돌리면 같은 job 키라 같은 설정 job을 이어서 봅니다. 저장(`AiStoryStateWriter.applySeasonDesign`)은 시즌을
+  잠그고 시즌당 한 번만 합니다 — 이미 있으면 덮어쓰지 않습니다.
+- 입력(`AiSeasonDesigns.request`): 이 시즌 생성 입력의 성향 13개, 나이·성별, 배경, 직전 시즌부터 최근 순 최대 3개의
+  지난 시즌 기록(route, 최종 상대 `{name, castRole(candidate|friend|host), oneLine}` 또는 null, 선택 `{point, episode,
+  summary}` — 고른 상대·수락·거절 사유는 summary 한 줄, 리포트, 피드백 최대 5개), 내 빵 종류를 뺀 빵 목록, 이전 출연진
+  이름·무대 부제 전체. 직전 시즌에 흐름·리포트가 없으면 설정을 만들지 않고 기존 무대 소개를 씁니다.
+- 반영: NPC UUID·성별·만나는 순서는 시즌 시작 때 정한 그대로 두고 이름·빵 종류만 설정대로 바꿉니다. friend → 친구,
+  host → 분위기 메이커(`maker`). 후보 셋의 애착 유형은 설정 성향으로 정합니다 — 관계 회피도가 가장 높은 후보가 회피형,
+  남은 둘 중 관계 불안도가 높은 후보가 불안형, 나머지가 안정형. 무대 소개(제목·부제·역할·소개)는 설정 값으로 만듭니다.
+- 본문 `context.cast`에는 계약 필드만 보냅니다(성향·designIntent는 `ai_season_designs`에만 저장, 앱에도 안 보냄).
+- 이후 회차 본문에는 회차 초안(제목·상황·장면 전환)을 `referencePlot` 앞에 붙이고 `seasonContext`(성향, 그 회차
+  testsWeakness, 직전 시즌 하트 대사 최대 5개, 이전 출연진 이름)를 보냅니다. 10화 리포트에는 `seasonContext`(직전
+  시즌 약점·강점)를 보냅니다. 비교 자료는 설정을 만들 때 고정해 함께 저장합니다(`AiSeasonDesignRecord`).
+- 블록 설계·선택 지점·후보·수락 판정·호감은 지금처럼 Spring이 정합니다(설정 초안이 대신하지 않습니다).
 
 ### 개발 전용
 

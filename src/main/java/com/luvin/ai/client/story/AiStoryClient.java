@@ -12,6 +12,9 @@ public interface AiStoryClient {
 
     StageIntroResponse stageIntro(String ownerSubject, StageIntroRequest request);
 
+    /** 2시즌부터 1화 생성 때 무대 소개 대신 부르는 새 시즌 설정(POST /luvin/season-design). */
+    SeasonDesignResponse designSeason(String ownerSubject, SeasonDesignRequest request);
+
     EpisodeResponse writeEpisode(String ownerSubject, EpisodeRequest request);
 
     ChoiceResultResponse writeChoiceResult(String ownerSubject, ChoiceResultRequest request);
@@ -26,6 +29,10 @@ public interface AiStoryClient {
 
     default StageIntroResponse stageIntro(String ownerSubject, StageIntroRequest request, GenerationCall call) {
         return stageIntro(ownerSubject, request);
+    }
+
+    default SeasonDesignResponse designSeason(String ownerSubject, SeasonDesignRequest request, GenerationCall call) {
+        return designSeason(ownerSubject, request);
     }
 
     default EpisodeResponse writeEpisode(String ownerSubject, EpisodeRequest request, GenerationCall call) {

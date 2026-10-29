@@ -2,6 +2,7 @@ package com.luvin.ai.client.story;
 
 import com.luvin.ai.client.story.StoryTypes.BlockDesign;
 import com.luvin.ai.client.story.StoryTypes.ChoiceRecord;
+import com.luvin.ai.client.story.StoryTypes.EpisodeSeasonContext;
 import com.luvin.ai.client.story.StoryTypes.GenerationContext;
 import com.luvin.ai.client.story.StoryTypes.RelationRecord;
 import com.luvin.ai.client.story.StoryTypes.Thread;
@@ -22,6 +23,8 @@ public record EpisodeRequest(
         List<Thread> threads,
         List<RelationRecord> relations,
         List<ChoiceRecord> choices,
-        List<String> usedMaterials
+        List<String> usedMaterials,
+        /** 2시즌부터 붙인다. 1시즌은 null(기존 동작). */
+        EpisodeSeasonContext seasonContext
 ) {
 }

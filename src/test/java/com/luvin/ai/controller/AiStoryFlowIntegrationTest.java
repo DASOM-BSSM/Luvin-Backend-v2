@@ -37,8 +37,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -61,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AiStoryFlowIntegrationTest {
 
     private static final List<String> SEASON_TABLES = List.of(
-            "ai_season_choices", "ai_bread_relations", "ai_episode_contents", "ai_season_story_reports",
+            "ai_season_designs", "ai_season_choices", "ai_bread_relations", "ai_episode_contents", "ai_season_story_reports",
             "partner_letters", "ai_story_feedbacks", "ai_story_message_likes", "ai_episode_unlocks",
             "ai_season_characters",
             "ai_episode_progresses");
@@ -353,6 +355,29 @@ class AiStoryFlowIntegrationTest {
         assertTrue(data(get(user, "/letters/unread")).isNull());
         JsonNode ep1 = readyContent(user, 1);
         assertEquals("office", ep1.get("stageIntro").get("setting").asText());
+        // 2시즌 1화는 무대 소개 대신 새 시즌 설정으로 만든다: 부제와 NPC 이름·역할·빵 종류가 설정 결과다.
+        JsonNode stageIntro = ep1.get("stageIntro");
+        assertEquals("In Office", stageIntro.get("title").asText());
+        assertEquals("2번째 만남 속 내 반죽의 이야기", stageIntro.get("subtitle").asText());
+        Set<String> breads = new HashSet<>();
+        for (JsonNode cast : stageIntro.get("cast")) {
+            breads.add(cast.get("breadType").asText());
+            if (cast.get("role").asText().equals("나")) {
+                continue;
+            }
+            assertTrue(cast.get("name").asText().matches("^[가-힣]{2,3}$"), cast.toString());
+            assertEquals("새로 만난 사람", cast.get("role").asText(), cast.toString());
+        }
+        assertEquals(6, breads.size());
+        assertEquals(1, jdbcTemplate.queryForObject("SELECT count(*) FROM ai_season_designs WHERE season_id = ?",
+                Integer.class, seasonIds.get(1)));
+        // 연애 후보 애착 유형은 설정의 성향 점수로 정한다(stub: 둘째 후보가 회피도, 셋째 후보가 불안도가 가장 높다).
+        JsonNode me2 = data(get(user, "/me"));
+        Map<String, String> nameByStyle = new HashMap<>();
+        me2.get("characters").forEach(c -> nameByStyle.put(c.get("attachmentStyle").asText(), c.get("name").asText()));
+        assertEquals("수빈", nameByStyle.get("avoidant"), me2.get("characters").toString());
+        assertEquals("도윤", nameByStyle.get("anxious"), me2.get("characters").toString());
+        assertEquals("하림", nameByStyle.get("secure"), me2.get("characters").toString());
         // 지난 시즌 리포트는 season_id로 계속 본다.
         assertFalse(data(get(user, "/report?season_id=" + created.get("seasonId").asText()))
                 .get("feedback").asText().isBlank());
