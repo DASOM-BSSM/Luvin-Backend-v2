@@ -57,6 +57,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.random.RandomGenerator;
@@ -513,6 +514,16 @@ public class AiStoryStateWriter {
 
         Map<UUID, AiBreadRelation> relations = relationRepository.findAllBySeason_Id(seasonPk).stream()
                 .collect(Collectors.toMap(AiBreadRelation::getTargetBreadId, Function.identity()));
+        // 해결된 떡밥은 어느 빵의 갱신안에 들어 있든 시즌의 모든 관계 기록에서 지운다 — 같은 떡밥이 여러 빵에 저장돼 있어도
+        // 해결 상태가 어긋나지 않게(한 빵에서는 풀렸는데 다른 빵에서 계속 다음 회차 입력으로 나가지 않게) 한다.
+        Set<String> resolvedThreads = changes.stream()
+                .filter(c -> c.threadsResolved() != null)
+                .flatMap(c -> c.threadsResolved().stream())
+                .collect(Collectors.toSet());
+        if (!resolvedThreads.isEmpty()) {
+            relations.values().forEach(r -> r.applyMemory(null, null, null,
+                    updateThreads(r, null, List.copyOf(resolvedThreads)), null, null));
+        }
         for (RelationChange change : changes) {
             AiBreadRelation relation = relations.get(change.breadId());
             if (relation == null) {
@@ -702,15 +713,25 @@ public class AiStoryStateWriter {
         return AiStoryJson.write(List.copyOf(threads.values()));
     }
 
-    private static String appendRecentMemory(AiBreadRelation relation, String recentMemory) {
+    /**
+     * 최근 기억에 하나를 더하고 오래된 것부터 3개만 남긴다. 같은 문장(공백 차이 무시)이 이미 있으면 겹쳐 쌓지 않고 그 기억을
+     * 가장 최근으로 옮긴다 — 같은 소재가 최근 기억을 채워 다음 회차 입력을 한 소재로 몰지 않게 한다.
+     */
+    static String appendRecentMemory(AiBreadRelation relation, String recentMemory) {
         if (recentMemory == null || recentMemory.isBlank()) {
             return null;
         }
+        String key = normalizeMemory(recentMemory);
         List<String> memories = new ArrayList<>(AiStoryJson.readStrings(relation.getRecentMemoriesJson()));
-        memories.add(recentMemory);
+        memories.removeIf(m -> normalizeMemory(m).equals(key));
+        memories.add(recentMemory.strip());
         while (memories.size() > RECENT_MEMORY_LIMIT) {
             memories.remove(0);
         }
         return AiStoryJson.write(memories);
+    }
+
+    private static String normalizeMemory(String memory) {
+        return memory == null ? "" : memory.replaceAll("\\s+", " ").strip();
     }
 }

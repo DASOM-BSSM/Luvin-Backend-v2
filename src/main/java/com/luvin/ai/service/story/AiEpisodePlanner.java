@@ -101,7 +101,7 @@ public final class AiEpisodePlanner {
 
         return new AiEpisodePlan(order, input.setting(), AiStoryCatalog.commonEvent(order),
                 AiStoryCatalog.settingScene(input.setting(), order), order >= 7 ? input.route() : null,
-                AiStoryCatalog.referencePlot(order), openThreads(input, partner), List.copyOf(blocks));
+                AiStoryCatalog.referencePlot(order), openThreads(input, partner, blocks), List.copyOf(blocks));
     }
 
     /**
@@ -174,14 +174,19 @@ public final class AiEpisodePlanner {
                 .toList();
     }
 
-    /** pair 상대의 떡밥을 먼저, 모자라면 다른 빵의 떡밥으로 채운다. 같은 id는 한 번만. */
-    private static List<StoryTypes.Thread> openThreads(Input input, UUID partner) {
+    /**
+     * 본문 입력 threads(최대 2개): 이번 회차 장면에 나오는 빵의 안 풀린 떡밥만, 1:1 상대의 것부터. 이번 회차에 나오지 않는
+     * 빵의 떡밥은 보내지 않는다 — 현재 사건과 무관한 과거 떡밥이 이어 쓰이지 않게 한다.
+     */
+    private static List<StoryTypes.Thread> openThreads(Input input, UUID partner, List<BlockPlan> blocks) {
+        Set<UUID> appearing = new HashSet<>();
+        blocks.forEach(b -> appearing.addAll(b.participantIds()));
         List<StoryTypes.Thread> picked = new ArrayList<>();
         if (partner != null) {
             picked.addAll(input.openThreads().getOrDefault(partner, List.of()));
         }
         input.cast().stream()
-                .filter(c -> !c.isMe() && !c.breadId().equals(partner))
+                .filter(c -> !c.isMe() && !c.breadId().equals(partner) && appearing.contains(c.breadId()))
                 .forEach(c -> picked.addAll(input.openThreads().getOrDefault(c.breadId(), List.of())));
         Set<String> seen = new HashSet<>();
         return picked.stream().filter(t -> seen.add(t.id())).limit(OPEN_THREAD_LIMIT).toList();

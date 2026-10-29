@@ -187,6 +187,9 @@ class AiStoryHttpContractIntegrationTest {
         // 이전 회차의 전환 카드 문구는 usedMaterials로 보낸다.
         String ep1Transition = ep1.get("blocks").get(1).get("transitionText").asText();
         assertTrue(texts(last("/luvin/episode").get("usedMaterials")).contains(ep1Transition));
+        // 완료한 회차는 실제로 쓴 소재(정리 단계 요약의 첫 문장)도 "N화: …"로 보낸다.
+        assertTrue(texts(last("/luvin/episode").get("usedMaterials")).stream().anyMatch(m -> m.startsWith("1화: ")),
+                last("/luvin/episode").get("usedMaterials").toString());
         JsonNode feedbacks = last("/luvin/episode").get("context").get("learnedProfile").get("feedbacks");
         assertEquals(1, feedbacks.size());
         assertEquals("말투가 어색해", feedbacks.get(0).get("text").asText());
