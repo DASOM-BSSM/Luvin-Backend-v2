@@ -58,6 +58,8 @@ public class SeedDataLoader implements ApplicationRunner {
     private void seedMinigames() {
         minigameRepository.save(new Minigame("dinosaur_bread_game", "공룡빵게임", "공룡빵과 함께하는 미니게임", null, 1));
         minigameRepository.save(new Minigame("bread_crossing_friends", "빵건너친구들", "빵 친구들과 함께 건너는 미니게임", null, 1));
+        // 이미 시드된 환경에는 V17 migration이 같은 값으로 넣는다 — 값을 바꾸면 V17과 함께 맞춘다.
+        minigameRepository.save(new Minigame("salt_bread_baking", "소금빵굽기", "소금빵 3개를 만들어 파는 미니게임", null, 1));
     }
 
     /**
