@@ -82,11 +82,25 @@ public class AiStoryController {
 
     @Operation(summary = "선택 처리 (3·5·6·8화)", description = """
             body `{ pointId, breadId | null }` — breadId가 null이면 혼자 있기. 수락·거절은 서버 코드 규칙으로 정한다.
-            응답은 선택 결과 장면(`choice_result`, 거절이면 대체 장면 포함)과 갱신된 시즌 상태다.
-            같은 선택을 다시 보내면 저장된 결과를 그대로 돌려준다.
+            선택(수락·거절, 호감·흐름 반영)은 **바로 저장하고**, 결과 장면(`choice_result`, 거절이면 대체 장면 포함)은
+            AI가 만드는 데 수십 초가 걸릴 수 있어 **백그라운드에서 만든다**(비동기).
+
+            - 응답 `choice.status`
+              - `generating`: 결과 장면을 만드는 중. `blocks`는 빈 배열이다. `GET /api/ai/seasons/me`의 `story.choice`를
+                2~3초 간격으로 폴링한다.
+              - `ready`: `blocks`에 결과 장면이 있다. 혼자 있기는 AI를 부르지 않아 바로 ready다.
+              - `failed`(`errorCode` `STORY_GENERATION_FAILED`): 선택은 저장된 채 결과 장면만 실패했다. 같은 선택을 다시
+                보내면 결과 장면만 다시 만든다(판정·호감은 그대로). 다른 빵으로 바꿀 수는 없다.
+            - `story.choice`가 null이 되면 결과 장면이 준비된 것이다. 같은 선택을 다시 보내 `blocks`를 받거나, 회차 콘텐츠를
+              다시 받으면 choice 블록 바로 뒤에 결과 장면이 들어 있다.
+            - 같은 선택을 다시 보내면: 만드는 중이면 새로 시작하지 않고 상태만, 끝났으면 저장된 결과(200)를 돌려준다.
+              다른 빵(또는 혼자 있기)으로 보내면 409 `CHOICE_ALREADY_MADE`.
+            - `season.choices[].accepted`와 흐름(`route`)은 접수 응답에서 바로 바뀐다. `resultStatus`는 그 선택의 결과 장면
+              상태(generating | ready | failed)다.
+            - 결과 장면이 준비되기 전에는 회차를 완료할 수 없다(409 `CHOICE_RESULT_NOT_READY`).
 
             **오류**: 400 회차와 pointId 불일치·후보가 아닌 breadId / 409 `CONTENT_NOT_READY`, `CHOICE_ALREADY_MADE`,
-            `STORY_NOT_STARTED` / 502 `STORY_GENERATION_FAILED`(결과 장면 생성 실패, 다시 요청 가능)
+            `STORY_NOT_STARTED`, `AGE_REQUIRED`
             """)
     @PostMapping("/{order}/choices")
     public ApiResponse<AiChoiceOutcomeView> choose(@PathVariable("order") int order,
@@ -147,8 +161,8 @@ public class AiStoryController {
               이 API를 다시 보내면 처음부터 다시 시도한다.
             - 완료 중에 다시 보내도 새로 시작하지 않고 진행 상태만 돌려준다. 이미 완료한 회차면 상태만 돌려준다.
 
-            **오류**: 409 `CONTENT_NOT_READY`, `CHOICE_REQUIRED`(선택 회차인데 선택 전), `STORY_NOT_STARTED`,
-            `AGE_REQUIRED`
+            **오류**: 409 `CONTENT_NOT_READY`, `CHOICE_REQUIRED`(선택 회차인데 선택 전),
+            `CHOICE_RESULT_NOT_READY`(선택 결과 장면을 아직 만드는 중이거나 실패), `STORY_NOT_STARTED`, `AGE_REQUIRED`
             """)
     @PostMapping("/{order}/complete")
     public ApiResponse<AiStoryStateView> complete(@PathVariable("order") int order) {

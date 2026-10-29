@@ -21,7 +21,12 @@ public record AiStoryStateView(
         /** 4~10화를 처음 열 때 쓰는 토큰 수. */
         int episodeTokenCost,
         /** 진행 중이거나 실패한 회차 완료(POST complete). 없으면 null. */
-        @Schema(types = {"object", "null"}) Completion completion
+        @Schema(types = {"object", "null"}) Completion completion,
+        /**
+         * 결과 장면을 만드는 중이거나 실패한 선택(POST choices). 없으면(결과까지 끝났으면) null — 그때 결과 장면은 같은 선택을
+         * 다시 보내거나 회차 콘텐츠를 다시 받아 본다.
+         */
+        @Schema(types = {"object", "null"}) AiChoiceStatusView choice
 ) {
 
     /**
@@ -41,7 +46,10 @@ public record AiStoryStateView(
         public static final String FAILED = "failed";
     }
 
-    public record ChoiceHistory(@Schema(minimum = "1", maximum = "4") int pointId, int episodeOrder, UUID breadId, boolean accepted) {
+    /** resultStatus: 결과 장면 생성 상태 generating | ready | failed. */
+    public record ChoiceHistory(@Schema(minimum = "1", maximum = "4") int pointId, int episodeOrder, UUID breadId,
+                                boolean accepted,
+                                @Schema(allowableValues = {"generating", "ready", "failed"}) String resultStatus) {
     }
 
     public record BreadStatus(UUID breadId, String name, String role, String statusText) {

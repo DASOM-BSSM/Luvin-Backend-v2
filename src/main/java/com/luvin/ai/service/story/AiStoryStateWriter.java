@@ -281,7 +281,8 @@ public class AiStoryStateWriter {
                 .toList();
         List<AiStorySnapshot.Choice> choices = choiceRepository.findAllBySeason_IdOrderByPointIdAsc(seasonPk).stream()
                 .map(c -> new AiStorySnapshot.Choice(c.getPointId(), c.getEpisodeOrder(), c.getBreadId(),
-                        c.isAccepted(), c.getReasonCode(), c.getResultBlocksJson()))
+                        c.isAccepted(), c.getReasonCode(), c.getResultBlocksJson(), c.effectiveResultStatus(),
+                        c.currentResultRound(), c.getResultRequestedAt(), c.getResultErrorCode()))
                 .toList();
         List<AiStorySnapshot.Content> contents = contentRepository.findAllBySeason_IdOrderByEpisodeOrderAsc(seasonPk)
                 .stream()
@@ -411,6 +412,7 @@ public class AiStoryStateWriter {
      */
     @Transactional
     public void saveChoice(Long seasonPk, int pointId, int order, UUID breadId, AiChoiceJudge.Decision decision,
+                           /** 혼자 있기처럼 바로 만든 결과면 그 JSON, 백그라운드에서 만들 거면 null(GENERATING으로 저장). */
                            String resultBlocksJson) {
         AiSeason season = seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
         choiceRepository.saveAndFlush(new AiSeasonChoice(season.getMemberId(), season, pointId, order, breadId,
@@ -432,6 +434,56 @@ public class AiStoryStateWriter {
             boolean romance = breadId != null && decision.accepted();
             season.applyRoute(romance ? AiStoryRoute.ROMANCE : AiStoryRoute.SOLO, romance ? breadId : null);
         }
+    }
+
+    /** 선택 결과 장면 생성 한 건(선택 지점, 그 회차, 생성 회차 번호). */
+    public record ChoiceResultWork(Long memberId, Long seasonPk, int pointId, int order, int round) {
+    }
+
+    /**
+     * 실패했거나 멈춘(GENERATING인 채 staleBefore보다 오래된) 선택 결과 장면 생성을 새 회차로 다시 시작한다. 다시 시작했으면
+     * 그 회차 번호, 아니면(이미 끝났거나 진행 중) empty. 선택 row를 잠가 동시에 두 요청이 다시 시작하지 않게 한다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Optional<Integer> restartChoiceResult(Long seasonPk, int pointId, LocalDateTime staleBefore) {
+        AiSeasonChoice choice = choiceRepository.findWithLockBySeasonPkAndPointId(seasonPk, pointId).orElseThrow();
+        entityManager.refresh(choice);
+        AiStoryContentStatus status = choice.effectiveResultStatus();
+        boolean stale = status == AiStoryContentStatus.GENERATING
+                && (choice.getResultRequestedAt() == null || choice.getResultRequestedAt().isBefore(staleBefore));
+        if (status != AiStoryContentStatus.FAILED && !stale) {
+            return Optional.empty();
+        }
+        choice.restartResult();
+        return Optional.of(choice.currentResultRound());
+    }
+
+    /** 결과 장면 저장. 아직 생성 중이고 같은 생성 회차일 때만 저장한다(늦게 끝난 이전 회차 결과는 버린다). */
+    @Transactional
+    public void saveChoiceResult(Long seasonPk, int pointId, int round, String resultBlocksJson) {
+        choiceRepository.findBySeason_IdAndPointId(seasonPk, pointId)
+                .filter(c -> isCurrentChoiceResult(c, round))
+                .ifPresent(c -> c.markResultReady(resultBlocksJson));
+    }
+
+    @Transactional
+    public void markChoiceResultFailed(Long seasonPk, int pointId, int round, String errorCode) {
+        choiceRepository.findBySeason_IdAndPointId(seasonPk, pointId)
+                .filter(c -> isCurrentChoiceResult(c, round))
+                .ifPresent(c -> c.markResultFailed(errorCode));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChoiceResultWork> findInterruptedChoiceResults(LocalDateTime staleBefore) {
+        return choiceRepository.findResultGeneratingSince(staleBefore).stream()
+                .map(c -> new ChoiceResultWork(c.getMemberId(), c.getSeason().getId(), c.getPointId(),
+                        c.getEpisodeOrder(), c.currentResultRound()))
+                .toList();
+    }
+
+    private static boolean isCurrentChoiceResult(AiSeasonChoice choice, int round) {
+        return choice.effectiveResultStatus() == AiStoryContentStatus.GENERATING
+                && choice.currentResultRound() == round;
     }
 
     /** 정리 단계(5-5)가 제안한 빵 하나의 관계 기록 갱신안. breadId는 서비스가 계약 id를 UUID로 바꾼 값이다. */

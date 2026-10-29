@@ -186,7 +186,14 @@ class AiStoryFlowIntegrationTest {
         assertEquals("CHOICE_REQUIRED", error(post(user, "/episodes/3/complete", null)).get("code").asText());
 
         UUID secure = candidateOf(user, "secure");
-        JsonNode outcome = data(post(user, "/episodes/3/choices", "{\"pointId\":1,\"breadId\":\"" + secure + "\"}"));
+        // 선택은 접수 후 바로 응답하고 결과 장면은 백그라운드에서 만든다.
+        JsonNode accepted = data(post(user, "/episodes/3/choices", "{\"pointId\":1,\"breadId\":\"" + secure + "\"}"));
+        assertEquals(3, accepted.get("choice").get("order").asInt());
+        assertEquals(1, accepted.get("choice").get("pointId").asInt());
+        assertEquals(secure.toString(), accepted.get("choice").get("breadId").asText());
+        assertTrue(List.of("generating", "ready").contains(accepted.get("choice").get("status").asText()));
+        JsonNode outcome = awaitChoice(user, 3, 1, secure);
+        assertEquals("ready", outcome.get("choice").get("status").asText());
         assertEquals("choice_result", outcome.get("blocks").get(0).get("type").asText());
         assertTrue(outcome.get("blocks").get(0).get("choiceResult").get("accepted").asBoolean());
         // 같은 선택을 다시 보내면 그대로, 다른 빵이면 409.
@@ -205,14 +212,14 @@ class AiStoryFlowIntegrationTest {
         complete(user, 4);
 
         readyContent(user, 5);
-        post(user, "/episodes/5/choices", "{\"pointId\":2,\"breadId\":\"" + secure + "\"}");
+        choose(user, 5, 2, secure);
         complete(user, 5);
 
         // ③ 수락이 되도록 호감을 올려 둔 뒤 마음을 전한다 → romance
         readyContent(user, 6);
         jdbcTemplate.update("UPDATE ai_bread_relations SET affinity = 70 WHERE season_id = ? AND target_bread_id = ?",
                 season.pk(), secure);
-        JsonNode confession = data(post(user, "/episodes/6/choices", "{\"pointId\":3,\"breadId\":\"" + secure + "\"}"));
+        JsonNode confession = choose(user, 6, 3, secure);
         assertEquals("romance", confession.get("season").get("route").asText());
         assertEquals(secure.toString(), confession.get("season").get("romancePartnerId").asText());
         complete(user, 6);
@@ -571,6 +578,63 @@ class AiStoryFlowIntegrationTest {
     }
 
     @Test
+    void 선택은_접수_후_결과_장면을_백그라운드에서_만들고_실패하면_같은_선택으로_다시_만든다() throws Exception {
+        TestUser user = createUser(22);
+        Season season = createSeason(user);
+        for (int order = 1; order <= 2; order++) {
+            readyContent(user, order);
+            complete(user, order);
+        }
+        readyContent(user, 3);
+        UUID secure = candidateOf(user, "secure");
+        JsonNode ready = choose(user, 3, 1, secure);
+        int blockCount = ready.get("blocks").size();
+
+        // 결과 장면을 막 만들기 시작한 상태: 같은 선택을 다시 보내도 새로 시작하지 않고 generating을 돌려준다.
+        jdbcTemplate.update("UPDATE ai_season_choices SET result_status = 'GENERATING', result_blocks = NULL, "
+                + "result_requested_at = ? WHERE season_id = ? AND point_id = 1", LocalDateTime.now(), season.pk());
+        JsonNode generating = data(post(user, "/episodes/3/choices", choiceBody(1, secure)));
+        assertEquals("generating", generating.get("choice").get("status").asText());
+        assertEquals(0, generating.get("blocks").size());
+        // 선택 기록(수락 여부)은 바로 보인다.
+        assertTrue(generating.get("season").get("choices").get(0).get("accepted").asBoolean());
+        assertEquals("generating", generating.get("season").get("choices").get(0).get("resultStatus").asText());
+        Thread.sleep(300);
+        JsonNode story = data(get(user, "/me")).get("story");
+        assertEquals("generating", story.get("choice").get("status").asText());
+        assertEquals(3, story.get("choice").get("order").asInt());
+        // 결과 장면 전에는 회차를 완료할 수 없고, 회차 콘텐츠에도 결과 장면이 아직 없다.
+        assertEquals("CHOICE_RESULT_NOT_READY", error(post(user, "/episodes/3/complete", null)).get("code").asText());
+        List<String> types = blockTypes(data(get(user, "/episodes/3/content")));
+        assertFalse(types.contains("choice_result"), types.toString());
+        // 다른 빵으로는 다시 고를 수 없다.
+        assertEquals("CHOICE_ALREADY_MADE", error(post(user, "/episodes/3/choices", choiceBody(1, null)))
+                .get("code").asText());
+
+        // 생성 중인 채 오래 멈춘 것(서버 재시작 등)은 failed로 보인다.
+        jdbcTemplate.update("UPDATE ai_season_choices SET result_requested_at = ? WHERE season_id = ? AND point_id = 1",
+                LocalDateTime.now().minusHours(1), season.pk());
+        JsonNode stale = data(get(user, "/me")).get("story").get("choice");
+        assertEquals("failed", stale.get("status").asText());
+        assertEquals("STORY_GENERATION_FAILED", stale.get("errorCode").asText());
+
+        // 실패: 같은 선택을 다시 보내면 결과 장면만 새 회차로 다시 만든다(판정·호감은 그대로).
+        jdbcTemplate.update("UPDATE ai_season_choices SET result_status = 'FAILED', "
+                + "result_error_code = 'STORY_GENERATION_FAILED' WHERE season_id = ? AND point_id = 1", season.pk());
+        assertEquals("failed", data(get(user, "/me")).get("story").get("choice").get("status").asText());
+        Integer affinityBefore = jdbcTemplate.queryForObject("SELECT affinity FROM ai_bread_relations "
+                + "WHERE season_id = ? AND target_bread_id = ?", Integer.class, season.pk(), secure);
+        JsonNode retried = choose(user, 3, 1, secure);
+        assertEquals(blockCount, retried.get("blocks").size());
+        assertEquals(2, jdbcTemplate.queryForObject("SELECT result_round FROM ai_season_choices "
+                + "WHERE season_id = ? AND point_id = 1", Integer.class, season.pk()));
+        assertEquals(affinityBefore, jdbcTemplate.queryForObject("SELECT affinity FROM ai_bread_relations "
+                + "WHERE season_id = ? AND target_bread_id = ?", Integer.class, season.pk(), secure));
+        assertTrue(data(get(user, "/me")).get("story").get("choice").isNull());
+        complete(user, 3);
+    }
+
+    @Test
     void 혼자_있기와_거절은_흐름을_solo로_만든다() throws Exception {
         TestUser user = createUser(30);
         Season season = createSeason(user);
@@ -595,7 +659,7 @@ class AiStoryFlowIntegrationTest {
 
         // 초기 호감(25)으로는 ③(기준 60)이 거절된다 → solo, 대체 장면 포함
         UUID anxious = candidateOf(user, "anxious");
-        JsonNode rejected = data(post(user, "/episodes/6/choices", "{\"pointId\":3,\"breadId\":\"" + anxious + "\"}"));
+        JsonNode rejected = choose(user, 6, 3, anxious);
         assertFalse(rejected.get("blocks").get(0).get("choiceResult").get("accepted").asBoolean());
         // 반응 장면 + FastAPI가 준 대체 장면(친구와의 pair) 하나
         assertEquals(2, rejected.get("blocks").size());
@@ -735,6 +799,32 @@ class AiStoryFlowIntegrationTest {
             assertTrue(System.currentTimeMillis() < deadline, order + "화 생성이 끝나지 않습니다.");
             Thread.sleep(100);
         }
+    }
+
+    /** 선택을 보내고 결과 장면이 준비될 때까지 기다린 뒤, 같은 선택을 다시 보내 결과 장면을 받는다. */
+    private JsonNode choose(TestUser user, int order, int pointId, UUID breadId) throws Exception {
+        HttpResponse<String> res = post(user, "/episodes/" + order + "/choices", choiceBody(pointId, breadId));
+        assertEquals(200, res.statusCode(), res.body());
+        return awaitChoice(user, order, pointId, breadId);
+    }
+
+    private JsonNode awaitChoice(TestUser user, int order, int pointId, UUID breadId) throws Exception {
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (true) {
+            JsonNode story = data(get(user, "/me")).get("story");
+            if (story.get("choice").isNull()) {
+                JsonNode outcome = data(post(user, "/episodes/" + order + "/choices", choiceBody(pointId, breadId)));
+                assertEquals("ready", outcome.get("choice").get("status").asText(), outcome.toString());
+                return outcome;
+            }
+            assertEquals("generating", story.get("choice").get("status").asText(), story.toString());
+            assertTrue(System.currentTimeMillis() < deadline, order + "화 선택 결과가 끝나지 않습니다.");
+            Thread.sleep(100);
+        }
+    }
+
+    private static String choiceBody(int pointId, UUID breadId) {
+        return "{\"pointId\":" + pointId + ",\"breadId\":" + (breadId == null ? "null" : "\"" + breadId + "\"") + "}";
     }
 
     /** 완료는 접수만 하고 백그라운드에서 끝난다 — 시즌 상태를 폴링해 완료된 상태를 돌려준다. */

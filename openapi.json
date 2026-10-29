@@ -2412,7 +2412,7 @@
                     "\ub7ec\ube48\uc9c0\uc625 \ud68c\ucc28"
                 ],
                 "summary": "\ud68c\ucc28 \uc644\ub8cc",
-                "description": "\uad00\uacc4 \uae30\ub85d\uc744 \uac31\uc2e0\ud558\uace0(\uc815\ub9ac \ub2e8\uacc4) \ud68c\ucc28 \ucabd\uc9c0\ub97c \ub9cc\ub4e0\ub2e4. 10\ud654\uba74 \ucd5c\uc885 \ub9ac\ud3ec\ud2b8\ub97c \ub9cc\ub4e4\uace0 \uc2dc\uc98c\uc744 \uc644\ub8cc\ud55c\ub2e4.\nAI \uc0dd\uc131\uc744 \uc5ec\ub7ec \ubc88 \uae30\ub2e4\ub824 \uc218\uc2ed \ucd08\uac00 \uac78\ub9ac\ubbc0\ub85c **\uc811\uc218\ub9cc \ud558\uace0 \ubc14\ub85c \uc751\ub2f5\ud55c\ub2e4**(\ube44\ub3d9\uae30).\n\n- \uc751\ub2f5\uc758 `completion`\uc774 `{\"order\":N,\"status\":\"completing\"}`\uc774\uba74 \uc9c4\ud589 \uc911\uc774\ub2e4.\n  `GET /api/ai/seasons/me`\uc758 `story.completion`\uc744 2~3\ucd08 \uac04\uaca9\uc73c\ub85c \ud3f4\ub9c1\ud55c\ub2e4.\n  `completion.progress`\uc5d0 \uc644\ub8cc \ub2e8\uacc4(`stage`: summarize | episode-note | season-report)\uc640 `regenerating`\uc774 \uc788\ub2e4.\n- \ub05d\ub098\uba74 `completion`\uc774 null\uc774 \ub418\uace0 `completedOrders`\uc5d0 N\uc774 \ub4e4\uc5b4\uac04\ub2e4(\ub2e4\uc74c \ud68c\ucc28 \uc9c4\ud589 \uac00\ub2a5).\n- `status`\uac00 `failed`(`errorCode` `STORY_GENERATION_FAILED`)\uba74 \uc544\ubb34\uac83\ub3c4 \uc800\uc7a5\ub418\uc9c0 \uc54a\uc558\ub2e4.\n  \uc774 API\ub97c \ub2e4\uc2dc \ubcf4\ub0b4\uba74 \ucc98\uc74c\ubd80\ud130 \ub2e4\uc2dc \uc2dc\ub3c4\ud55c\ub2e4.\n- \uc644\ub8cc \uc911\uc5d0 \ub2e4\uc2dc \ubcf4\ub0b4\ub3c4 \uc0c8\ub85c \uc2dc\uc791\ud558\uc9c0 \uc54a\uace0 \uc9c4\ud589 \uc0c1\ud0dc\ub9cc \ub3cc\ub824\uc900\ub2e4. \uc774\ubbf8 \uc644\ub8cc\ud55c \ud68c\ucc28\uba74 \uc0c1\ud0dc\ub9cc \ub3cc\ub824\uc900\ub2e4.\n\n**\uc624\ub958**: 409 `CONTENT_NOT_READY`, `CHOICE_REQUIRED`(\uc120\ud0dd \ud68c\ucc28\uc778\ub370 \uc120\ud0dd \uc804), `STORY_NOT_STARTED`,\n`AGE_REQUIRED`\n",
+                "description": "\uad00\uacc4 \uae30\ub85d\uc744 \uac31\uc2e0\ud558\uace0(\uc815\ub9ac \ub2e8\uacc4) \ud68c\ucc28 \ucabd\uc9c0\ub97c \ub9cc\ub4e0\ub2e4. 10\ud654\uba74 \ucd5c\uc885 \ub9ac\ud3ec\ud2b8\ub97c \ub9cc\ub4e4\uace0 \uc2dc\uc98c\uc744 \uc644\ub8cc\ud55c\ub2e4.\nAI \uc0dd\uc131\uc744 \uc5ec\ub7ec \ubc88 \uae30\ub2e4\ub824 \uc218\uc2ed \ucd08\uac00 \uac78\ub9ac\ubbc0\ub85c **\uc811\uc218\ub9cc \ud558\uace0 \ubc14\ub85c \uc751\ub2f5\ud55c\ub2e4**(\ube44\ub3d9\uae30).\n\n- \uc751\ub2f5\uc758 `completion`\uc774 `{\"order\":N,\"status\":\"completing\"}`\uc774\uba74 \uc9c4\ud589 \uc911\uc774\ub2e4.\n  `GET /api/ai/seasons/me`\uc758 `story.completion`\uc744 2~3\ucd08 \uac04\uaca9\uc73c\ub85c \ud3f4\ub9c1\ud55c\ub2e4.\n  `completion.progress`\uc5d0 \uc644\ub8cc \ub2e8\uacc4(`stage`: summarize | episode-note | season-report)\uc640 `regenerating`\uc774 \uc788\ub2e4.\n- \ub05d\ub098\uba74 `completion`\uc774 null\uc774 \ub418\uace0 `completedOrders`\uc5d0 N\uc774 \ub4e4\uc5b4\uac04\ub2e4(\ub2e4\uc74c \ud68c\ucc28 \uc9c4\ud589 \uac00\ub2a5).\n- `status`\uac00 `failed`(`errorCode` `STORY_GENERATION_FAILED`)\uba74 \uc544\ubb34\uac83\ub3c4 \uc800\uc7a5\ub418\uc9c0 \uc54a\uc558\ub2e4.\n  \uc774 API\ub97c \ub2e4\uc2dc \ubcf4\ub0b4\uba74 \ucc98\uc74c\ubd80\ud130 \ub2e4\uc2dc \uc2dc\ub3c4\ud55c\ub2e4.\n- \uc644\ub8cc \uc911\uc5d0 \ub2e4\uc2dc \ubcf4\ub0b4\ub3c4 \uc0c8\ub85c \uc2dc\uc791\ud558\uc9c0 \uc54a\uace0 \uc9c4\ud589 \uc0c1\ud0dc\ub9cc \ub3cc\ub824\uc900\ub2e4. \uc774\ubbf8 \uc644\ub8cc\ud55c \ud68c\ucc28\uba74 \uc0c1\ud0dc\ub9cc \ub3cc\ub824\uc900\ub2e4.\n\n**\uc624\ub958**: 409 `CONTENT_NOT_READY`, `CHOICE_REQUIRED`(\uc120\ud0dd \ud68c\ucc28\uc778\ub370 \uc120\ud0dd \uc804),\n`CHOICE_RESULT_NOT_READY`(\uc120\ud0dd \uacb0\uacfc \uc7a5\uba74\uc744 \uc544\uc9c1 \ub9cc\ub4dc\ub294 \uc911\uc774\uac70\ub098 \uc2e4\ud328), `STORY_NOT_STARTED`, `AGE_REQUIRED`\n",
                 "operationId": "complete",
                 "parameters": [
                     {
@@ -2445,7 +2445,7 @@
                     "\ub7ec\ube48\uc9c0\uc625 \ud68c\ucc28"
                 ],
                 "summary": "\uc120\ud0dd \ucc98\ub9ac (3\u00b75\u00b76\u00b78\ud654)",
-                "description": "body `{ pointId, breadId | null }` \u2014 breadId\uac00 null\uc774\uba74 \ud63c\uc790 \uc788\uae30. \uc218\ub77d\u00b7\uac70\uc808\uc740 \uc11c\ubc84 \ucf54\ub4dc \uaddc\uce59\uc73c\ub85c \uc815\ud55c\ub2e4.\n\uc751\ub2f5\uc740 \uc120\ud0dd \uacb0\uacfc \uc7a5\uba74(`choice_result`, \uac70\uc808\uc774\uba74 \ub300\uccb4 \uc7a5\uba74 \ud3ec\ud568)\uacfc \uac31\uc2e0\ub41c \uc2dc\uc98c \uc0c1\ud0dc\ub2e4.\n\uac19\uc740 \uc120\ud0dd\uc744 \ub2e4\uc2dc \ubcf4\ub0b4\uba74 \uc800\uc7a5\ub41c \uacb0\uacfc\ub97c \uadf8\ub300\ub85c \ub3cc\ub824\uc900\ub2e4.\n\n**\uc624\ub958**: 400 \ud68c\ucc28\uc640 pointId \ubd88\uc77c\uce58\u00b7\ud6c4\ubcf4\uac00 \uc544\ub2cc breadId / 409 `CONTENT_NOT_READY`, `CHOICE_ALREADY_MADE`,\n`STORY_NOT_STARTED` / 502 `STORY_GENERATION_FAILED`(\uacb0\uacfc \uc7a5\uba74 \uc0dd\uc131 \uc2e4\ud328, \ub2e4\uc2dc \uc694\uccad \uac00\ub2a5)\n",
+                "description": "body `{ pointId, breadId | null }` \u2014 breadId\uac00 null\uc774\uba74 \ud63c\uc790 \uc788\uae30. \uc218\ub77d\u00b7\uac70\uc808\uc740 \uc11c\ubc84 \ucf54\ub4dc \uaddc\uce59\uc73c\ub85c \uc815\ud55c\ub2e4.\n\uc120\ud0dd(\uc218\ub77d\u00b7\uac70\uc808, \ud638\uac10\u00b7\ud750\ub984 \ubc18\uc601)\uc740 **\ubc14\ub85c \uc800\uc7a5\ud558\uace0**, \uacb0\uacfc \uc7a5\uba74(`choice_result`, \uac70\uc808\uc774\uba74 \ub300\uccb4 \uc7a5\uba74 \ud3ec\ud568)\uc740\nAI\uac00 \ub9cc\ub4dc\ub294 \ub370 \uc218\uc2ed \ucd08\uac00 \uac78\ub9b4 \uc218 \uc788\uc5b4 **\ubc31\uadf8\ub77c\uc6b4\ub4dc\uc5d0\uc11c \ub9cc\ub4e0\ub2e4**(\ube44\ub3d9\uae30).\n\n- \uc751\ub2f5 `choice.status`\n  - `generating`: \uacb0\uacfc \uc7a5\uba74\uc744 \ub9cc\ub4dc\ub294 \uc911. `blocks`\ub294 \ube48 \ubc30\uc5f4\uc774\ub2e4. `GET /api/ai/seasons/me`\uc758 `story.choice`\ub97c\n    2~3\ucd08 \uac04\uaca9\uc73c\ub85c \ud3f4\ub9c1\ud55c\ub2e4.\n  - `ready`: `blocks`\uc5d0 \uacb0\uacfc \uc7a5\uba74\uc774 \uc788\ub2e4. \ud63c\uc790 \uc788\uae30\ub294 AI\ub97c \ubd80\ub974\uc9c0 \uc54a\uc544 \ubc14\ub85c ready\ub2e4.\n  - `failed`(`errorCode` `STORY_GENERATION_FAILED`): \uc120\ud0dd\uc740 \uc800\uc7a5\ub41c \ucc44 \uacb0\uacfc \uc7a5\uba74\ub9cc \uc2e4\ud328\ud588\ub2e4. \uac19\uc740 \uc120\ud0dd\uc744 \ub2e4\uc2dc\n    \ubcf4\ub0b4\uba74 \uacb0\uacfc \uc7a5\uba74\ub9cc \ub2e4\uc2dc \ub9cc\ub4e0\ub2e4(\ud310\uc815\u00b7\ud638\uac10\uc740 \uadf8\ub300\ub85c). \ub2e4\ub978 \ube75\uc73c\ub85c \ubc14\uafc0 \uc218\ub294 \uc5c6\ub2e4.\n- `story.choice`\uac00 null\uc774 \ub418\uba74 \uacb0\uacfc \uc7a5\uba74\uc774 \uc900\ube44\ub41c \uac83\uc774\ub2e4. \uac19\uc740 \uc120\ud0dd\uc744 \ub2e4\uc2dc \ubcf4\ub0b4 `blocks`\ub97c \ubc1b\uac70\ub098, \ud68c\ucc28 \ucf58\ud150\uce20\ub97c\n  \ub2e4\uc2dc \ubc1b\uc73c\uba74 choice \ube14\ub85d \ubc14\ub85c \ub4a4\uc5d0 \uacb0\uacfc \uc7a5\uba74\uc774 \ub4e4\uc5b4 \uc788\ub2e4.\n- \uac19\uc740 \uc120\ud0dd\uc744 \ub2e4\uc2dc \ubcf4\ub0b4\uba74: \ub9cc\ub4dc\ub294 \uc911\uc774\uba74 \uc0c8\ub85c \uc2dc\uc791\ud558\uc9c0 \uc54a\uace0 \uc0c1\ud0dc\ub9cc, \ub05d\ub0ac\uc73c\uba74 \uc800\uc7a5\ub41c \uacb0\uacfc(200)\ub97c \ub3cc\ub824\uc900\ub2e4.\n  \ub2e4\ub978 \ube75(\ub610\ub294 \ud63c\uc790 \uc788\uae30)\uc73c\ub85c \ubcf4\ub0b4\uba74 409 `CHOICE_ALREADY_MADE`.\n- `season.choices[].accepted`\uc640 \ud750\ub984(`route`)\uc740 \uc811\uc218 \uc751\ub2f5\uc5d0\uc11c \ubc14\ub85c \ubc14\ub010\ub2e4. `resultStatus`\ub294 \uadf8 \uc120\ud0dd\uc758 \uacb0\uacfc \uc7a5\uba74\n  \uc0c1\ud0dc(generating | ready | failed)\ub2e4.\n- \uacb0\uacfc \uc7a5\uba74\uc774 \uc900\ube44\ub418\uae30 \uc804\uc5d0\ub294 \ud68c\ucc28\ub97c \uc644\ub8cc\ud560 \uc218 \uc5c6\ub2e4(409 `CHOICE_RESULT_NOT_READY`).\n\n**\uc624\ub958**: 400 \ud68c\ucc28\uc640 pointId \ubd88\uc77c\uce58\u00b7\ud6c4\ubcf4\uac00 \uc544\ub2cc breadId / 409 `CONTENT_NOT_READY`, `CHOICE_ALREADY_MADE`,\n`STORY_NOT_STARTED`, `AGE_REQUIRED`\n",
                 "operationId": "choose",
                 "parameters": [
                     {
@@ -5119,6 +5119,39 @@
                     }
                 }
             },
+            "AiChoiceStatusView": {
+                "type": "object",
+                "properties": {
+                    "order": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "pointId": {
+                        "type": "integer",
+                        "format": "int32",
+                        "maximum": 4,
+                        "minimum": 1
+                    },
+                    "breadId": {
+                        "type": "string",
+                        "format": "uuid"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "generating",
+                            "ready",
+                            "failed"
+                        ]
+                    },
+                    "errorCode": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                }
+            },
             "AiGenerationProgressView": {
                 "type": "object",
                 "properties": {
@@ -5251,6 +5284,13 @@
                             "null"
                         ],
                         "$ref": "#/components/schemas/Completion"
+                    },
+                    "choice": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "$ref": "#/components/schemas/AiChoiceStatusView"
                     }
                 }
             },
@@ -5308,6 +5348,14 @@
                     },
                     "accepted": {
                         "type": "boolean"
+                    },
+                    "resultStatus": {
+                        "type": "string",
+                        "enum": [
+                            "generating",
+                            "ready",
+                            "failed"
+                        ]
                     }
                 }
             },
@@ -5593,6 +5641,9 @@
                     },
                     "season": {
                         "$ref": "#/components/schemas/AiStoryStateView"
+                    },
+                    "choice": {
+                        "$ref": "#/components/schemas/AiChoiceStatusView"
                     }
                 }
             },

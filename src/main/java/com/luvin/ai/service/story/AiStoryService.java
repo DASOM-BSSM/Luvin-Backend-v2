@@ -34,6 +34,7 @@ import com.luvin.ai.dto.AiMessageLikeView;
 import com.luvin.ai.dto.AiReportHighlightsView;
 import com.luvin.ai.dto.AiReportView;
 import com.luvin.ai.dto.story.AiChoiceOutcomeView;
+import com.luvin.ai.dto.story.AiChoiceStatusView;
 import com.luvin.ai.dto.story.AiEpisodeContentView;
 import com.luvin.ai.dto.story.AiEpisodeUnlockView;
 import com.luvin.ai.dto.story.AiGenerationProgressView;
@@ -390,7 +391,11 @@ public class AiStoryService {
 
     /**
      * 3·5·6·8화 끝 선택. 판정은 코드 규칙으로 하고, 결과 장면만 FastAPI가 쓴다(5-3). 혼자 있기는 FastAPI를 부르지 않는다.
-     * 같은 선택을 다시 보내면 저장된 결과를 그대로 돌려주고, 다른 빵으로 다시 고르려 하면 409 CHOICE_ALREADY_MADE.
+     *
+     * 접수 후 폴링: 선택(수락·거절 판정, 호감·흐름 반영)은 바로 저장하고, 결과 장면은 백그라운드에서 만든다 — 응답의
+     * choice.status가 generating이면 시즌 상태(story.choice)를 폴링한다. 같은 선택을 다시 보내면 만드는 중이면 상태만,
+     * 끝났으면 저장된 결과를, 실패했으면(또는 오래 멈췄으면) 결과 장면만 다시 만든다. 선택 자체는 바뀌지 않으므로 다른
+     * 빵으로 다시 고르려 하면 409 CHOICE_ALREADY_MADE.
      */
     public AiChoiceOutcomeView choose(Long memberId, int order, int pointId, UUID breadId) {
         validateOrder(order);
@@ -403,7 +408,7 @@ public class AiStoryService {
 
         Optional<AiStorySnapshot.Choice> existing = snapshot.choice(pointId);
         if (existing.isPresent()) {
-            return existingOutcome(existing.get(), breadId, snapshot);
+            return existingOutcome(memberId, season.getId(), existing.get(), breadId);
         }
         if (snapshot.status() == AiSeasonStatus.COMPLETED) {
             throw new AiSeasonCompletedException();
@@ -412,65 +417,141 @@ public class AiStoryService {
         if (breadId != null && !choiceCandidates(content).contains(breadId)) {
             throw new AiCandidateInvalidException("breadId가 이 선택 카드의 후보가 아닙니다.");
         }
+        if (breadId != null) {
+            userWithAge(memberId); // AGE_REQUIRED는 백그라운드로 넘기기 전에 409로 알린다.
+        }
 
         AiChoiceJudge.Decision decision = AiChoiceJudge.judge(judgeInput(snapshot, pointId, breadId));
+        // 혼자 있기는 결과 장면에 대사가 없어 바로 저장한다. 그 외는 결과 장면 없이 저장하고 백그라운드에서 만든다.
+        String aloneBlocks = breadId == null ? AiStoryJson.write(aloneResultBlocks(snapshot, pointId, decision)) : null;
+        try {
+            stateWriter.saveChoice(season.getId(), pointId, order, breadId, decision, aloneBlocks);
+        } catch (DataIntegrityViolationException raceLoser) {
+            AiStorySnapshot reloaded = stateWriter.snapshot(season.getId());
+            return existingOutcome(memberId, season.getId(),
+                    reloaded.choice(pointId).orElseThrow(() -> raceLoser), breadId);
+        }
+        if (breadId != null) {
+            startChoiceResult(memberId, season.getId(), pointId, order, 1);
+        }
+        return choiceOutcome(stateWriter.snapshot(season.getId()), pointId);
+    }
+
+    /** 이미 한 선택을 다시 보냈다. 다른 빵이면 409, 결과 장면이 실패했거나 멈췄으면 다시 만들기 시작한다. */
+    private AiChoiceOutcomeView existingOutcome(Long memberId, Long seasonPk, AiStorySnapshot.Choice choice,
+                                                UUID requestedBreadId) {
+        if (!Objects.equals(choice.breadId(), requestedBreadId)) {
+            throw new AiStoryConflictException(AiStoryConflictException.CHOICE_ALREADY_MADE, "이미 선택을 마쳤습니다.");
+        }
+        if (!choice.resultReady()) {
+            stateWriter.restartChoiceResult(seasonPk, choice.pointId(), staleBefore())
+                    .ifPresent(round -> startChoiceResult(memberId, seasonPk, choice.pointId(), choice.episodeOrder(),
+                            round));
+        }
+        return choiceOutcome(stateWriter.snapshot(seasonPk), choice.pointId());
+    }
+
+    private void startChoiceResult(Long memberId, Long seasonPk, int pointId, int order, int round) {
+        executor.execute(() -> runChoiceResult(memberId, seasonPk, pointId, order, round));
+    }
+
+    /** 응답: 결과 장면이 준비됐으면 그 블록, 아니면 빈 배열과 생성 상태. */
+    private AiChoiceOutcomeView choiceOutcome(AiStorySnapshot snapshot, int pointId) {
+        AiStorySnapshot.Choice choice = snapshot.choice(pointId).orElseThrow();
+        List<AiSceneBlockView> blocks = choice.resultReady()
+                ? AiStoryJson.read(choice.resultBlocksJson(), BLOCK_LIST) : List.of();
+        return new AiChoiceOutcomeView(blocks, toStateView(snapshot), choiceStatus(choice));
+    }
+
+    private AiChoiceStatusView choiceStatus(AiStorySnapshot.Choice choice) {
+        String status;
+        String errorCode = null;
+        if (choice.resultReady()) {
+            status = AiChoiceStatusView.READY;
+        } else if (choice.resultStatus() == AiStoryContentStatus.GENERATING
+                && choice.resultRequestedAt() != null && !choice.resultRequestedAt().isBefore(staleBefore())) {
+            status = AiChoiceStatusView.GENERATING;
+        } else {
+            // 실패했거나, 생성 중인 채 오래 멈췄다(서버 재시작 등) — 같은 선택을 다시 보내면 다시 만든다.
+            status = AiChoiceStatusView.FAILED;
+            errorCode = choice.resultErrorCode() != null ? choice.resultErrorCode()
+                    : AiStoryGenerationFailedException.CODE;
+        }
+        return new AiChoiceStatusView(choice.episodeOrder(), choice.pointId(), choice.breadId(), status, errorCode);
+    }
+
+    /** 혼자 있기 결과: 내 빵만 있는 choice_result 블록 하나(대사 없음). */
+    private List<AiSceneBlockView> aloneResultBlocks(AiStorySnapshot snapshot, int pointId,
+                                                     AiChoiceJudge.Decision decision) {
+        AiStoryContractMapper mapper = new AiStoryContractMapper(snapshot, storedStageIntro(snapshot));
+        BlockPlan reaction = AiEpisodePlanner.planChoiceReaction(pointId, null, decision, snapshot.cast());
+        return List.of(new AiSceneBlockView(reaction.id(), AiSceneBlockType.CHOICE_RESULT.wireValue(),
+                mapper.participants(reaction.participantIds()), List.of(), null, null, null,
+                new AiSceneBlockView.SceneChoiceResult(pointId, null, decision.accepted()), null));
+    }
+
+    /**
+     * 백그라운드 선택 결과 장면 생성. 어떤 오류든 FAILED로 남겨 같은 선택을 다시 보내면 다시 만들게 한다(스레드 밖으로 던지지
+     * 않는다). 결과와 실패는 같은 생성 회차(round)일 때만 저장한다. AI job 키는 선택·회차 번호·시도로 만들어, 재시작 뒤 같은
+     * 회차를 다시 돌리면 이미 접수한 job을 이어서 본다.
+     */
+    void runChoiceResult(Long memberId, Long seasonPk, int pointId, int order, int round) {
+        try {
+            stateWriter.saveChoiceResult(seasonPk, pointId, round,
+                    AiStoryJson.write(writeChoiceResult(memberId, seasonPk, pointId, order, round)));
+        } catch (Exception e) {
+            log.warn("story choice result failed: seasonPk={}, pointId={}, cause={}",
+                    seasonPk, pointId, e.getClass().getSimpleName());
+            stateWriter.markChoiceResultFailed(seasonPk, pointId, round, AiStoryGenerationFailedException.CODE);
+        }
+    }
+
+    /**
+     * 저장된 판정으로 결과 장면을 만든다. 관계 기록은 선택을 반영한 뒤의 값이다(수락이면 호감이 오른 뒤, 거절이면 거절 횟수가
+     * 늘어난 뒤).
+     */
+    private List<AiSceneBlockView> writeChoiceResult(Long memberId, Long seasonPk, int pointId, int order, int round) {
+        AiStorySnapshot snapshot = stateWriter.snapshot(seasonPk);
+        AiStorySnapshot.Choice choice = snapshot.choice(pointId).orElseThrow();
+        AiStorySnapshot.Content content = readyContent(snapshot, order);
+        UUID breadId = choice.breadId();
+        AiChoiceJudge.Decision decision = new AiChoiceJudge.Decision(choice.accepted(), choice.reasonCode(),
+                AiChoiceRules.REASON_AVOIDANT_SHORT.equals(choice.reasonCode()));
         AiStoryContractMapper mapper = new AiStoryContractMapper(snapshot, storedStageIntro(snapshot));
         BlockPlan reaction = AiEpisodePlanner.planChoiceReaction(pointId, breadId, decision, snapshot.cast());
         AiSceneBlockView.SceneChoiceResult result = new AiSceneBlockView.SceneChoiceResult(pointId, breadId,
                 decision.accepted());
+
+        String ownerSubject = ownerSubjectProvider.resolve(memberId);
+        int age = userWithAge(memberId).getAge();
+        String friendId = AiCastRole.FRIEND.contractId();
+        ChoiceResultRequest request = new ChoiceResultRequest(context(snapshot, mapper, age, memberId), order,
+                pointId, mapper.contractId(breadId), decision.accepted(),
+                AiChoiceRules.rejectReason(decision.accepted(), decision.reasonCode()), decision.shortReply(),
+                mapper.relationRecord(breadId));
+        Set<String> speakers = mapper.contractIds(reaction.participantIds());
+        StoryRun run = new StoryRun(jobKeyBase(snapshot, content.id(), "choice-p" + pointId + "-", round),
+                StepRecorder.NONE);
+        ChoiceResultResponse response = callWithRetry("choice-result", run,
+                call -> storyClient.writeChoiceResult(ownerSubject, request, call),
+                r -> AiStoryResponseValidator.validateChoiceResult(r, speakers, decision.accepted(), friendId));
+
         List<AiSceneBlockView> blocks = new ArrayList<>();
         int[] sequence = {1};
-
-        if (breadId == null) {
-            blocks.add(new AiSceneBlockView(reaction.id(), AiSceneBlockType.CHOICE_RESULT.wireValue(),
-                    mapper.participants(reaction.participantIds()), List.of(), null, null, null, result, null));
-        } else {
-            String ownerSubject = ownerSubjectProvider.resolve(memberId);
-            int age = userWithAge(memberId).getAge();
-            String friendId = AiCastRole.FRIEND.contractId();
-            ChoiceResultRequest request = new ChoiceResultRequest(context(snapshot, mapper, age, memberId), order,
-                    pointId, mapper.contractId(breadId), decision.accepted(),
-                    AiChoiceRules.rejectReason(decision.accepted(), decision.reasonCode()), decision.shortReply(),
-                    mapper.relationRecord(breadId));
-            Set<String> speakers = mapper.contractIds(reaction.participantIds());
-            // 선택은 결과를 저장해야 남으므로, 실패 뒤 다시 보낸 요청이 같은 job(검증에서 버린 결과 포함)을 다시 받지 않게
-            // 요청마다 새 키를 쓴다. 이 요청 안의 재시도는 attempt로 구분한다.
-            StoryRun run = new StoryRun(jobKeyBase(snapshot, content.id(), "choice-p" + pointId, 0) + ":"
-                    + UUID.randomUUID(), StepRecorder.NONE);
-            ChoiceResultResponse response = callWithRetry("choice-result", run,
-                    call -> storyClient.writeChoiceResult(ownerSubject, request, call),
-                    r -> AiStoryResponseValidator.validateChoiceResult(r, speakers, decision.accepted(), friendId));
-
-            blocks.add(new AiSceneBlockView(reaction.id(), AiSceneBlockType.CHOICE_RESULT.wireValue(),
-                    mapper.participants(reaction.participantIds()), mapper.messageViews(response.messages(), sequence),
-                    null, null, null, result, null));
-            UUID me = snapshot.me().breadId();
-            List<ChoiceResultResponse.FallbackBlock> fallbacks =
-                    response.fallbackBlocks() == null ? List.of() : response.fallbackBlocks();
-            for (ChoiceResultResponse.FallbackBlock fallback : fallbacks) {
-                List<UUID> participants = StoryTypes.ALONE.equals(fallback.pairTarget())
-                        ? List.of(me) : List.of(me, mapper.uuid(friendId));
-                blocks.add(new AiSceneBlockView("c" + pointId + "-" + fallback.id(), AiSceneBlockType.PAIR.wireValue(),
-                        mapper.participants(participants), mapper.messageViews(fallback.messages(), sequence),
-                        null, null, null, null, null));
-            }
+        blocks.add(new AiSceneBlockView(reaction.id(), AiSceneBlockType.CHOICE_RESULT.wireValue(),
+                mapper.participants(reaction.participantIds()), mapper.messageViews(response.messages(), sequence),
+                null, null, null, result, null));
+        UUID me = snapshot.me().breadId();
+        List<ChoiceResultResponse.FallbackBlock> fallbacks =
+                response.fallbackBlocks() == null ? List.of() : response.fallbackBlocks();
+        for (ChoiceResultResponse.FallbackBlock fallback : fallbacks) {
+            List<UUID> participants = StoryTypes.ALONE.equals(fallback.pairTarget())
+                    ? List.of(me) : List.of(me, mapper.uuid(friendId));
+            blocks.add(new AiSceneBlockView("c" + pointId + "-" + fallback.id(), AiSceneBlockType.PAIR.wireValue(),
+                    mapper.participants(participants), mapper.messageViews(fallback.messages(), sequence),
+                    null, null, null, null, null));
         }
-
-        try {
-            stateWriter.saveChoice(season.getId(), pointId, order, breadId, decision, AiStoryJson.write(blocks));
-        } catch (DataIntegrityViolationException raceLoser) {
-            AiStorySnapshot reloaded = stateWriter.snapshot(season.getId());
-            return existingOutcome(reloaded.choice(pointId).orElseThrow(() -> raceLoser), breadId, reloaded);
-        }
-        return new AiChoiceOutcomeView(blocks, toStateView(stateWriter.snapshot(season.getId())));
-    }
-
-    private AiChoiceOutcomeView existingOutcome(AiStorySnapshot.Choice choice, UUID requestedBreadId,
-                                                AiStorySnapshot snapshot) {
-        if (!Objects.equals(choice.breadId(), requestedBreadId)) {
-            throw new AiStoryConflictException(AiStoryConflictException.CHOICE_ALREADY_MADE, "이미 선택을 마쳤습니다.");
-        }
-        return new AiChoiceOutcomeView(AiStoryJson.read(choice.resultBlocksJson(), BLOCK_LIST), toStateView(snapshot));
+        return blocks;
     }
 
     // ---------------------------------------------------------------- 회차 완료
@@ -491,6 +572,10 @@ public class AiStoryService {
         Integer pointId = AiStoryCatalog.pointOf(order);
         if (pointId != null && snapshot.choice(pointId).isEmpty()) {
             throw new AiStoryConflictException(AiStoryConflictException.CHOICE_REQUIRED, "선택을 먼저 해주세요.");
+        }
+        if (pointId != null && !snapshot.choice(pointId).orElseThrow().resultReady()) {
+            throw new AiStoryConflictException(AiStoryConflictException.CHOICE_RESULT_NOT_READY,
+                    "선택 결과 장면이 아직 준비되지 않았습니다.");
         }
         userWithAge(memberId); // AGE_REQUIRED는 백그라운드로 넘기기 전에 409로 알린다.
 
@@ -687,13 +772,16 @@ public class AiStoryService {
         List<AiStoryStateWriter.PendingWork> generations = stateWriter.findInterruptedGenerations(staleBefore());
         List<AiStoryStateWriter.PendingWork> completions =
                 stateWriter.findInterruptedCompletions(completionStaleBefore());
+        List<AiStoryStateWriter.ChoiceResultWork> choiceResults =
+                stateWriter.findInterruptedChoiceResults(staleBefore());
+        choiceResults.forEach(w -> startChoiceResult(w.memberId(), w.seasonPk(), w.pointId(), w.order(), w.round()));
         generations.forEach(w -> executor.execute(
                 () -> generate(w.memberId(), w.seasonPk(), w.order(), w.contentPk(), w.round())));
         completions.forEach(w -> executor.execute(
                 () -> runCompletion(w.memberId(), w.seasonPk(), w.order(), w.contentPk(), w.round())));
-        if (!generations.isEmpty() || !completions.isEmpty()) {
-            log.info("resuming interrupted story work: generations={}, completions={}", generations.size(),
-                    completions.size());
+        if (!generations.isEmpty() || !completions.isEmpty() || !choiceResults.isEmpty()) {
+            log.info("resuming interrupted story work: generations={}, completions={}, choiceResults={}",
+                    generations.size(), completions.size(), choiceResults.size());
         }
     }
 
@@ -1027,7 +1115,7 @@ public class AiStoryService {
         if (pointId == null) {
             return blocks;
         }
-        snapshot.choice(pointId).ifPresent(choice -> {
+        snapshot.choice(pointId).filter(AiStorySnapshot.Choice::resultReady).ifPresent(choice -> {
             int choiceIndex = 0;
             for (int i = 0; i < blocks.size(); i++) {
                 if (blocks.get(i).choice() != null) {
@@ -1041,7 +1129,8 @@ public class AiStoryService {
 
     private AiStoryStateView toStateView(AiStorySnapshot snapshot) {
         List<AiStoryStateView.ChoiceHistory> choices = snapshot.choices().stream()
-                .map(c -> new AiStoryStateView.ChoiceHistory(c.pointId(), c.episodeOrder(), c.breadId(), c.accepted()))
+                .map(c -> new AiStoryStateView.ChoiceHistory(c.pointId(), c.episodeOrder(), c.breadId(), c.accepted(),
+                        choiceStatus(c).status()))
                 .toList();
         List<AiStoryStateView.BreadStatus> breads = snapshot.cast().stream()
                 .filter(m -> !m.isMe())
@@ -1061,7 +1150,12 @@ public class AiStoryService {
                 .forEach(c -> unlocked.add(c.order()));
         return new AiStoryStateView(snapshot.setting().wireValue(), snapshot.currentOrder(), completedOrders,
                 snapshot.route() == null ? null : snapshot.route().wireValue(), snapshot.romancePartnerId(),
-                choices, breads, List.copyOf(unlocked), properties.episodeTokenCost(), completionOf(snapshot));
+                choices, breads, List.copyOf(unlocked), properties.episodeTokenCost(), completionOf(snapshot),
+                snapshot.choices().stream()
+                        .map(this::choiceStatus)
+                        .filter(c -> !AiChoiceStatusView.READY.equals(c.status()))
+                        .findFirst()
+                        .orElse(null));
     }
 
     /**

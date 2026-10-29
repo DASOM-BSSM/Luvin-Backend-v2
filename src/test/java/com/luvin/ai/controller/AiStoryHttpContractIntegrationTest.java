@@ -330,6 +330,13 @@ class AiStoryHttpContractIntegrationTest {
 
     /** 완료는 접수만 하고 백그라운드에서 끝난다 — 저장될 때까지 기다린다. */
     private void complete(int order) throws Exception {
+        long choiceDeadline = System.currentTimeMillis() + 10_000;
+        // 선택 결과 장면은 백그라운드에서 만든다 — 끝나야 회차를 완료할 수 있다.
+        while (jdbcTemplate.queryForObject("SELECT count(*) FROM ai_season_choices WHERE season_id = ? "
+                + "AND result_status = 'GENERATING'", Integer.class, seasonPk) > 0) {
+            assertTrue(System.currentTimeMillis() < choiceDeadline, order + "화 선택 결과가 끝나지 않습니다.");
+            Thread.sleep(100);
+        }
         HttpResponse<String> res = send("POST", "/api/ai/seasons/episodes/" + order + "/complete", null);
         assertEquals(200, res.statusCode(), res.body());
         long deadline = System.currentTimeMillis() + 10_000;
