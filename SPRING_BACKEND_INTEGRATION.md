@@ -408,5 +408,12 @@ Spring ↔ FastAPI 형식은 「러빈지옥 에피소드 재구성: 공통 데�
 
 ### 개발 전용
 
-`app.dev-tools.enabled=true`인 환경에서만 `POST /api/dev/ai/seasons/current/story/reset`이 있습니다(운영 기본값 false).
-현재 시즌의 선택·관계 기록·회차·회차 쪽지·리포트를 지우고 1화 전으로 되돌립니다.
+`app.dev-tools.enabled=true`(환경변수 `APP_DEVTOOLS_ENABLED=true`)인 환경에서만
+`POST /api/dev/ai/seasons/current/story/reset`이 있습니다(운영 기본값 false라 경로 자체가 없음).
+
+- 내 AI 시즌을 시즌 행까지 모두 지웁니다(진행 중·완료 무관, 여러 시즌이면 전부). 시즌에 딸린 행(`AiSeasonResetWriter.SEASON_TABLES`,
+  시즌 편지 포함)과 시즌 생성 입력도 지웁니다. 계정·설문 결과·감정일기·공유방은 남깁니다.
+- 그 시즌들에서 회차를 열며 쓴 토큰(`ai_episode_unlocks.tokens_spent`)을 돌려주고 REWARD 내역을 남깁니다.
+- 시즌 row id는 다시 쓰이지 않아, 초기화 전에 돌던 회차 생성·완료·선택 결과는 저장할 대상을 찾지 못해 버려집니다.
+- 시즌이 없으면 아무것도 하지 않고 200입니다. 초기화 뒤 `GET /me`는 404 `SEASON_NOT_FOUND`이고, `from-survey`로 새 시즌을
+  만듭니다.

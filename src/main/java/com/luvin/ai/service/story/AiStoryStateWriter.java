@@ -669,24 +669,6 @@ public class AiStoryStateWriter {
         return reportRepository.findBySeason_Id(seasonPk).map(AiSeasonStoryReport::getReportJson);
     }
 
-    /** 개발 전용: 시즌을 새 흐름 시작 전 상태로 되돌린다. 기존 5화 흐름 데이터(AI 시즌, 쪽지)는 건드리지 않는다. */
-    @Transactional
-    public void resetStory(Long seasonPk) {
-        AiSeason season = seasonRepository.findWithLockById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
-        choiceRepository.deleteAllBySeason_Id(seasonPk);
-        relationRepository.deleteAllBySeason_Id(seasonPk);
-        contentRepository.deleteAllBySeason_Id(seasonPk);
-        reportRepository.deleteAllBySeason_Id(seasonPk);
-        feedbackRepository.deleteAllBySeason_Id(seasonPk);
-        likeRepository.deleteAllBySeason_Id(seasonPk);
-        unlockRepository.deleteAllBySeason_Id(seasonPk);
-        designRepository.deleteAllBySeason_Id(seasonPk);
-        letterRepository.deleteAllBySeason_IdAndEpisodeOrderIsNotNull(seasonPk);
-        characterRepository.deleteAllBySeason_IdAndRole(seasonPk, AiCharacterRole.SUPPORTING);
-        characterRepository.findAllBySeason_Id(seasonPk).forEach(AiSeasonCharacter::clearCast);
-        season.resetStory();
-    }
-
     private static String appendFacts(AiBreadRelation relation, List<String> newFacts) {
         if (newFacts == null || newFacts.isEmpty()) {
             return null;

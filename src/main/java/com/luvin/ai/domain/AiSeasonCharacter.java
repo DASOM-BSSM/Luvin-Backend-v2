@@ -98,15 +98,6 @@ public class AiSeasonCharacter {
         this.breadType = breadType;
     }
 
-    /** 개발 전용 초기화에서 출연진 배정을 되돌린다. */
-    public void clearCast() {
-        this.castRole = null;
-        this.attachmentStyle = null;
-        this.name = null;
-        this.breadType = null;
-        this.candidateOrder = null;
-    }
-
     public boolean isRepresentative() {
         return role == AiCharacterRole.REPRESENTATIVE;
     }

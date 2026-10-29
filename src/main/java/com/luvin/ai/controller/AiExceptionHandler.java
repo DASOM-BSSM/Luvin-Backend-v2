@@ -48,7 +48,8 @@ public class AiExceptionHandler {
 
     @ExceptionHandler(AiSeasonNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleSeasonNotFound(AiSeasonNotFoundException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(e.getMessage(), AiSeasonNotFoundException.CODE));
     }
 
     /**

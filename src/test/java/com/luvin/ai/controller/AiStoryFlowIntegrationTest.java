@@ -763,19 +763,57 @@ class AiStoryFlowIntegrationTest {
     }
 
     @Test
-    void 개발_전용_초기화() throws Exception {
-        TestUser user = createUser(25);
-        Season season = createSeason(user);
+    void 개발_전용_초기화는_시즌을_지우고_쓴_토큰을_돌려주며_설문으로_다시_시작한다() throws Exception {
+        TestUser user = createUser(26);
+        String surveyResultId = submitSurvey(user);
+        String fromSurvey = "{\"surveyResultId\":\"" + surveyResultId + "\"}";
+        JsonNode created = data(post(user, "/from-survey", fromSurvey));
+        Long seasonPk = seasonRepository.findByMemberIdAndSeasonId(user.id(),
+                UUID.fromString(created.get("seasonId").asText())).orElseThrow().getId();
+        seasonIds.add(seasonPk);
         readyContent(user, 1);
         complete(user, 1);
+        // 4화를 3토큰에 열었던 기록(이 테스트 설정은 차감을 끈다).
+        jdbcTemplate.update("INSERT INTO ai_episode_unlocks (season_id, episode_order, tokens_spent, created_at) "
+                + "VALUES (?, 4, 3, now())", seasonPk);
+        jdbcTemplate.update("INSERT INTO user_tokens (member_id, token_balance, free_simulation_count) VALUES (?, 2, 0)",
+                user.id());
 
-        assertEquals(200, send(user, "POST", "/api/dev/ai/seasons/current/story/reset", null).statusCode());
+        JsonNode reset = data(send(user, "POST", "/api/dev/ai/seasons/current/story/reset", null));
+        assertEquals(1, reset.get("deletedSeasons").asInt());
+        assertEquals(3, reset.get("refundedTokens").asInt());
+        assertEquals(5, reset.get("tokenBalance").asInt());
 
-        Integer contents = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM ai_episode_contents WHERE season_id = ?", Integer.class, season.pk());
-        assertEquals(0, contents);
-        assertEquals("STORY_NOT_STARTED", error(get(user, "/episodes/2/content")).get("code").asText());
-        readyContent(user, 1);
+        // 시즌 행과 딸린 데이터, 시즌 생성 입력까지 없다. 시즌 조회는 404 SEASON_NOT_FOUND.
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM ai_seasons WHERE member_id = ?",
+                Integer.class, user.id()));
+        for (String table : List.of("ai_episode_contents", "ai_bread_relations", "ai_season_characters",
+                "ai_episode_unlocks", "partner_letters")) {
+            assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM " + table + " WHERE season_id = ?",
+                    Integer.class, seasonPk), table);
+        }
+        assertEquals(0, jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM ai_season_creation_inputs WHERE member_id = ?", Integer.class, user.id()));
+        HttpResponse<String> missing = get(user, "/me");
+        assertEquals(404, missing.statusCode());
+        assertEquals("SEASON_NOT_FOUND", objectMapper.readTree(missing.body()).get("code").asText());
+
+        // 시즌이 없을 때 다시 불러도 200이고 아무것도 하지 않는다.
+        JsonNode again = data(send(user, "POST", "/api/dev/ai/seasons/current/story/reset", null));
+        assertEquals(0, again.get("deletedSeasons").asInt());
+        assertEquals(0, again.get("refundedTokens").asInt());
+
+        // 설문으로 새 시즌을 만들어 1화부터 다시 시작한다.
+        JsonNode recreated = data(post(user, "/from-survey", fromSurvey));
+        assertFalse(created.get("seasonId").asText().equals(recreated.get("seasonId").asText()));
+        seasonIds.add(seasonRepository.findByMemberIdAndSeasonId(user.id(),
+                UUID.fromString(recreated.get("seasonId").asText())).orElseThrow().getId());
+        assertEquals(1, recreated.get("seasonNumber").asInt());
+        assertEquals(List.of(), intList(recreated.get("story").get("completedOrders")));
+        assertEquals("ready", readyContent(user, 1).get("status").asText());
+
+        jdbcTemplate.update("DELETE FROM token_histories WHERE member_id = ?", user.id());
+        jdbcTemplate.update("DELETE FROM user_tokens WHERE member_id = ?", user.id());
     }
 
     // ------------------------------------------------------------------ helpers
