@@ -16,6 +16,8 @@ public class AiStoryConflictException extends RuntimeException {
     public static final String CONTENT_NOT_READY = "CONTENT_NOT_READY";
     public static final String CHOICE_REQUIRED = "CHOICE_REQUIRED";
     public static final String CHOICE_ALREADY_MADE = "CHOICE_ALREADY_MADE";
+    /** 선택은 했지만 결과 장면을 아직 만드는 중이거나 실패했다(POST complete). */
+    public static final String CHOICE_RESULT_NOT_READY = "CHOICE_RESULT_NOT_READY";
     public static final String EPISODE_ALREADY_COMPLETED = "EPISODE_ALREADY_COMPLETED";
     public static final String REPORT_NOT_READY = "REPORT_NOT_READY";
     /** 열지 않은 4~10화의 content를 요청했다 — 앱이 회차 열기 화면을 띄운다. */

@@ -287,7 +287,7 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 | GET | `/api/ai/seasons/me` | 기존 응답에 `episodeFormat`(항상 `blocks`)과 `story`(setting, currentOrder, completedOrders, route, romancePartnerId, choices, breads[].statusText, unlockedOrders, episodeTokenCost) 추가 |
 | POST | `/api/ai/seasons/episodes/{order}/unlock` | 회차 열기. 1~3화 무료, 4~10화는 처음 열 때만 토큰 차감. `{ order, unlocked, tokenBalance }` |
 | GET | `/api/ai/seasons/episodes/{order}/content` | 회차 블록. 처음 요청이면 생성을 시작하고 `status: generating` |
-| POST | `/api/ai/seasons/episodes/{order}/choices` | `{ pointId, breadId \| null }` → choice_result 블록 + 시즌 상태 |
+| POST | `/api/ai/seasons/episodes/{order}/choices` | `{ pointId, breadId \| null }` → 선택은 바로 저장, 결과 장면은 백그라운드 생성(비동기). 응답 `choice.status`(generating·ready·failed), ready면 choice_result 블록 + 시즌 상태. 진행 상태는 `/me`의 `story.choice` |
 | POST | `/api/ai/seasons/episodes/{order}/complete` | 관계 기록 갱신 + 회차 쪽지. 10화면 최종 리포트 + 시즌 완료. 접수만 하고 바로 응답(비동기) |
 | POST | `/api/ai/seasons/episodes/{order}/scene-feedback` | 1:1 장면(상대가 있는 pair 블록)에서 내 빵 대사(독백 제외)에 피드백. `{ blockId, messageId, text }`, 메시지당 1개 |
 | POST | `/api/ai/seasons/episodes/{order}/scene-likes` | 1:1 장면에서 내 빵 대사(독백 제외) 좋아요. `{ blockId, messageId, liked }` |

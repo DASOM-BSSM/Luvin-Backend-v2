@@ -39,8 +39,14 @@ public record AiStorySnapshot(
                            String choiceMemory, AiSpeechLevel speechLevel) {
     }
 
+    /** resultStatus는 결과 장면 생성 상태(READY면 resultBlocksJson이 있다). resultErrorCode는 FAILED일 때만. */
     public record Choice(int pointId, int episodeOrder, UUID breadId, boolean accepted, String reasonCode,
-                         String resultBlocksJson) {
+                         String resultBlocksJson, AiStoryContentStatus resultStatus, int resultRound,
+                         LocalDateTime resultRequestedAt, String resultErrorCode) {
+
+        public boolean resultReady() {
+            return resultStatus == AiStoryContentStatus.READY;
+        }
     }
 
     public record Content(Long id, int order, AiStoryContentStatus status, AiStoryRoute route, String errorCode,
