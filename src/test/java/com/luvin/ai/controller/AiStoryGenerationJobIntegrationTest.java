@@ -73,7 +73,7 @@ class AiStoryGenerationJobIntegrationTest {
     private static final ObjectMapper CONTRACT = AiStoryConfig.STORY_OBJECT_MAPPER;
     private static final AiStoryStubClient STUB = new AiStoryStubClient();
     private static final List<String> SEASON_TABLES = List.of(
-            "ai_season_choices", "ai_bread_relations", "ai_episode_contents", "ai_season_story_reports",
+            "ai_season_designs", "ai_season_choices", "ai_bread_relations", "ai_episode_contents", "ai_season_story_reports",
             "partner_letters", "ai_story_feedbacks", "ai_story_message_likes", "ai_episode_unlocks",
             "ai_season_characters", "ai_episode_progresses");
 

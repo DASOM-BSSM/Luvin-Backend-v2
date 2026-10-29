@@ -14,5 +14,8 @@ public interface AiStoryMessageLikeRepository extends JpaRepository<AiStoryMessa
 
     List<AiStoryMessageLike> findTop10BySeason_IdAndFromMeTrueOrderByCreatedAtDesc(Long seasonPk);
 
+    /** 새 시즌 설정의 likedLines: 지난 시즌에 하트를 누른 대사(누구의 대사든) 최근 순. */
+    List<AiStoryMessageLike> findTop10BySeason_IdOrderByCreatedAtDesc(Long seasonPk);
+
     void deleteAllBySeason_Id(Long seasonPk);
 }

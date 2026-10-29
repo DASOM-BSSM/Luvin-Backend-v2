@@ -2,6 +2,7 @@ package com.luvin.ai.client.story;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.luvin.ai.client.dto.TraitsDto;
 
 import java.util.List;
 
@@ -74,6 +75,20 @@ public final class StoryTypes {
     }
 
     public record Feedback(int order, String messageText, String text) {
+    }
+
+    /**
+     * 2시즌부터 본문(5-2)에 붙이는 seasonContext. 1시즌은 null. traits는 내 빵의 13개 성향, testsWeakness는 새 시즌 설정
+     * 초안에서 이 회차가 시험하는 약점, likedLines는 직전 시즌에 하트를 누른 대사(최대 5개, 문체 참고용).
+     */
+    public record EpisodeSeasonContext(int seasonNumber, TraitsDto traits,
+                                       String testsWeakness, List<String> likedLines,
+                                       List<String> previousCastNames) {
+    }
+
+    /** 2시즌부터 시즌 리포트(5-7)에 붙이는 seasonContext. 직전 시즌 리포트의 약점·강점. 1시즌은 null. */
+    public record ReportSeasonContext(int seasonNumber, List<String> previousWeaknesses,
+                                      List<String> previousStrengths) {
     }
 
     /** 5-0 BlockDesign. pairTarget/short는 pair, messenger는 messenger, pointId/candidateIds는 choice에만. */

@@ -36,6 +36,7 @@ public class AiStoryHttpClient implements AiStoryClient {
     private static final Logger log = LoggerFactory.getLogger(AiStoryHttpClient.class);
 
     static final String STAGE_INTRO_PATH = "/luvin/stage-intro";
+    static final String SEASON_DESIGN_PATH = "/luvin/season-design";
     static final String EPISODE_PATH = "/luvin/episode";
     static final String CHOICE_RESULT_PATH = "/luvin/choice-result";
     static final String INTERVIEW_PATH = "/luvin/interview";
@@ -62,6 +63,11 @@ public class AiStoryHttpClient implements AiStoryClient {
     @Override
     public StageIntroResponse stageIntro(String ownerSubject, StageIntroRequest request) {
         return post(STAGE_INTRO_PATH, ownerSubject, request, StageIntroResponse.class);
+    }
+
+    @Override
+    public SeasonDesignResponse designSeason(String ownerSubject, SeasonDesignRequest request) {
+        return post(SEASON_DESIGN_PATH, ownerSubject, request, SeasonDesignResponse.class);
     }
 
     @Override
@@ -98,6 +104,12 @@ public class AiStoryHttpClient implements AiStoryClient {
     public StageIntroResponse stageIntro(String ownerSubject, StageIntroRequest request, GenerationCall call) {
         return properties.usesJobs() ? runJob("stage-intro", ownerSubject, request, StageIntroResponse.class, call)
                 : stageIntro(ownerSubject, request);
+    }
+
+    @Override
+    public SeasonDesignResponse designSeason(String ownerSubject, SeasonDesignRequest request, GenerationCall call) {
+        return properties.usesJobs() ? runJob("season-design", ownerSubject, request, SeasonDesignResponse.class, call)
+                : designSeason(ownerSubject, request);
     }
 
     @Override
