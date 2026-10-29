@@ -104,6 +104,7 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     /** 메시지 하트(좋아요)가 가능한 1:1 대화 회차. 역시 같은 이유로 별도 상수로 둔다. */
     private static final Set<Integer> LIKE_EPISODES = Set.of(2, 4);
     private static final int FINAL_EPISODE = 5;
+    private static final int FIRST_SEASON_NUMBER = 1;
 
     private final AiServiceClient aiServiceClient;
     private final AiInputValidator inputValidator;
@@ -175,20 +176,64 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
     public AiSeasonStatusView createSeasonFromSurvey(Long memberId, UUID surveyResultId) {
         AiSeason existing = seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).orElse(null);
         if (existing != null) {
-            // 멱등: 기존 시즌이 있으면 재설문 결과로 바꾸지 않고 그대로 반환한다.
+            // 멱등: 시즌이 있으면 새로 만들지 않고 가장 최근 시즌(끝난 시즌이어도)을 그대로 반환한다.
+            // 다음 시즌은 POST /next로만 만든다.
             return toStatusView(existing, stateWriter.findCharacters(existing.getId()));
         }
+        return createSurveySeason(memberId, requireAgeAndGender(memberId), FIRST_SEASON_NUMBER, surveyResultId, null);
+    }
 
-        // 배경은 시즌을 만들 때 나이로 정해 끝까지 고정한다 — AI 시즌을 만들기 전에 나이부터 확인한다.
+    /**
+     * 새로운 시즌 만들기. 가장 최근 시즌이 끝났을 때(10화 완료)만 다음 번호의 시즌을 새 출연진으로 만든다 — 진행 중이면
+     * 409 SEASON_IN_PROGRESS, 시즌이 없으면 409 STORY_NOT_STARTED(첫 시즌은 /from-survey). 같은 clientRequestId로
+     * 다시 오면 그 요청이 만든 시즌을 그대로 돌려주고, 동시에 두 번 와도 시즌은 하나만 생긴다(생성 입력의 사용자·시즌 번호
+     * unique). 생성은 무료이고 새 시즌도 1~3화 무료, 4화부터 회차마다 토큰을 쓴다.
+     */
+    @Override
+    public AiSeasonStatusView startNextSeason(Long memberId, StartNextSeasonRequest request) {
+        AiSeason latest = stateWriter.findCurrentSeason(memberId)
+                .orElseThrow(() -> new AiStoryConflictException(AiStoryConflictException.STORY_NOT_STARTED,
+                        "첫 시즌을 먼저 만들어주세요."));
+        if (latest.getStatus() != AiSeasonStatus.COMPLETED) {
+            boolean sameRequest = request.clientRequestId() != null && stateWriter
+                    .findCreationInput(memberId, latest.getSeasonNumber())
+                    .map(input -> request.clientRequestId().equals(input.getClientRequestId()))
+                    .orElse(false);
+            if (sameRequest) {
+                return toStatusView(latest, stateWriter.findCharacters(latest.getId()));
+            }
+            throw new AiSeasonAlreadyExistsException();
+        }
+        User user = requireAgeAndGender(memberId);
+        UUID surveyResultId = request.surveyResultId() != null
+                ? request.surveyResultId() : user.getLatestSurveyResultId();
+        return createSurveySeason(memberId, user, latest.getSeasonNumber() + 1, surveyResultId,
+                request.clientRequestId());
+    }
+
+    /** 배경은 시즌을 만들 때 나이로 정해 끝까지 고정한다 — AI 시즌을 만들기 전에 나이·성별부터 확인한다. */
+    private User requireAgeAndGender(Long memberId) {
         User user = userRepository.findById(memberId)
                 .orElseThrow(() -> new com.luvin.common.exception.UserNotFoundException(memberId));
         if (user.getAge() == null || user.getGender() == null) {
             throw new AiStoryConflictException(AiStoryConflictException.AGE_REQUIRED, "나이와 성별을 먼저 입력해주세요.");
         }
-        AiSeasonCreationInput creationInput = stateWriter.findCreationInput(memberId).orElse(null);
+        return user;
+    }
+
+    /**
+     * 설문 결과(내 분신 성향)로 seasonNumber번째 시즌을 만든다. 생성 입력(AI idempotency key 포함)을 원격 호출 전에
+     * 커밋해 두므로, 실패 뒤 재시도나 동시 요청도 같은 AI 시즌으로 수렴한다.
+     */
+    private AiSeasonStatusView createSurveySeason(Long memberId, User user, int seasonNumber, UUID surveyResultId,
+                                                  String clientRequestId) {
+        AiSeasonCreationInput creationInput = stateWriter.findCreationInput(memberId, seasonNumber).orElse(null);
         if (creationInput == null) {
             // 요청한 surveyResultId가 본인의 "현재 최신" 결과가 아니면, 서버가 임의로 최신으로
             // 보정하지 않고 409로 재조회를 요구한다 (요구사항: 서버가 몰래 최신판으로 채점하지 않는다).
+            if (surveyResultId == null) {
+                throw new SurveyResultNotFoundException();
+            }
             if (user.getLatestSurveyResultId() == null || !user.getLatestSurveyResultId().equals(surveyResultId)) {
                 throw new SurveyResultStaleException();
             }
@@ -209,8 +254,12 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
             String profileJson = writeProfileJson(clientProfile);
 
             // 원격 호출 "이전에" 커밋 — 사용자가 직후 재설문해도 이 snapshot과 idempotency key는 바뀌지 않는다.
-            creationInput = stateWriter.persistPendingCreationInput(
-                    memberId, surveyResultId, profileJson, sha256Hex(profileJson));
+            try {
+                creationInput = stateWriter.persistPendingCreationInput(memberId, seasonNumber, surveyResultId,
+                        profileJson, sha256Hex(profileJson), clientRequestId);
+            } catch (AiSeasonStateWriter.AiSeasonCreationRaceException raceLoser) {
+                creationInput = stateWriter.findCreationInput(memberId, seasonNumber).orElseThrow();
+            }
         }
 
         CharacterProfileDto clientProfile = readProfileJson(creationInput.getProfileJson());
@@ -219,26 +268,17 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         SeasonResponseDto response = aiServiceClient.createSeason(
                 ownerSubject, creationInput.getIdempotencyKey(), request);
 
-        AiSeason season = stateWriter.persistNewSeasonFromSurvey(
-                memberId, response, creationInput.getSurveyResult().getId());
+        AiSeason season;
+        try {
+            season = stateWriter.persistNewSeasonFromSurvey(
+                    memberId, seasonNumber, response, creationInput.getSurveyResult().getId());
+        } catch (AiSeasonStateWriter.AiSeasonCreationRaceException raceLoser) {
+            season = stateWriter.findSeason(memberId, seasonNumber).orElseThrow();
+        }
         stateWriter.markCreationInputSucceeded(creationInput.getId());
         storyService.startStoryForNewSeason(memberId, season.getId());
         AiSeason started = seasonRepository.findById(season.getId()).orElseThrow();
         return toStatusView(started, stateWriter.findCharacters(started.getId()));
-    }
-
-    /**
-     * 사용자마다 시즌은 1개뿐이다(공통 데이터 계약 0장 시즌 정책). 10화를 마치면 시즌이 끝나고 다시 만들지 않는다 —
-     * 진행 중이면 409 SEASON_IN_PROGRESS, 끝났으면 409 SEASON_COMPLETED.
-     */
-    @Override
-    public AiSeasonStatusView startNextSeason(Long memberId, StartNextSeasonRequest request) {
-        AiSeason current = stateWriter.findCurrentSeason(memberId)
-                .orElseThrow(AiSeasonNotFoundException::new);
-        if (current.getStatus() != AiSeasonStatus.COMPLETED) {
-            throw new AiSeasonAlreadyExistsException();
-        }
-        throw new AiSeasonCompletedException();
     }
 
     @Override
@@ -247,7 +287,9 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                 .map(season -> new AiSeasonSummaryView(
                         season.getSeasonId(), season.getSeasonNumber(), season.getStatus().name(),
                         season.getCurrentEpisode(), season.getCreatedAt(), season.getCompletedAt(),
-                        storyService.formatOf(season)))
+                        storyService.formatOf(season),
+                        season.getSetting() == null ? null : season.getSetting().wireValue(),
+                        season.getSetting() == null ? null : season.getSetting().title()))
                 .collect(Collectors.toList());
     }
 
@@ -470,7 +512,11 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
 
     @Override
     public PartnerLetterView getUnreadLetter(Long memberId) {
-        return stateWriter.findUnreadLetter(memberId)
+        AiSeason latest = seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).orElse(null);
+        if (latest == null) {
+            return null;
+        }
+        return stateWriter.findUnreadLetter(memberId, latest.getId())
                 .map(letter -> {
                     // 발신 빵 이름·빵 종류는 시즌 출연진에서 찾는다(partnerId = characterId).
                     AiSeasonCharacter partner = letter.getPartnerId() == null ? null : seasonCharacterRepository

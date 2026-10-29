@@ -76,18 +76,40 @@ public class AiSeasonStateWriter {
         return season;
     }
 
-    /** 설문 기반 시즌 생성. 사용자당 시즌은 1개이고 생성은 무료다(토큰은 4~10화를 열 때 쓴다). */
-    @Transactional
-    public AiSeason persistNewSeasonFromSurvey(Long memberId, SeasonResponseDto response, UUID surveyResultId) {
-        AiSeason raceExisting = seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).orElse(null);
+    /**
+     * 설문 기반 시즌 생성(첫 시즌·다음 시즌 공통). 생성은 무료다(토큰은 4~10화를 열 때 쓴다). 같은 번호의 시즌이 이미
+     * 있으면(동시에 두 요청이 같은 생성 입력으로 AI 시즌을 받은 경우) 먼저 저장된 시즌을 돌려준다 — (member_id,
+     * season_number) unique라 두 번째 저장은 실패하고, 진 쪽은 이긴 쪽의 시즌을 쓴다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AiSeason persistNewSeasonFromSurvey(Long memberId, int seasonNumber, SeasonResponseDto response,
+                                               UUID surveyResultId) {
+        AiSeason raceExisting = seasonRepository.findByMemberIdAndSeasonNumber(memberId, seasonNumber).orElse(null);
         if (raceExisting != null) {
             return raceExisting;
         }
-        AiSeason season = seasonRepository.save(new AiSeason(
-                memberId, FIRST_SEASON_NUMBER, response.seasonId(), response.revision(), response.currentEpisode(),
-                surveyResultId));
+        AiSeason season;
+        try {
+            season = seasonRepository.saveAndFlush(new AiSeason(
+                    memberId, seasonNumber, response.seasonId(), response.revision(), response.currentEpisode(),
+                    surveyResultId));
+        } catch (DataIntegrityViolationException raceLoser) {
+            throw new AiSeasonCreationRaceException(raceLoser);
+        }
         saveCharacters(season, response);
         return season;
+    }
+
+    /** 같은 번호의 시즌을 동시에 저장하다 진 쪽. 호출부가 새 트랜잭션에서 이긴 쪽 시즌을 다시 읽는다. */
+    public static final class AiSeasonCreationRaceException extends RuntimeException {
+        AiSeasonCreationRaceException(Throwable cause) {
+            super(cause);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<AiSeason> findSeason(Long memberId, int seasonNumber) {
+        return seasonRepository.findByMemberIdAndSeasonNumber(memberId, seasonNumber);
     }
 
     private void saveCharacters(AiSeason season, SeasonResponseDto response) {
@@ -103,15 +125,25 @@ public class AiSeasonStateWriter {
      * 원격 AI 호출 "이전에" 커밋되어야 하므로 orchestration 서비스가 이 메서드를 먼저 호출한 뒤
      * 반환값을 그대로 재시도에도 재사용한다.
      */
-    @Transactional
-    public AiSeasonCreationInput persistPendingCreationInput(Long memberId, UUID surveyResultId,
-                                                               String profileJson, String requestHash) {
-        return seasonCreationInputRepository.findByMemberIdAndSeasonNumber(memberId, FIRST_SEASON_NUMBER)
-                .orElseGet(() -> {
-                    SurveyResultV2 surveyResult = surveyResultV2Repository.getReferenceById(surveyResultId);
-                    return seasonCreationInputRepository.save(new AiSeasonCreationInput(
-                            memberId, FIRST_SEASON_NUMBER, surveyResult, profileJson, requestHash, UUID.randomUUID()));
-                });
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public AiSeasonCreationInput persistPendingCreationInput(Long memberId, int seasonNumber, UUID surveyResultId,
+                                                               String profileJson, String requestHash,
+                                                               String clientRequestId) {
+        // (member_id, season_number) unique가 사용자 단위 락 역할을 한다 — 동시에 두 요청이 와도 생성 입력(=AI
+        // idempotency key)은 하나만 남고, 진 쪽은 이긴 쪽 입력으로 같은 AI 시즌을 받는다.
+        Optional<AiSeasonCreationInput> existing =
+                seasonCreationInputRepository.findByMemberIdAndSeasonNumber(memberId, seasonNumber);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        SurveyResultV2 surveyResult = surveyResultV2Repository.getReferenceById(surveyResultId);
+        try {
+            return seasonCreationInputRepository.saveAndFlush(new AiSeasonCreationInput(
+                    memberId, seasonNumber, surveyResult, profileJson, requestHash, UUID.randomUUID(),
+                    clientRequestId));
+        } catch (DataIntegrityViolationException raceLoser) {
+            throw new AiSeasonCreationRaceException(raceLoser);
+        }
     }
 
     @Transactional
@@ -120,8 +152,8 @@ public class AiSeasonStateWriter {
     }
 
     @Transactional(readOnly = true)
-    public Optional<AiSeasonCreationInput> findCreationInput(Long memberId) {
-        return seasonCreationInputRepository.findByMemberIdAndSeasonNumber(memberId, FIRST_SEASON_NUMBER);
+    public Optional<AiSeasonCreationInput> findCreationInput(Long memberId, int seasonNumber) {
+        return seasonCreationInputRepository.findByMemberIdAndSeasonNumber(memberId, seasonNumber);
     }
 
     @Transactional(readOnly = true)
@@ -129,9 +161,10 @@ public class AiSeasonStateWriter {
         return seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId);
     }
 
+    /** 최신 시즌부터(seasonNumber 내림차순). */
     @Transactional(readOnly = true)
     public List<AiSeason> findAllSeasons(Long memberId) {
-        return seasonRepository.findAllByMemberIdOrderBySeasonNumberAsc(memberId);
+        return seasonRepository.findAllByMemberIdOrderBySeasonNumberDesc(memberId);
     }
 
     @Transactional
@@ -227,9 +260,12 @@ public class AiSeasonStateWriter {
                 .ifPresent(letter -> letter.markSucceeded(partnerId, message, renderMode));
     }
 
+    /** 그 시즌(최신 시즌)의 안 읽은 쪽지 중 가장 최근 것. 지난 시즌에 남은 안 읽은 쪽지는 새 시즌에 띄우지 않는다. */
     @Transactional(readOnly = true)
-    public Optional<PartnerLetter> findUnreadLetter(Long memberId) {
-        return partnerLetterRepository.findUnreadOrderByCreatedAtDesc(memberId).stream().findFirst();
+    public Optional<PartnerLetter> findUnreadLetter(Long memberId, Long seasonPk) {
+        return partnerLetterRepository.findUnreadOrderByCreatedAtDesc(memberId).stream()
+                .filter(letter -> letter.getSeason().getId().equals(seasonPk))
+                .findFirst();
     }
 
     @Transactional

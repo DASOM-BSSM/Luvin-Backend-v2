@@ -101,6 +101,9 @@ public class AiStoryStateWriter {
     public void startStory(Long seasonPk, AiSeasonSetting setting, String myName, String myBreadType, String myGender,
                            List<String> breadTypes, RandomGenerator random) {
         AiSeason season = seasonRepository.findWithLockById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
+        // 요청 앞부분(open-in-view)에서 이미 읽은 시즌이면 잠금 조회도 캐시된 값을 돌려준다 — 잠금을 기다리는 사이 다른
+        // 요청이 시작을 마쳤을 수 있으니 잠근 뒤 DB 값으로 다시 읽는다(동시에 새 시즌을 만들 때 출연진이 두 번 생기지 않게).
+        entityManager.refresh(season);
         if (season.isStoryStarted()) {
             return;
         }

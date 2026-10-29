@@ -25,16 +25,18 @@ public interface AiSeasonOrchestrationService {
     AiSeasonStatusView createSeason(Long memberId, AiCharacterProfileRequest representative);
 
     /**
-     * 서버가 저장한 설문 v2 결과(gender + 13개 core 점수)로 시즌을 생성한다. 기존 시즌이 있으면 그대로
-     * 반환하고, 요청한 surveyResultId가 본인의 최신 결과가 아니면 409(SURVEY_RESULT_STALE)를 던진다.
+     * 서버가 저장한 설문 v2 결과(gender + 13개 core 점수)로 첫 시즌을 생성한다. 시즌이 있으면 가장 최근 시즌을
+     * (끝난 시즌이어도) 그대로 반환하고, 요청한 surveyResultId가 본인의 최신 결과가 아니면 409(SURVEY_RESULT_STALE)를 던진다.
      */
     AiSeasonStatusView createSeasonFromSurvey(Long memberId, java.util.UUID surveyResultId);
 
-    /** 사용자당 시즌은 1개라 다음 시즌을 만들지 않는다. 진행 중이면 409 SEASON_IN_PROGRESS, 끝났으면 409 SEASON_COMPLETED. */
-    @Deprecated // 공통 데이터 계약 0장 시즌 정책: 다음 시즌 없음.
+    /**
+     * 가장 최근 시즌이 끝났으면 다음 번호의 시즌을 새 출연진으로 만든다. 진행 중이면 409 SEASON_IN_PROGRESS(같은
+     * clientRequestId가 만든 시즌이면 그 시즌), 시즌이 없으면 409 STORY_NOT_STARTED.
+     */
     AiSeasonStatusView startNextSeason(Long memberId, StartNextSeasonRequest request);
 
-    /** 이 사용자의 모든 시즌을 seasonNumber 오름차순으로 반환한다(지난 시즌 포함). */
+    /** 이 사용자의 모든 시즌을 최신 시즌부터(seasonNumber 내림차순) 반환한다(지난 시즌 포함). */
     List<AiSeasonSummaryView> listSeasons(Long memberId);
 
     /** 재시작/새로고침 후 최신 시즌 상태 복구. AI GET season으로 revision/currentEpisode를 동기화한다. */
@@ -83,7 +85,7 @@ public interface AiSeasonOrchestrationService {
     AiReportView getReport(Long memberId, UUID seasonId);
 
     /**
-     * 안 읽은 "SECRET LOVE" 쪽지를 조회한다(최신 1개만, 여러 개 쌓여도 그중 최신). AI 쪽 생성 job이
+     * 가장 최근 시즌의 안 읽은 "SECRET LOVE" 쪽지를 조회한다(최신 1개만, 여러 개 쌓여도 그중 최신). AI 쪽 생성 job이
      * 아직 SUCCEEDED되지 않았으면 null(쪽지로 보여줄 내용이 없다).
      */
     PartnerLetterView getUnreadLetter(Long memberId);
