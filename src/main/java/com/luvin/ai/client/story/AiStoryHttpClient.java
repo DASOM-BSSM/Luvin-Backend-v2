@@ -164,14 +164,15 @@ public class AiStoryHttpClient implements AiStoryClient {
             } catch (AiServerException transientFailure) {
                 continue;
             }
-            if (!Objects.equals(reported.status(), job.status()) || reported.attempt() != job.attempt()) {
+            if (!Objects.equals(reported.status(), job.status()) || reported.attempt() != job.attempt()
+                    || reported.regenerating() != job.regenerating()) {
                 call.report(progressOf(job));
                 reported = job;
             }
         }
         if (GenerationJobResponse.FAILED.equals(job.status())) {
-            throw new AiServiceException("[" + JOBS_PATH + " " + task + "] 생성 실패: " + job.errorCode(),
-                    job.errorCode(), null);
+            throw new AiServiceException("[" + JOBS_PATH + " " + task + "] 생성 실패: " + job.failureCode(),
+                    job.failureCode(), null);
         }
         try {
             return AiStoryConfig.STORY_OBJECT_MAPPER.treeToValue(job.result(), type);
@@ -208,7 +209,7 @@ public class AiStoryHttpClient implements AiStoryClient {
     }
 
     private static GenerationProgress progressOf(GenerationJobResponse job) {
-        return new GenerationProgress(job.jobId(), job.status(), job.attempt());
+        return new GenerationProgress(job.jobId(), job.status(), job.attempt(), job.regenerating());
     }
 
     private static void sleep(Duration interval) {
