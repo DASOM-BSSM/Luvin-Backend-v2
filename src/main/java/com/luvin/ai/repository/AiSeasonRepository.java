@@ -16,8 +16,12 @@ public interface AiSeasonRepository extends JpaRepository<AiSeason, Long> {
      */
     Optional<AiSeason> findFirstByMemberIdOrderBySeasonNumberDesc(Long memberId);
 
-    /** GET /api/ai/seasons 목록 응답용. 오름차순(1부터)으로 전부 반환한다. */
     List<AiSeason> findAllByMemberIdOrderBySeasonNumberAsc(Long memberId);
+
+    /** GET /api/ai/seasons 목록 응답용. 최신 시즌부터 전부 반환한다. */
+    List<AiSeason> findAllByMemberIdOrderBySeasonNumberDesc(Long memberId);
+
+    Optional<AiSeason> findByMemberIdAndSeasonNumber(Long memberId, Integer seasonNumber);
 
     Optional<AiSeason> findBySeasonId(UUID seasonId);
 

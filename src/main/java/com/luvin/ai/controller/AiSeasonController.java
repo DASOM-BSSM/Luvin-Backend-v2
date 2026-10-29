@@ -75,10 +75,21 @@ public class AiSeasonController {
         return ApiResponse.ok(orchestrationService.getStatus(memberId));
     }
 
-    /** 사용자당 시즌은 1개라 다음 시즌을 만들지 않는다(진행 중이면 SEASON_IN_PROGRESS, 끝났으면 SEASON_COMPLETED). */
-    @Deprecated
-    @Operation(deprecated = true, description = "사용자당 시즌은 1개뿐이라 다음 시즌을 만들지 않는다. "
-            + "진행 중이면 409 SEASON_IN_PROGRESS, 10화를 마쳤으면 409 SEASON_COMPLETED.")
+    /** 10화를 끝낸 사용자가 다음 시즌(새 출연진)을 만든다. 첫 시즌은 /from-survey로 만든다. */
+    @Operation(summary = "새로운 시즌 만들기", description = """
+            가장 최근 시즌이 끝났으면(10화 완료, status COMPLETED) 다음 번호의 시즌을 새 출연진으로 만들고 바로 1화부터
+            시작할 수 있는 상태로 돌려준다(seasonNumber = 직전 + 1, status IN_PROGRESS, currentEpisode 1,
+            story.unlockedOrders [1,2,3], completedOrders·choices 빈 값, route null). 배경은 첫 시즌과 같이 나이로 정한다.
+            시즌 만들기는 무료이고, 새 시즌도 1~3화는 무료, 4화부터 회차마다 `story.episodeTokenCost`만큼 토큰을 쓴다.
+
+            - surveyResultId: 내 분신 성향 기준이 되는 최신 설문 결과. 생략하면 서버의 최신 설문 결과를 쓴다.
+            - clientRequestId: 멱등 키. 같은 값으로 다시 오면 그 요청이 만든 시즌을 그대로 200으로 돌려준다. 동시에 여러 번
+              와도 시즌은 하나만 생긴다.
+
+            **오류**: 409 `SEASON_IN_PROGRESS`(가장 최근 시즌이 진행 중 — 그 시즌으로 들어가면 된다),
+            409 `STORY_NOT_STARTED`(시즌이 하나도 없음), 409 `AGE_REQUIRED`(나이·성별 없음),
+            409 `SURVEY_RESULT_STALE`(surveyResultId가 최신 설문 결과가 아님), 404 `SURVEY_RESULT_NOT_FOUND`
+            (본인 설문 결과가 없음).""")
     @PostMapping("/next")
     public ApiResponse<AiSeasonStatusView> startNextSeason(
             @RequestBody(required = false) StartNextSeasonRequest request) {
@@ -87,7 +98,10 @@ public class AiSeasonController {
         return ApiResponse.ok(orchestrationService.startNextSeason(memberId, safeRequest));
     }
 
-    /** 이 사용자의 모든 시즌(지난 시즌 포함)을 seasonNumber 오름차순으로 반환한다. */
+    /** 이 사용자의 모든 시즌(지난 시즌 포함)을 최신 시즌부터(seasonNumber 내림차순) 반환한다. */
+    @Operation(summary = "시즌 목록", description = "지난 시즌까지 최신 시즌부터(seasonNumber 내림차순) 돌려준다. "
+            + "setting(배경)·settingTitle(카드 제목, 예: In School)을 함께 준다. 지난 시즌 리포트는 "
+            + "GET /report?season_id=, 회차 다시 보기는 season_id를 받는 API를 쓴다.")
     @GetMapping
     public ApiResponse<List<AiSeasonSummaryView>> listSeasons() {
         Long memberId = SecurityUtils.getCurrentUserId();
@@ -184,7 +198,7 @@ public class AiSeasonController {
     }
 
     /**
-     * 안 읽은 "SECRET LOVE" 쪽지 조회(최신 1개만). 없으면 data가 null인 200 응답을 돌려준다
+     * 가장 최근 시즌의 안 읽은 "SECRET LOVE" 쪽지 조회(최신 1개만). 없으면 data가 null인 200 응답을 돌려준다
      * (별도 204 처리 없이, 이 컨트롤러 전반의 ApiResponse 래핑 컨벤션을 그대로 따른다).
      */
     @GetMapping("/letters/unread")

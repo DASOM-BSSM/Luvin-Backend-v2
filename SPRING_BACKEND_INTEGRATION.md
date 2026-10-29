@@ -311,10 +311,14 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 - 진행 순서: 이전 회차 완료(409 `PREVIOUS_EPISODE_NOT_COMPLETED`) → (4화 이상이면) 회차 열기(열지 않았으면 409
   `EPISODE_NOT_UNLOCKED`) → content. 선택 회차(3·5·6·8화)는 선택해야 완료됩니다(409 `CHOICE_REQUIRED`).
   그래서 4화는 ①, 6화는 ②, 7화는 ③, 9화는 ④ 이후에만 생성됩니다.
-- 시즌 정책(계약 0장): 사용자마다 시즌은 1개입니다. 시즌 생성(`from-survey`)은 무료이고, 그때 나이로 배경을 정하고
-  (19세 이하 school, 20~23세 campus/cafe 랜덤, 24세 이상 office) 출연진(이름·성별·후보 순서)을 배정해 끝까지 고정합니다.
-  나이 또는 성별이 없으면 시즌 생성(과 1화)이 409 `AGE_REQUIRED`입니다. 성별은 `MALE`/`FEMALE`만 받습니다. 10화를 마치면 시즌이 끝나고 `POST /next`는 409 `SEASON_COMPLETED`
-  (진행 중이면 `SEASON_IN_PROGRESS`)입니다. 기존 5화 시즌은 V10에서 모두 지웠고 `episodeFormat`은 항상 `blocks`입니다.
+- 시즌 정책: 첫 시즌은 `from-survey`로, 10화를 마친 뒤의 새로운 시즌은 `POST /next`로 만듭니다(둘 다 무료). 시즌을
+  만들 때 나이로 배경을 정하고(19세 이하 school, 20~23세 campus/cafe 랜덤, 24세 이상 office) 새 출연진(이름·성별·후보
+  순서)을 배정해 그 시즌 끝까지 고정합니다. 나이 또는 성별이 없으면 시즌 생성(과 1화)이 409 `AGE_REQUIRED`입니다. 성별은
+  `MALE`/`FEMALE`만 받습니다. `POST /next`는 가장 최근 시즌이 진행 중이면 409 `SEASON_IN_PROGRESS`, 시즌이 없으면 409
+  `STORY_NOT_STARTED`이고, 같은 `clientRequestId`로 다시 오면 그 요청이 만든 시즌을 돌려줍니다(동시 요청에도 하나만 생성).
+  `season_id` 없이 부르는 API(`/me`, `from-survey`, 회차 API, `/letters/unread`, `/report`)는 모두 가장 최근 시즌 기준이고,
+  `GET /api/ai/seasons`는 지난 시즌까지 최신 시즌부터 `setting`·`settingTitle`과 함께 돌려줍니다. 기존 5화 시즌은 V10에서
+  모두 지웠고 `episodeFormat`은 항상 `blocks`입니다.
 - 회차 열기(토큰): 1~3화 무료, 4~10화는 처음 열 때 `app.ai.story.episode-token-cost`(기본 1)만큼 차감하고 다시 볼 때는
   무료입니다. 차감은 생성 전에 하며, 생성이 실패해도 열린 상태로 남습니다. 토큰이 모자라면 409 `INSUFFICIENT_TOKENS`
   (data: required, balance). 개발 서버는 `app.ai.story.token-charge-enabled=false`(`APP_AI_STORY_TOKENCHARGEENABLED`)로

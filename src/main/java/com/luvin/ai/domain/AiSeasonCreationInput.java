@@ -61,6 +61,10 @@ public class AiSeasonCreationInput {
     @Column(name = "status", nullable = false, length = 20)
     private String status;
 
+    /** 다음 시즌 만들기 요청의 clientRequestId(첫 시즌·미지정이면 null). 같은 값으로 다시 오면 같은 시즌을 돌려준다. */
+    @Column(name = "client_request_id", length = 100)
+    private String clientRequestId;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -68,8 +72,9 @@ public class AiSeasonCreationInput {
     private LocalDateTime updatedAt;
 
     public AiSeasonCreationInput(Long memberId, Integer seasonNumber, SurveyResultV2 surveyResult, String profileJson,
-                                  String requestHash, UUID idempotencyKey) {
+                                  String requestHash, UUID idempotencyKey, String clientRequestId) {
         this.memberId = memberId;
+        this.clientRequestId = clientRequestId;
         this.seasonNumber = seasonNumber;
         this.surveyResult = surveyResult;
         this.profileJson = profileJson;

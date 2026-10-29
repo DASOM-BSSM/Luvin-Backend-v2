@@ -270,14 +270,18 @@ class AiStoryFlowIntegrationTest {
     }
 
     @Test
-    void 설문으로_만든_시즌은_바로_시작되고_10화_뒤에는_다음_시즌이_없다() throws Exception {
+    void 설문으로_만든_시즌은_바로_시작되고_10화를_끝내면_새로운_시즌을_만든다() throws Exception {
         TestUser user = createUser(26);
         String surveyResultId = submitSurvey(user);
 
+        // 시즌이 없으면 다음 시즌을 만들 수 없다(첫 시즌은 /from-survey).
+        assertEquals("STORY_NOT_STARTED", error(post(user, "/next", "{}")).get("code").asText());
+
         // 시즌을 만들 때 나이로 배경을 정하고 출연진(이름·성별·후보 순서)을 배정한다.
         JsonNode created = data(post(user, "/from-survey", "{\"surveyResultId\":\"" + surveyResultId + "\"}"));
-        seasonIds.add(seasonRepository.findByMemberIdAndSeasonId(user.id(),
-                UUID.fromString(created.get("seasonId").asText())).orElseThrow().getId());
+        Long firstSeasonPk = seasonRepository.findByMemberIdAndSeasonId(user.id(),
+                UUID.fromString(created.get("seasonId").asText())).orElseThrow().getId();
+        seasonIds.add(firstSeasonPk);
         assertEquals("office", created.get("story").get("setting").asText());
         assertEquals(List.of(1, 2, 3), intList(created.get("story").get("unlockedOrders")));
         for (JsonNode character : created.get("characters")) {
@@ -285,6 +289,9 @@ class AiStoryFlowIntegrationTest {
             String expected = castRole.equals("my_bread") || castRole.equals("friend") ? "FEMALE" : "MALE";
             assertEquals(expected, character.get("gender").asText(), character.toString());
         }
+
+        // 진행 중에는 다음 시즌을 만들지 않는다.
+        assertEquals("SEASON_IN_PROGRESS", error(post(user, "/next", "{}")).get("code").asText());
 
         for (int order = 1; order <= 10; order++) {
             readyContent(user, order);
@@ -301,9 +308,94 @@ class AiStoryFlowIntegrationTest {
             complete(user, order);
         }
         assertFalse(data(get(user, "/report")).get("feedback").asText().isBlank());
-        // 끝난 시즌의 회차는 계속 다시 볼 수 있고, 다음 시즌은 만들지 않는다.
+        // 끝난 시즌의 회차는 계속 다시 볼 수 있다. /from-survey는 끝난 시즌을 그대로 돌려준다(새로 만들지 않는다).
         assertEquals("ready", data(get(user, "/episodes/10/content")).get("status").asText());
-        assertEquals("SEASON_COMPLETED", error(post(user, "/next", "{}")).get("code").asText());
+        JsonNode stillFirst = data(post(user, "/from-survey", "{\"surveyResultId\":\"" + surveyResultId + "\"}"));
+        assertEquals(created.get("seasonId").asText(), stillFirst.get("seasonId").asText());
+        assertEquals("COMPLETED", stillFirst.get("status").asText());
+        assertFalse(data(get(user, "/letters/unread")).isNull());
+
+        // 새로운 시즌: 새 출연진으로 2번째 시즌을 만들고 바로 1화부터 시작할 수 있다.
+        String clientRequestId = UUID.randomUUID().toString();
+        String nextBody = "{\"surveyResultId\":\"" + surveyResultId + "\",\"clientRequestId\":\"" + clientRequestId + "\"}";
+        JsonNode next = data(post(user, "/next", nextBody));
+        seasonIds.add(seasonRepository.findByMemberIdAndSeasonId(user.id(),
+                UUID.fromString(next.get("seasonId").asText())).orElseThrow().getId());
+        assertEquals(2, next.get("seasonNumber").asInt());
+        assertEquals("IN_PROGRESS", next.get("status").asText());
+        assertEquals(1, next.get("currentEpisode").asInt());
+        assertFalse(created.get("seasonId").asText().equals(next.get("seasonId").asText()));
+        JsonNode story = next.get("story");
+        assertEquals("office", story.get("setting").asText());
+        assertEquals(List.of(), intList(story.get("completedOrders")));
+        assertEquals(List.of(1, 2, 3), intList(story.get("unlockedOrders")));
+        assertEquals(0, story.get("choices").size());
+        assertTrue(story.get("route").isNull());
+        assertTrue(story.get("completion").isNull());
+        Set<String> firstCast = new HashSet<>();
+        created.get("characters").forEach(c -> firstCast.add(c.get("characterId").asText()));
+        next.get("characters").forEach(c -> assertFalse(firstCast.contains(c.get("characterId").asText()), c.toString()));
+
+        // 같은 clientRequestId로 다시 오면 같은 시즌, 다른 요청이면 진행 중이라 409.
+        assertEquals(next.get("seasonId").asText(), data(post(user, "/next", nextBody)).get("seasonId").asText());
+        assertEquals("SEASON_IN_PROGRESS", error(post(user, "/next", "{}")).get("code").asText());
+
+        // season_id 없이 부르는 API는 가장 최근 시즌 기준이다. 지난 시즌의 안 읽은 쪽지는 새 시즌에 띄우지 않는다.
+        assertEquals(next.get("seasonId").asText(), data(get(user, "/me")).get("seasonId").asText());
+        assertEquals(next.get("seasonId").asText(),
+                data(post(user, "/from-survey", "{\"surveyResultId\":\"" + surveyResultId + "\"}")).get("seasonId").asText());
+        assertTrue(data(get(user, "/letters/unread")).isNull());
+        JsonNode ep1 = readyContent(user, 1);
+        assertEquals("office", ep1.get("stageIntro").get("setting").asText());
+        // 지난 시즌 리포트는 season_id로 계속 본다.
+        assertFalse(data(get(user, "/report?season_id=" + created.get("seasonId").asText()))
+                .get("feedback").asText().isBlank());
+
+        // 시즌 목록은 최신 시즌부터, 배경과 카드 제목을 함께 준다.
+        JsonNode seasons = data(get(user, ""));
+        assertEquals(2, seasons.size());
+        assertEquals(2, seasons.get(0).get("seasonNumber").asInt());
+        assertEquals(1, seasons.get(1).get("seasonNumber").asInt());
+        assertEquals("office", seasons.get(1).get("setting").asText());
+        assertEquals("In Office", seasons.get(1).get("settingTitle").asText());
+    }
+
+    @Test
+    void 새로운_시즌은_동시에_여러_번_요청해도_하나만_만든다() throws Exception {
+        TestUser user = createUser(26);
+        String surveyResultId = submitSurvey(user);
+        JsonNode created = data(post(user, "/from-survey", "{\"surveyResultId\":\"" + surveyResultId + "\"}"));
+        Long firstSeasonPk = seasonRepository.findByMemberIdAndSeasonId(user.id(),
+                UUID.fromString(created.get("seasonId").asText())).orElseThrow().getId();
+        seasonIds.add(firstSeasonPk);
+        jdbcTemplate.update("UPDATE ai_seasons SET status = 'COMPLETED', completed_at = now() WHERE id = ?",
+                firstSeasonPk);
+
+        List<java.util.concurrent.CompletableFuture<HttpResponse<String>>> requests = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            String body = "{\"surveyResultId\":\"" + surveyResultId + "\",\"clientRequestId\":\"" + UUID.randomUUID() + "\"}";
+            requests.add(java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                try {
+                    return post(user, "/next", body);
+                } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                }
+            }));
+        }
+        Set<String> createdSeasonIds = new HashSet<>();
+        for (var request : requests) {
+            HttpResponse<String> response = request.join();
+            JsonNode body = objectMapper.readTree(response.body());
+            if (response.statusCode() == 200) {
+                createdSeasonIds.add(body.get("data").get("seasonId").asText());
+            } else {
+                assertEquals("SEASON_IN_PROGRESS", body.get("code").asText(), response.body());
+            }
+        }
+        List<AiSeason> seasons = seasonRepository.findAllByMemberIdOrderBySeasonNumberAsc(user.id());
+        seasons.stream().skip(1).forEach(s -> seasonIds.add(s.getId()));
+        assertEquals(2, seasons.size());
+        assertEquals(Set.of(seasons.get(1).getSeasonId().toString()), createdSeasonIds);
     }
 
     @Test
