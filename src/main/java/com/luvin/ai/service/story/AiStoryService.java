@@ -829,11 +829,6 @@ public class AiStoryService {
         return Optional.of(AiStoryJson.read(json, AiReportView.class));
     }
 
-    /** 개발 전용: 현재 시즌을 새 흐름 시작 전 상태로 되돌린다. */
-    public void resetCurrentSeason(Long memberId) {
-        stateWriter.resetStory(currentSeason(memberId).getId());
-    }
-
     // ---------------------------------------------------------------- 내부 헬퍼
 
     /**
