@@ -183,14 +183,15 @@ class AiEpisodePlannerTest {
     }
 
     @Test
-    void 팔화_4번_선택_후보는_다툰_상대와_친구() {
+    void 팔화_4번_선택_후보는_출연_빵_5명이고_흐름과_상관없이_같은_순서다() {
+        List<UUID> expected = List.of(secure.breadId(), avoidant.breadId(), anxious.breadId(), friend.breadId(),
+                moodMaker.breadId());
         AiEpisodePlan romance = plan(8, AiStoryRoute.ROMANCE, avoidant.breadId(), Map.of());
         AiEpisodePlan solo = plan(8, AiStoryRoute.SOLO, null, Map.of());
 
-        assertEquals(List.of(avoidant.breadId(), friend.breadId()),
-                first(romance, AiSceneBlockType.CHOICE).choice().candidateIds());
-        assertEquals(List.of(secure.breadId(), friend.breadId()),
-                first(solo, AiSceneBlockType.CHOICE).choice().candidateIds());
+        assertEquals(expected, first(romance, AiSceneBlockType.CHOICE).choice().candidateIds());
+        assertEquals(expected, first(solo, AiSceneBlockType.CHOICE).choice().candidateIds());
+        assertFalse(expected.contains(me.breadId()));
     }
 
     @Test

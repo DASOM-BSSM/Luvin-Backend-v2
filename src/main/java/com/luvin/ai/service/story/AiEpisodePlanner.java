@@ -29,7 +29,7 @@ import java.util.UUID;
  * - 1·2·3화 = 시즌 시작 때 랜덤으로 정한 후보 순서의 첫째·둘째·셋째
  * - 4화 = ①에서 수락한 빵, 아니면(혼자 있기·거절) 친구 / 5화 = 친구 / 6화 = ②에서 수락한 빵, 아니면 친구
  * - 7·10화 = romance면 연인, solo면 친구 / 8화 = romance면 연인, solo면 호감이 가장 높은 후보
- * - 9화 = ④에서 수락한 빵(다툰 상대 또는 친구), 아니면 혼자
+ * - 9화 = ④에서 수락한 빵(출연 빵 5명 중 하나), 아니면 혼자
  */
 public final class AiEpisodePlanner {
 
@@ -137,17 +137,19 @@ public final class AiEpisodePlanner {
         return fallback;
     }
 
-    /** ①~③은 연애 후보 3명, ④는 다툰 상대(8화 pair 상대)와 친구 빵. */
+    /**
+     * ①~③은 연애 후보 3명. ④(8화)는 출연 빵 5명 전원 — 연애 후보 3명(만난 순서), 친구, 분위기 메이커 순이다. FastAPI는
+     * 이 candidateIds 순서 그대로 후보를 쓰고(임의로 고르지 않는다), 앱 투표지도 이 5명 + 혼자 있기다.
+     */
     private static List<UUID> candidates(Input input, int pointId) {
-        if (pointId == 4) {
-            UUID friend = member(input.cast(), AiCastRole.FRIEND).breadId();
-            UUID conflictPartner = pairPartner(input);
-            if (conflictPartner == null || conflictPartner.equals(friend)) {
-                conflictPartner = favoriteCandidate(input);
-            }
-            return List.of(conflictPartner, friend);
+        List<UUID> romance = romanceCandidates(input.cast()).stream().map(AiStoryCastMember::breadId).toList();
+        if (pointId != 4) {
+            return romance;
         }
-        return romanceCandidates(input.cast()).stream().map(AiStoryCastMember::breadId).toList();
+        List<UUID> everyone = new ArrayList<>(romance);
+        everyone.add(member(input.cast(), AiCastRole.FRIEND).breadId());
+        everyone.add(member(input.cast(), AiCastRole.MOOD_MAKER).breadId());
+        return List.copyOf(everyone);
     }
 
     /** 호감이 가장 높은 후보. 같으면 먼저 만난 후보. */

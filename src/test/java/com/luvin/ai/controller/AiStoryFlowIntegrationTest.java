@@ -219,7 +219,13 @@ class AiStoryFlowIntegrationTest {
         assertEquals(secure.toString(), pairFocus(ep7, user));
         complete(user, 7);
 
-        readyContent(user, 8);
+        // 8화 ④ 투표 후보는 출연 빵 5명(내 빵 제외) 전원이다.
+        JsonNode ep8 = readyContent(user, 8);
+        JsonNode choice8 = ep8.get("blocks").get(ep8.get("blocks").size() - 1).get("choice");
+        assertEquals(4, choice8.get("pointId").asInt());
+        assertEquals(5, choice8.get("candidates").size());
+        choice8.get("candidates").forEach(c -> assertFalse(
+                c.get("breadId").asText().equals(season.representative().toString()), c.toString()));
         post(user, "/episodes/8/choices", "{\"pointId\":4,\"breadId\":null}");
         complete(user, 8);
 
@@ -586,7 +592,13 @@ class AiStoryFlowIntegrationTest {
         String friend = breadOf(user, "friend");
         assertEquals(friend, pairFocus(readyContent(user, 7), user));
         complete(user, 7);
-        readyContent(user, 8);
+        // 8화 ④ 투표 후보는 출연 빵 5명(내 빵 제외) 전원이다.
+        JsonNode ep8 = readyContent(user, 8);
+        JsonNode choice8 = ep8.get("blocks").get(ep8.get("blocks").size() - 1).get("choice");
+        assertEquals(4, choice8.get("pointId").asInt());
+        assertEquals(5, choice8.get("candidates").size());
+        choice8.get("candidates").forEach(c -> assertFalse(
+                c.get("breadId").asText().equals(season.representative().toString()), c.toString()));
         post(user, "/episodes/8/choices", "{\"pointId\":4,\"breadId\":null}");
         complete(user, 8);
         readyContent(user, 9);
