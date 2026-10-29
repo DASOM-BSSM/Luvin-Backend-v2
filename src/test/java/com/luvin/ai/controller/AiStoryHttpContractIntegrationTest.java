@@ -495,6 +495,7 @@ class AiStoryHttpContractIntegrationTest {
         view.put("attempt", job.get("attempt"));
         view.put("result", job.get("result"));
         view.put("errorCode", null);
+        view.put("code", null);
         return view;
     }
 

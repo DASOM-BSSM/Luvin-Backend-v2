@@ -300,7 +300,9 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
   `story.completion.progress`에 있습니다.
 - Spring은 FastAPI 비동기 생성 job(`POST /luvin/generation-jobs`)으로 생성을 접수하고 상태를 조회합니다
   (`app.ai.story.generation-mode=jobs`, 기본값). 단계마다 같은 논리 작업이면 같은 Idempotency-Key를 써서, Spring이
-  재시작돼도(기동 때 이어서 진행) 이미 접수한 job을 이어서 봅니다. 문제가 있으면 `APP_AI_STORY_GENERATION_MODE=sync`로
+  재시작돼도(기동 때 이어서 진행) 이미 접수한 job을 이어서 봅니다. job의 `code: "REGENERATION"`(재생성 중)은 진행
+  상태로 보고 끝날 때까지 기다리며, 앱에는 `progress.regenerating: true`로 보입니다. 최종 실패 코드(job의
+  `errorCode`/`code`)는 서버 로그에만 남고 앱에는 지금처럼 `STORY_GENERATION_FAILED`로 내려갑니다. 문제가 있으면 `APP_AI_STORY_GENERATION_MODE=sync`로
   기존 동기 endpoint를 다시 쓸 수 있습니다.
 - 회차 완료도 AI 생성을 여러 번 기다려 수십 초가 걸리므로 POST complete는 접수만 하고 시즌 상태를 바로 돌려줍니다.
   `story.completion`이 `{ order, status: "completing" }`이면 `GET /api/ai/seasons/me`를 2~3초 간격으로 폴링하고,

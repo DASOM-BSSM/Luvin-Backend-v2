@@ -389,6 +389,9 @@ class AiStoryGenerationJobIntegrationTest {
             view.put("attempt", attempt);
             view.put("result", "succeeded".equals(status) ? result : null);
             view.put("errorCode", errorCode);
+            // FastAPI generation_code와 같은 규칙: 재생성 중이면 REGENERATION, 실패면 최종 코드, 그 외 null.
+            view.put("code", "regenerating".equals(status) ? "REGENERATION"
+                    : "failed".equals(status) ? errorCode : null);
             return view;
         }
     }
