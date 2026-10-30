@@ -312,8 +312,10 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
   `EPISODE_NOT_UNLOCKED`) → content. 선택 회차(3·5·6·8화)는 선택해야 완료됩니다(409 `CHOICE_REQUIRED`).
   그래서 4화는 ①, 6화는 ②, 7화는 ③, 9화는 ④ 이후에만 생성됩니다.
 - 시즌 정책: 첫 시즌은 `from-survey`로, 10화를 마친 뒤의 새로운 시즌은 `POST /next`로 만듭니다(둘 다 무료). 시즌을
-  만들 때 나이로 배경을 정하고(19세 이하 school, 20~23세 campus/cafe 랜덤, 24세 이상 office) 새 출연진(이름·성별·후보
-  순서)을 배정해 그 시즌 끝까지 고정합니다. 나이 또는 성별이 없으면 시즌 생성(과 1화)이 409 `AGE_REQUIRED`입니다. 성별은
+  만들 때 배경을 정하고 새 출연진(이름·성별·후보 순서)을 배정해 그 시즌 끝까지 고정합니다. 첫 시즌(시즌 초기화 뒤 포함)은
+  나이로 배경을 정합니다(19세 이하 school, 20~23세 campus/cafe 랜덤, 24세 이상 office). 두 번째 시즌부터는 나이에 맞는
+  배경(19세 이하 school·cafe, 20~29세 campus·cafe·office, 30세 이상 office·cafe) 중 지난 시즌들에서 안 쓴 배경을,
+  다 썼으면 가장 오래전에 쓴 배경을 고릅니다(같은 조건이면 랜덤). 그래서 직전 시즌과 배경이 겹치지 않습니다. 나이 또는 성별이 없으면 시즌 생성(과 1화)이 409 `AGE_REQUIRED`입니다. 성별은
   `MALE`/`FEMALE`만 받습니다. `POST /next`는 가장 최근 시즌이 진행 중이면 409 `SEASON_IN_PROGRESS`, 시즌이 없으면 409
   `STORY_NOT_STARTED`이고, 같은 `clientRequestId`로 다시 오면 그 요청이 만든 시즌을 돌려줍니다(동시 요청에도 하나만 생성).
   `season_id` 없이 부르는 API(`/me`, `from-survey`, 회차 API, `/letters/unread`, `/report`)는 모두 가장 최근 시즌 기준이고,

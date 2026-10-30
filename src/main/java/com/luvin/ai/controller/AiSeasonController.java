@@ -79,7 +79,10 @@ public class AiSeasonController {
     @Operation(summary = "새로운 시즌 만들기", description = """
             가장 최근 시즌이 끝났으면(10화 완료, status COMPLETED) 다음 번호의 시즌을 새 출연진으로 만들고 바로 1화부터
             시작할 수 있는 상태로 돌려준다(seasonNumber = 직전 + 1, status IN_PROGRESS, currentEpisode 1,
-            story.unlockedOrders [1,2,3], completedOrders·choices 빈 값, route null). 배경은 첫 시즌과 같이 나이로 정한다.
+            story.unlockedOrders [1,2,3], completedOrders·choices 빈 값, route null).
+            배경(setting)은 나이에 맞는 배경 중 지난 시즌들에서 안 쓴 배경을, 다 썼으면 가장 오래전에 쓴 배경을 고른다(같은
+            조건이면 랜덤) — 직전 시즌과 겹치지 않는다. 나이에 맞는 배경: 19세 이하 school·cafe, 20~29세 campus·cafe·office,
+            30세 이상 office·cafe. (첫 시즌·시즌 초기화 뒤의 시즌은 from-survey에서 나이로 정한다.)
             시즌 만들기는 무료이고, 새 시즌도 1~3화는 무료, 4화부터 회차마다 `story.episodeTokenCost`만큼 토큰을 쓴다.
 
             - surveyResultId: 내 분신 성향 기준이 되는 최신 설문 결과. 생략하면 서버의 최신 설문 결과를 쓴다.

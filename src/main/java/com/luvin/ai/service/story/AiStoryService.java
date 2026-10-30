@@ -25,6 +25,7 @@ import com.luvin.ai.config.AiStoryProperties;
 import com.luvin.ai.domain.AiCastRole;
 import com.luvin.ai.domain.AiSceneBlockType;
 import com.luvin.ai.domain.AiSeason;
+import com.luvin.ai.domain.AiSeasonSetting;
 import com.luvin.ai.domain.AiSeasonStatus;
 import com.luvin.ai.domain.AiStoryContentStatus;
 import com.luvin.ai.domain.AiStoryRoute;
@@ -200,13 +201,19 @@ public class AiStoryService {
     }
 
     /**
-     * 새 시즌의 회차 흐름을 시작한다: 나이로 배경 결정(시즌 동안 고정), 출연진 배정·이름·성별·후보 순서. 시즌 생성 직후
-     * 부른다. 이미 시작한 시즌이면 아무것도 하지 않는다. 나이가 없으면 409 AGE_REQUIRED.
+     * 새 시즌의 회차 흐름을 시작한다: 배경 결정(시즌 동안 고정), 출연진 배정·이름·성별·후보 순서. 시즌 생성 직후
+     * 부른다. 배경은 첫 시즌이면 나이로, 그 뒤로는 지난 시즌들과 다르게 고른다({@link AiSeasonSettingPolicy#decideNextSetting}).
+     * 이미 시작한 시즌이면 아무것도 하지 않는다. 나이가 없으면 409 AGE_REQUIRED.
      */
     public void startStoryForNewSeason(Long memberId, Long seasonPk) {
         User user = userWithAge(memberId);
+        List<AiSeasonSetting> previousSettings = seasonRepository.findAllByMemberIdOrderBySeasonNumberDesc(memberId)
+                .stream()
+                .filter(s -> !s.getId().equals(seasonPk))
+                .map(AiSeason::getSetting)
+                .toList();
         stateWriter.startStory(seasonPk,
-                AiSeasonSettingPolicy.decideSetting(user.getAge(), ThreadLocalRandom.current()),
+                AiSeasonSettingPolicy.decideNextSetting(user.getAge(), previousSettings, ThreadLocalRandom.current()),
                 user.getNickname() != null ? user.getNickname() : user.getName(),
                 breadCatalog.breadLabel(user.getPersonalityType()), user.getGender(),
                 breadCatalog.allBreadLabels(), ThreadLocalRandom.current());
