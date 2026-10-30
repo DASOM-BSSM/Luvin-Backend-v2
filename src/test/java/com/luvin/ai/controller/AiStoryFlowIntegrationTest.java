@@ -341,7 +341,9 @@ class AiStoryFlowIntegrationTest {
         assertEquals(1, next.get("currentEpisode").asInt());
         assertFalse(created.get("seasonId").asText().equals(next.get("seasonId").asText()));
         JsonNode story = next.get("story");
-        assertEquals("office", story.get("setting").asText());
+        // 새 시즌 배경은 나이(26세)에 맞는 배경 중 1시즌(office)과 다른 배경이다.
+        String nextSetting = story.get("setting").asText();
+        assertTrue(Set.of("campus", "cafe").contains(nextSetting), nextSetting);
         assertEquals(List.of(), intList(story.get("completedOrders")));
         assertEquals(List.of(1, 2, 3), intList(story.get("unlockedOrders")));
         assertEquals(0, story.get("choices").size());
@@ -361,10 +363,10 @@ class AiStoryFlowIntegrationTest {
                 data(post(user, "/from-survey", "{\"surveyResultId\":\"" + surveyResultId + "\"}")).get("seasonId").asText());
         assertTrue(data(get(user, "/letters/unread")).isNull());
         JsonNode ep1 = readyContent(user, 1);
-        assertEquals("office", ep1.get("stageIntro").get("setting").asText());
+        assertEquals(nextSetting, ep1.get("stageIntro").get("setting").asText());
         // 2시즌 1화는 무대 소개 대신 새 시즌 설정으로 만든다: 부제와 NPC 이름·역할·빵 종류가 설정 결과다.
         JsonNode stageIntro = ep1.get("stageIntro");
-        assertEquals("In Office", stageIntro.get("title").asText());
+        assertEquals(nextSetting.equals("cafe") ? "In Cafe" : "In Campus", stageIntro.get("title").asText());
         assertEquals("2번째 만남 속 내 반죽의 이야기", stageIntro.get("subtitle").asText());
         Set<String> breads = new HashSet<>();
         for (JsonNode cast : stageIntro.get("cast")) {
@@ -393,6 +395,7 @@ class AiStoryFlowIntegrationTest {
         JsonNode seasons = data(get(user, ""));
         assertEquals(2, seasons.size());
         assertEquals(2, seasons.get(0).get("seasonNumber").asInt());
+        assertEquals(nextSetting, seasons.get(0).get("setting").asText());
         assertEquals(1, seasons.get(1).get("seasonNumber").asInt());
         assertEquals("office", seasons.get(1).get("setting").asText());
         assertEquals("In Office", seasons.get(1).get("settingTitle").asText());
