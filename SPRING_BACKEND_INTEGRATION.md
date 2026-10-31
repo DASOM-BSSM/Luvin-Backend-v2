@@ -375,10 +375,14 @@ Spring ↔ FastAPI 형식은 「러빈지옥 에피소드 재구성: 공통 데�
     최근 매시간 질문 답변 5개, feedbacks·likedMessages는 이 시즌 1:1 장면 피드백·내 빵 대사 좋아요(각 최근 10개),
     styleSamples는 감정일기 본문 원문 최근 15개(최근 순, 내 빵 말투 참고 — 계약 v7 7장).
   - 관계 기록의 호감은 숫자 대신 구간(0~39 `low`, 40~69 `mid`, 70~100 `high`)만 넘깁니다.
-  - 관계 기록의 `speechLevel`(`formal | casual`, 계약 v7 7장 "배경별 말투"): 시즌 시작 값은 school이면 모두 casual,
-    나머지 배경은 모두 formal입니다. 정리 단계(5-5)의 `speechLevel`은 규칙에 맞을 때만 반영합니다 — campus는
-    formal → casual 허용, office·cafe는 연애 흐름의 연인만 casual 허용, casual → formal 변경은 무시
-    (`AiSpeechLevel.allowsChange`). 기존 행은 V11이 시즌 배경으로 채웁니다.
+  - 관계 기록의 `speechLevel`(`formal | casual`, 계약 v7 7장 "배경별 말투", reconstruction.v22 역할별 말투): 친구는
+    배경과 상관없이 casual이고, 나머지 역할의 시즌 시작 값은 school이면 casual, 나머지 배경은 formal입니다
+    (`AiSpeechLevel.initial`). 정리 단계(5-5)의 `speechLevel`은 규칙에 맞을 때만 반영합니다 — 친구는 어느 배경이든,
+    campus는 formal → casual 허용, office·cafe는 연애 흐름의 연인만 casual 허용, casual → formal 변경은 무시
+    (`AiSpeechLevel.allowsChange`). 기존 행은 V11이 시즌 배경으로 채웠고, V18이 진행 중 시즌의 친구 관계를 casual로
+    교정합니다(친구는 저장 값이 formal이어도 casual로 읽습니다).
+  - 회차 쪽지(5-6) `sender.speechLevel`: 그 회차를 시작할 때의 발신 빵 관계 말투입니다. 같은 회차 정리 단계가 바꾼
+    말투는 다음 회차부터 씁니다.
 - 혼자 있기는 FastAPI를 부르지 않고 `accepted: true`, 대사·대체 장면 없이 결과를 만듭니다(5-3).
 - 10화 쪽지 요청에는 시즌 요약을 넣지 않습니다(계약 5-6). 1~10화 요약은 최종 리포트(5-7) 요청에만 들어갑니다.
 - endpoint별 실제 요청 예시: `docs/story-contract-examples/`

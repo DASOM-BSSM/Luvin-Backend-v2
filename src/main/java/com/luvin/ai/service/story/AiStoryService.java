@@ -654,7 +654,9 @@ public class AiStoryService {
                         .orElse(null));
         EpisodeNoteRequest noteRequest = new EpisodeNoteRequest(context, order, settingScene, summary.episodeSummary(),
                 choice, noteRelations,
-                new EpisodeNoteRequest.Sender(sender.castRole().contractId(), sender.name(),
+                new EpisodeNoteRequest.Sender(sender.castRole().contractId(),
+                        snapshot.relation(sender.breadId()).map(r -> r.speechLevel().wireValue()).orElse(null),
+                        sender.name(),
                         sender.castRole().attachmentStyle().wireValue(), senderStatus),
                 stateWriter.findEpisodeNoteBodies(snapshot.seasonPk()).stream().map(AiStoryService::firstSentence)
                         .toList());

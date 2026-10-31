@@ -17,7 +17,10 @@ public record EpisodeNoteRequest(GenerationContext context, int order, String se
     public record Relation(String breadId, String statusText, String recentMemory) {
     }
 
-    /** attachmentStyle은 말투를 맞추는 데만 쓰고 쪽지 문구에는 쓰지 않는다(계약 5-6). */
-    public record Sender(String breadId, String name, String attachmentStyle, String statusText) {
+    /**
+     * attachmentStyle은 말투를 맞추는 데만 쓰고 쪽지 문구에는 쓰지 않는다(계약 5-6). speechLevel(formal | casual)은 이
+     * 회차를 시작할 때의 관계 말투다 — 같은 회차 정리 단계가 바꾼 말투는 다음 회차부터 쓴다(reconstruction.v22).
+     */
+    public record Sender(String breadId, String speechLevel, String name, String attachmentStyle, String statusText) {
     }
 }

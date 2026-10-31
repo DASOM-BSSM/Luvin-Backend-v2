@@ -245,7 +245,7 @@
     "recentMemories" : [ ],
     "knownFacts" : [ ],
     "openThreads" : [ ],
-    "speechLevel" : "formal"
+    "speechLevel" : "casual"
   }, {
     "breadId" : "avoidant",
     "affinityLevel" : "low",

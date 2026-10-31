@@ -153,9 +153,11 @@ class AiStoryHttpContractIntegrationTest {
         List<String> styleSamples = texts(context.get("learnedProfile").get("styleSamples"));
         assertEquals(15, styleSamples.size());
         assertEquals("일기 16", styleSamples.get(0));
-        // 말투(계약 7장): school이 아닌 배경은 모두 formal로 시작한다.
-        assertEquals(List.of("formal", "formal", "formal", "formal", "formal"),
-                texts(episode.get("relations"), "speechLevel"));
+        // 말투(계약 7장, reconstruction.v22): school이 아닌 배경은 formal로 시작하고, 친구만 어느 배경이든 casual이다.
+        for (JsonNode relation : episode.get("relations")) {
+            assertEquals(relation.get("breadId").asText().equals("friend") ? "casual" : "formal",
+                    relation.get("speechLevel").asText(), relation.toString());
+        }
         JsonNode pairDesign = find(episode.get("design"), "type", "pair");
         assertEquals("me", pairDesign.get("participantIds").get(0).asText());
         assertTrue(pairDesign.has("pairTarget") && pairDesign.has("short"));
@@ -179,6 +181,10 @@ class AiStoryHttpContractIntegrationTest {
         assertTrue(java.util.Set.of("avoidant", "anxious", "secure")
                 .contains(note1.get("sender").get("attachmentStyle").asText()));
         assertEquals(0, note1.get("previousNoteOpenings").size());
+        // 쪽지 발신 빵의 말투는 이 회차를 시작할 때의 관계 말투(정리 단계 입력과 같은 값)다.
+        String senderId = note1.get("sender").get("breadId").asText();
+        assertEquals(find(summarize.get("relations"), "breadId", senderId).get("speechLevel").asText(),
+                note1.get("sender").get("speechLevel").asText());
 
         readyContent(2);
         JsonNode messengerDesign = find(last("/luvin/episode").get("design"), "type", "messenger");
@@ -244,7 +250,7 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals(10, finaleNote.get("order").asInt());
         assertEquals(java.util.Set.of("context", "order", "settingScene", "episodeSummary", "choice", "relations",
                 "sender", "previousNoteOpenings"), fieldNames(finaleNote));
-        assertEquals(java.util.Set.of("breadId", "name", "attachmentStyle", "statusText"),
+        assertEquals(java.util.Set.of("breadId", "speechLevel", "name", "attachmentStyle", "statusText"),
                 fieldNames(finaleNote.get("sender")));
         assertEquals(10, last("/luvin/season-report").get("episodeSummaries").size());
 

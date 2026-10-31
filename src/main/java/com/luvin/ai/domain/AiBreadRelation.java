@@ -56,7 +56,7 @@ public class AiBreadRelation {
     @Column(name = "reject_count", nullable = false)
     private int rejectCount;
 
-    /** 이 빵이 내 빵에게 쓰는 말투. 시즌 시작 값은 배경으로 정한다({@link AiSpeechLevel#initial}). */
+    /** 이 빵이 내 빵에게 쓰는 말투. 시즌 시작 값은 배경과 역할로 정한다({@link AiSpeechLevel#initial}). */
     @Enumerated(EnumType.STRING)
     @Column(name = "speech_level", length = 10)
     private AiSpeechLevel speechLevel;

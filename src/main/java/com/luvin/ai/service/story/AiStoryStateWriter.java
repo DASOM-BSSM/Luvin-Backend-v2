@@ -154,7 +154,7 @@ public class AiStoryStateWriter {
         for (AiSeasonCharacter member : cast) {
             relationRepository.save(new AiBreadRelation(season.getMemberId(), season, member.getCharacterId(),
                     AiChoiceRules.INITIAL_AFFINITY.get(member.getCastRole()), AiChoiceRules.INITIAL_STATUS_TEXT,
-                    AiSpeechLevel.initial(setting)));
+                    AiSpeechLevel.initial(setting, member.getCastRole())));
         }
         season.startStory(setting);
     }
@@ -273,12 +273,15 @@ public class AiStoryStateWriter {
                 .map(c -> new AiStoryCastMember(c.getCharacterId(), c.getCastRole(), c.getName(), c.getBreadType(),
                         c.getGender(), c.getCandidateOrder()))
                 .toList();
+        Map<UUID, AiCastRole> castRoles = cast.stream()
+                .collect(Collectors.toMap(AiStoryCastMember::breadId, AiStoryCastMember::castRole));
         List<AiStorySnapshot.Relation> relations = relationRepository.findAllBySeason_Id(seasonPk).stream()
                 .map(r -> new AiStorySnapshot.Relation(r.getTargetBreadId(), r.getAffinity(), r.getRejectCount(),
                         r.getStatusText(), r.getMemorySummary(), AiStoryJson.readStrings(r.getRecentMemoriesJson()),
                         AiStoryJson.readStrings(r.getKnownFactsJson()), AiStoryJson.readThreads(r.getOpenThreadsJson()),
                         r.getChoiceMemory(),
-                        r.getSpeechLevel() != null ? r.getSpeechLevel() : AiSpeechLevel.initial(season.getSetting())))
+                        AiSpeechLevel.current(r.getSpeechLevel(), season.getSetting(),
+                                castRoles.get(r.getTargetBreadId()))))
                 .toList();
         List<AiStorySnapshot.Choice> choices = choiceRepository.findAllBySeason_IdOrderByPointIdAsc(seasonPk).stream()
                 .map(c -> new AiStorySnapshot.Choice(c.getPointId(), c.getEpisodeOrder(), c.getBreadId(),
@@ -514,6 +517,9 @@ public class AiStoryStateWriter {
 
         Map<UUID, AiBreadRelation> relations = relationRepository.findAllBySeason_Id(seasonPk).stream()
                 .collect(Collectors.toMap(AiBreadRelation::getTargetBreadId, Function.identity()));
+        Map<UUID, AiCastRole> castRoles = characterRepository.findAllBySeason_Id(seasonPk).stream()
+                .filter(c -> c.getCastRole() != null)
+                .collect(Collectors.toMap(AiSeasonCharacter::getCharacterId, AiSeasonCharacter::getCastRole));
         // 해결된 떡밥은 어느 빵의 갱신안에 들어 있든 시즌의 모든 관계 기록에서 지운다 — 같은 떡밥이 여러 빵에 저장돼 있어도
         // 해결 상태가 어긋나지 않게(한 빵에서는 풀렸는데 다른 빵에서 계속 다음 회차 입력으로 나가지 않게) 한다.
         Set<String> resolvedThreads = changes.stream()
@@ -532,13 +538,14 @@ public class AiStoryStateWriter {
             if (change.affinityDelta() != null) {
                 relation.addAffinity(AiChoiceRules.clampSummaryDelta(change.affinityDelta()));
             }
-            AiSpeechLevel current = relation.getSpeechLevel() != null
-                    ? relation.getSpeechLevel() : AiSpeechLevel.initial(season.getSetting());
+            AiCastRole castRole = castRoles.get(relation.getTargetBreadId());
+            AiSpeechLevel current = AiSpeechLevel.current(relation.getSpeechLevel(), season.getSetting(), castRole);
             AiSpeechLevel requested = AiSpeechLevel.fromWire(change.speechLevel());
             boolean romancePartner = season.getRoute() == AiStoryRoute.ROMANCE
                     && relation.getTargetBreadId().equals(season.getRomancePartnerId());
-            relation.changeSpeechLevel(AiSpeechLevel.allowsChange(season.getSetting(), current, requested, romancePartner)
-                    ? requested : current);
+            relation.changeSpeechLevel(
+                    AiSpeechLevel.allowsChange(season.getSetting(), castRole, current, requested, romancePartner)
+                            ? requested : current);
             String statusText = AiChoiceRules.ROMANCE_STATUS_TEXT.equals(relation.getStatusText())
                     ? null : change.statusText();
             relation.applyMemory(change.memorySummary(), appendRecentMemory(relation, change.recentMemory()),
