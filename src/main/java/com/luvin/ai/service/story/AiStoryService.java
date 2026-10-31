@@ -74,6 +74,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
@@ -185,8 +187,7 @@ public class AiStoryService {
 
         AiStoryStateWriter.GenerationTicket ticket;
         try {
-            ticket = stateWriter.beginGeneration(season.getId(), order, order >= 7 ? snapshot.route() : null,
-                    staleBefore());
+            ticket = beginGeneration(season.getId(), order, order >= 7 ? snapshot.route() : null);
         } catch (ObjectOptimisticLockingFailureException concurrentRestart) {
             ticket = null; // 다른 요청이 먼저 다시 시작했다 — 그쪽 생성 상태를 그대로 보여준다.
         }
@@ -217,6 +218,48 @@ public class AiStoryService {
                 user.getNickname() != null ? user.getNickname() : user.getName(),
                 breadCatalog.breadLabel(user.getPersonalityType()), user.getGender(),
                 breadCatalog.allBreadLabels(), ThreadLocalRandom.current());
+    }
+
+    /**
+     * 다음 회차 미리 생성: 앱이 GET content로 들어오기 전에 서버에서 생성을 시작한다. 2·3화는 이전 회차 완료가 저장된 직후,
+     * 4~10화는 회차를 연(unlock) 직후에 부른다 — 열지 않은 회차는 토큰을 쓰지 않은 사용자 몫까지 만들게 되므로 시작하지
+     * 않는다. GET content와 같은 조건(이전 회차 완료·열림·공개·시즌 진행 중)일 때만, 아직 회차 row가 없을 때만 시작한다
+     * (생성 잠금은 GET content와 같아 겹쳐도 한 번만 생성한다). 어떤 오류도 호출부로 던지지 않는다.
+     */
+    void prefetch(Long memberId, Long seasonPk, int order) {
+        if (!properties.prefetchNextEpisode() || order > AiStoryCatalog.FINAL_ORDER) {
+            return;
+        }
+        try {
+            AiStorySnapshot snapshot = stateWriter.snapshot(seasonPk);
+            AiSeason season = seasonRepository.findById(seasonPk).orElse(null);
+            boolean ready = season != null && snapshot.isStarted() && snapshot.status() != AiSeasonStatus.COMPLETED
+                    && snapshot.content(order).isEmpty()
+                    && snapshot.content(order - 1).map(AiStorySnapshot.Content::completed).orElse(false)
+                    && (AiStoryCatalog.isFree(order) || snapshot.unlockedOrders().contains(order))
+                    && releasePolicy.isReleased(season, order);
+            if (!ready) {
+                return;
+            }
+            AiStoryStateWriter.GenerationTicket ticket = beginGeneration(seasonPk, order,
+                    order >= 7 ? snapshot.route() : null);
+            if (ticket.started()) {
+                log.info("story episode prefetch started: seasonPk={}, order={}", seasonPk, order);
+                generate(memberId, seasonPk, order, ticket.contentPk(), ticket.round(), true);
+            }
+        } catch (Exception e) {
+            log.warn("story episode prefetch skipped: seasonPk={}, order={}, cause={}",
+                    seasonPk, order, e.getClass().getSimpleName());
+        }
+    }
+
+    /** 동시에 처음 접수해 회차 row 만들기에서 졌으면(unique 제약) 새 트랜잭션으로 다시 읽어 이긴 쪽 row를 쓴다. */
+    private AiStoryStateWriter.GenerationTicket beginGeneration(Long seasonPk, int order, AiStoryRoute route) {
+        try {
+            return stateWriter.beginGeneration(seasonPk, order, route, staleBefore());
+        } catch (DataIntegrityViolationException raceLoser) {
+            return stateWriter.beginGeneration(seasonPk, order, route, staleBefore());
+        }
     }
 
     // ---------------------------------------------------------------- 회차 열기
@@ -250,6 +293,9 @@ public class AiStoryService {
                 // 같은 회차를 동시에 연 다른 요청이 이겼다 — 그쪽에서 이미 열렸다.
             }
         }
+        // 연 회차는 앱이 곧 들어오므로 미리 만든다(이미 있거나 만드는 중이면 아무것도 하지 않는다).
+        Long seasonPk = season.getId();
+        executor.execute(() -> prefetch(memberId, seasonPk, order));
         return new AiEpisodeUnlockView(order, true, stateWriter.tokenBalance(memberId));
     }
 
@@ -259,6 +305,11 @@ public class AiStoryService {
      * 재시작 뒤 같은 회차를 다시 돌리면 이미 접수한 job을 이어서 본다.
      */
     void generate(Long memberId, Long seasonPk, int order, Long contentPk, int round) {
+        generate(memberId, seasonPk, order, contentPk, round, false);
+    }
+
+    /** prefetched: 앱이 요청하기 전에 시작한 다음 회차 미리 생성({@link #prefetch}). 실패를 앱에 알리지 않는다. */
+    void generate(Long memberId, Long seasonPk, int order, Long contentPk, int round, boolean prefetched) {
         try {
             AiStorySnapshot snapshot = stateWriter.snapshot(seasonPk);
             StoryRun run = new StoryRun(jobKeyBase(snapshot, contentPk, "gen", round),
@@ -285,6 +336,12 @@ public class AiStoryService {
 
             AiEpisodePlan plan = AiEpisodePlanner.plan(planInput(snapshot, order));
             List<BlockPlan> designed = plan.episodeBlocks();
+            // 10화 인터뷰룸(5-4)은 본문과 입력이 독립이라 본문과 동시에 만든다. 진행 단계(progress.stage)는 본문 기준으로만 남긴다.
+            AiStorySnapshot interviewSnapshot = snapshot;
+            CompletableFuture<Map<String, List<StoryTypes.Message>>> interviews = plan.interviewBlocks().isEmpty()
+                    ? CompletableFuture.completedFuture(Map.of())
+                    : CompletableFuture.supplyAsync(() -> requestInterviews(ownerSubject, interviewSnapshot, mapper,
+                            context, new StoryRun(run.keyBase(), StepRecorder.NONE)), executor);
             EpisodeRequest request = new EpisodeRequest(context, order, plan.commonEvent(), plan.settingScene(),
                     plan.route() == null ? null : plan.route().wireValue(),
                     mapper.contractIdOrNull(snapshot.romancePartnerId()),
@@ -300,19 +357,18 @@ public class AiStoryService {
 
             Map<String, StoryTypes.GeneratedBlock> generated = new HashMap<>();
             episode.blocks().forEach(b -> generated.put(b.id(), b));
-            Map<String, List<StoryTypes.Message>> interviews = plan.interviewBlocks().isEmpty()
-                    ? Map.of() : requestInterviews(ownerSubject, snapshot, mapper, context, run);
 
-            List<AiSceneBlockView> blocks = toBlockViews(plan, generated, interviews, snapshot, mapper);
+            List<AiSceneBlockView> blocks = toBlockViews(plan, generated, interviews.join(), snapshot, mapper);
             AiStoryIntroView intro = new AiStoryIntroView(episode.intro().title(), episode.intro().episodeName(),
                     episode.intro().situation());
             stateWriter.saveGenerated(contentPk, round, AiStoryJson.write(intro),
                     order == AiStoryCatalog.FIRST_ORDER ? AiStoryJson.write(stageIntro) : null,
                     AiStoryJson.write(blocks));
         } catch (Exception e) {
-            log.warn("story episode generation failed: seasonPk={}, order={}, cause={}",
-                    seasonPk, order, e.getClass().getSimpleName());
-            stateWriter.markGenerationFailed(contentPk, round, AiStoryGenerationFailedException.CODE);
+            Throwable cause = e instanceof CompletionException && e.getCause() != null ? e.getCause() : e;
+            log.warn("story episode generation failed: seasonPk={}, order={}, prefetched={}, cause={}",
+                    seasonPk, order, prefetched, cause.getClass().getSimpleName());
+            stateWriter.markGenerationFailed(contentPk, round, AiStoryGenerationFailedException.CODE, prefetched);
         }
     }
 
@@ -692,6 +748,10 @@ public class AiStoryService {
             try {
                 stateWriter.completeEpisode(seasonPk, order, round, summary.episodeSummary(), changes, episodeNote,
                         reportJson);
+                // 무료 회차(2·3화)는 완료 직후 다음 회차를 미리 만든다. 4화부터는 열 때(unlock) 시작한다.
+                if (AiStoryCatalog.isFree(order + 1)) {
+                    prefetch(memberId, seasonPk, order + 1);
+                }
                 return;
             } catch (ObjectOptimisticLockingFailureException e) {
                 if (attempt >= SAVE_ATTEMPTS) {

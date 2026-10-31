@@ -46,6 +46,9 @@ public class AiStoryController {
             `generating`이면 `progress`에 생성 단계(`stage`: stage-intro | episode | interview)와 `regenerating`이 있다.
             `regenerating: true`는 AI가 문장을 다시 다듬는 중이라는 뜻이고 실패가 아니다("문장을 다듬고 있어요" 등으로 표시).
             생성이 오래 걸려도 같은 요청을 계속 보내면 같은 생성의 진행 상태를 이어서 본다.
+            서버는 다음 회차를 미리 만든다 — 2·3화는 이전 회차 완료 직후, 4~10화는 회차를 연(unlock) 직후. 그래서 처음 요청해도
+            이미 `ready`이거나 `generating` 진행 중일 수 있다(응답 형식은 같다). 미리 만들다 실패한 경우에는 `failed`를 보여 주지
+            않고 바로 다시 생성해 `generating`으로 응답한다.
 
             **409 code**
             - `AGE_REQUIRED`: 나이 또는 성별이 없다 — 둘 다 입력(PUT /api/users/me `{ age, gender }`) 후 다시 요청
@@ -65,6 +68,7 @@ public class AiStoryController {
             1~3화는 무료라 차감 없이 열린 응답이다. 4~10화는 처음 열 때만 토큰(`story.episodeTokenCost`)을 쓰고, 이미 연 회차는
             차감 없이 같은 응답이다. 차감은 생성 전에 하고, 열린 뒤 생성이 실패해도 열린 상태로 남는다.
             순서: 이전 회차 완료 → 회차 열기 → content 요청. 열지 않은 4~10화의 content는 409 `EPISODE_NOT_UNLOCKED`.
+            열리면 서버가 그 회차 생성을 바로 시작한다(content 요청 전에 미리 만든다).
 
             **오류**: 409 `INSUFFICIENT_TOKENS`(data: required, balance — 미니게임으로 안내), `PREVIOUS_EPISODE_NOT_COMPLETED`,
             `STORY_NOT_STARTED`, `SEASON_COMPLETED`

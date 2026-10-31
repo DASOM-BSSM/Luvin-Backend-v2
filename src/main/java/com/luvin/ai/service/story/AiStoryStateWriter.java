@@ -44,7 +44,6 @@ import com.luvin.token.repository.UserTokenRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Propagation;
@@ -305,23 +304,19 @@ public class AiStoryStateWriter {
     /**
      * 회차 생성을 접수한다. 처음이거나, 이미 앱에 알린 FAILED였거나, GENERATING인 채 staleBefore보다 오래 멈춰 있으면
      * started=true로 돌려주고 호출부가 생성을 시작한다. 아직 알리지 않은 FAILED는 다시 생성하지 않고 그대로 두어 이번
-     * 응답이 failed가 되게 한다 — 그다음 요청(앱의 "다시 시도")부터 다시 생성한다. 동시에 처음 요청한 두 요청 중 진 쪽은 unique 제약 위반을 이 짧은 트랜잭션
-     * 안에서만 받고(REQUIRES_NEW + saveAndFlush) 이긴 쪽 row를 그대로 쓴다.
+     * 응답이 failed가 되게 한다 — 그다음 요청(앱의 "다시 시도")부터 다시 생성한다. 동시에 처음 요청한 두 요청(앱 요청과
+     * 다음 회차 미리 생성 등) 중 진 쪽은 unique 제약 위반(DataIntegrityViolationException)으로 이 짧은 트랜잭션만
+     * 롤백된다(REQUIRES_NEW + saveAndFlush) — 실패한 트랜잭션 안에서는 다시 읽을 수 없으므로 호출부가 새 트랜잭션으로
+     * 한 번 더 부르면 이긴 쪽 row를 그대로 쓴다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public GenerationTicket beginGeneration(Long seasonPk, int order, AiStoryRoute route, LocalDateTime staleBefore) {
         AiEpisodeContent existing = contentRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order).orElse(null);
         if (existing == null) {
             AiSeason season = seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
-            try {
-                AiEpisodeContent created = contentRepository.saveAndFlush(
-                        new AiEpisodeContent(season.getMemberId(), season, order, route));
-                return new GenerationTicket(created.getId(), true, created.currentGenerationRound());
-            } catch (DataIntegrityViolationException raceLoser) {
-                AiEpisodeContent winner = contentRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order)
-                        .orElseThrow(() -> raceLoser);
-                return new GenerationTicket(winner.getId(), false, winner.currentGenerationRound());
-            }
+            AiEpisodeContent created = contentRepository.saveAndFlush(
+                    new AiEpisodeContent(season.getMemberId(), season, order, route));
+            return new GenerationTicket(created.getId(), true, created.currentGenerationRound());
         }
         boolean stale = existing.getStatus() == AiStoryContentStatus.GENERATING
                 && existing.getRequestedAt().isBefore(staleBefore);
@@ -345,11 +340,18 @@ public class AiStoryStateWriter {
                 .ifPresent(c -> c.markReady(introJson, stageIntroJson, blocksJson));
     }
 
+    /** prefetched면 앱이 기다리지 않던 미리 생성의 실패라, 다음 GET content가 실패를 보여 주지 않고 바로 다시 생성한다. */
     @Transactional
-    public void markGenerationFailed(Long contentPk, int round, String errorCode) {
+    public void markGenerationFailed(Long contentPk, int round, String errorCode, boolean prefetched) {
         contentRepository.findById(contentPk)
                 .filter(c -> isCurrentGeneration(c, round))
-                .ifPresent(c -> c.markFailed(errorCode));
+                .ifPresent(c -> {
+                    if (prefetched) {
+                        c.markFailedUnseen(errorCode);
+                    } else {
+                        c.markFailed(errorCode);
+                    }
+                });
     }
 
     /** 이어서 진행할 회차 생성·완료 한 건. round는 그때의 생성(또는 완료) 회차 번호다. */

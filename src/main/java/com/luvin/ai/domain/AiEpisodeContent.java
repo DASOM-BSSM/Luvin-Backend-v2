@@ -190,6 +190,15 @@ public class AiEpisodeContent {
         this.failureReportedAt = null;
     }
 
+    /**
+     * 앱이 기다리지 않던 생성(다음 회차 미리 생성)의 실패. 이미 알린 실패로 남겨, 다음 GET content가 실패를 보여 주지 않고
+     * 바로 다시 생성하게 한다.
+     */
+    public void markFailedUnseen(String errorCode) {
+        markFailed(errorCode);
+        this.failureReportedAt = LocalDateTime.now();
+    }
+
     /** 이 실패를 앱에 처음 알린다. 이미 알린 실패면 false — 호출부는 다시 생성한다. */
     public boolean reportFailureOnce() {
         if (failureReportedAt != null) {
