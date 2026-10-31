@@ -19,11 +19,14 @@ import java.time.Duration;
  *                         lease)을 넘는 값이다. 넘으면 이번 시도는 실패로 보고 job은 AI에 그대로 둔다
  * @param resumeOnStartup  기동 때 끝나지 않은 회차 생성·완료를 이어서 진행한다(기본 true). 같은 키로 다시 접수하므로
  *                         이미 접수한 job을 이어서 본다
+ * @param prefetchNextEpisode 다음 회차를 앱이 요청하기 전에 미리 생성한다(기본 true). 2·3화는 이전 회차 완료 직후, 4~10화는
+ *                         회차를 연(unlock) 직후에 시작한다
  */
 @ConfigurationProperties(prefix = "app.ai.story")
 public record AiStoryProperties(String client, Duration readTimeout, Duration generationStaleAfter,
                                 Integer episodeTokenCost, Boolean tokenChargeEnabled, String generationMode,
-                                Duration jobPollInterval, Duration jobWaitTimeout, Boolean resumeOnStartup) {
+                                Duration jobPollInterval, Duration jobWaitTimeout, Boolean resumeOnStartup,
+                                Boolean prefetchNextEpisode) {
 
     public static final String MODE_JOBS = "jobs";
 
@@ -54,6 +57,9 @@ public record AiStoryProperties(String client, Duration readTimeout, Duration ge
         }
         if (resumeOnStartup == null) {
             resumeOnStartup = true;
+        }
+        if (prefetchNextEpisode == null) {
+            prefetchNextEpisode = true;
         }
     }
 

@@ -277,7 +277,14 @@ class AiStoryHttpContractIntegrationTest {
                 send("POST", "/api/ai/seasons/episodes/3/choices", "{\"pointId\":1,\"breadId\":null}");
             }
             complete(order);
+            if (order < 3) {
+                // 무료 회차는 이전 회차 완료 직후 서버가 미리 만든다(앱이 GET content를 부르기 전).
+                awaitPrefetched(order + 1);
+            }
         }
+        // 미리 만든 회차를 앱이 받아도 다시 만들지 않는다(2·3화 본문 요청은 한 번씩).
+        assertEquals(1, episodeRequests(2));
+        assertEquals(1, episodeRequests(3));
 
         HttpResponse<String> locked = send("GET", "/api/ai/seasons/episodes/4/content", null);
         assertEquals(409, locked.statusCode());
@@ -286,10 +293,15 @@ class AiStoryHttpContractIntegrationTest {
         HttpResponse<String> poor = send("POST", "/api/ai/seasons/episodes/4/unlock", null);
         assertEquals(409, poor.statusCode());
         assertEquals("INSUFFICIENT_TOKENS", json.readTree(poor.body()).get("code").asText());
+        // 열지 않은 4화는 미리 만들지 않는다.
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM ai_episode_contents WHERE season_id = ? "
+                + "AND episode_order = 4", Integer.class, seasonPk));
 
         userTokenRepository.save(new UserToken(userId, 3, 0));
         JsonNode opened = json.readTree(send("POST", "/api/ai/seasons/episodes/4/unlock", null).body()).get("data");
         assertEquals(2, opened.get("tokenBalance").asInt());
+        // 연 직후 서버가 4화를 미리 만든다.
+        awaitPrefetched(4);
         // 이미 연 회차는 다시 차감하지 않는다.
         JsonNode again = json.readTree(send("POST", "/api/ai/seasons/episodes/4/unlock", null).body()).get("data");
         assertEquals(2, again.get("tokenBalance").asInt());
@@ -297,9 +309,28 @@ class AiStoryHttpContractIntegrationTest {
                 "SELECT count(*) FROM token_histories WHERE member_id = ? AND reason = '러빈지옥 4화 열기'",
                 Integer.class, userId));
         assertEquals("ready", readyContent(4).get("status").asText());
+        assertEquals(1, episodeRequests(4));
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /** 앱이 GET content를 부르지 않아도 그 회차가 만들어져 READY가 된다. */
+    private void awaitPrefetched(int order) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (!"READY".equals(jdbcTemplate.query("SELECT status FROM ai_episode_contents WHERE season_id = ? "
+                + "AND episode_order = ?", rs -> rs.next() ? rs.getString(1) : null, seasonPk, order))) {
+            assertTrue(System.currentTimeMillis() < deadline, order + "화를 미리 만들지 않았습니다.");
+            Thread.sleep(100);
+        }
+    }
+
+    private long episodeRequests(int order) {
+        synchronized (RECEIVED) {
+            return RECEIVED.stream()
+                    .filter(e -> e.getKey().equals("/luvin/episode") && e.getValue().get("order").asInt() == order)
+                    .count();
+        }
+    }
 
     private void setUpUserAndSeason() {
         String unique = UUID.randomUUID().toString();
