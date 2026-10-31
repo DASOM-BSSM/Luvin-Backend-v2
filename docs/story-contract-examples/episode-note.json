@@ -93,6 +93,7 @@
   } ],
   "sender" : {
     "breadId" : "friend",
+    "speechLevel" : "casual",
     "name" : "고소한 마들렌",
     "attachmentStyle" : "none",
     "statusText" : "친해짐"

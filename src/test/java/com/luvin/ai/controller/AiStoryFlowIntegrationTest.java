@@ -249,13 +249,17 @@ class AiStoryFlowIntegrationTest {
         JsonNode state = complete(user, 10);
         assertEquals(10, state.get("currentOrder").asInt());
 
-        // 말투: campus는 정리 단계의 casual을 반영하고, cafe는 연인만 casual이 된다. 되돌아가지는 않는다.
+        // 말투: campus는 정리 단계의 casual을 반영하고, cafe는 연인만 casual이 된다(친구는 처음부터 casual). 되돌아가지는 않는다.
         String setting = jdbcTemplate.queryForObject("SELECT setting FROM ai_seasons WHERE id = ?", String.class, season.pk());
         assertEquals("CASUAL", jdbcTemplate.queryForObject("SELECT speech_level FROM ai_bread_relations "
                 + "WHERE season_id = ? AND target_bread_id = ?", String.class, season.pk(), secure));
+        assertEquals("CASUAL", jdbcTemplate.queryForObject("SELECT r.speech_level FROM ai_bread_relations r JOIN ai_season_characters c "
+                + "ON c.season_id = r.season_id AND c.character_id = r.target_bread_id WHERE r.season_id = ? AND c.cast_role = 'FRIEND'", String.class, season.pk()));
         if ("CAFE".equals(setting)) {
-            assertEquals(List.of("FORMAL"), jdbcTemplate.queryForList("SELECT DISTINCT speech_level FROM "
-                    + "ai_bread_relations WHERE season_id = ? AND target_bread_id <> ?", String.class, season.pk(), secure));
+            assertEquals(List.of("FORMAL"), jdbcTemplate.queryForList("SELECT DISTINCT r.speech_level FROM "
+                    + "ai_bread_relations r JOIN ai_season_characters c ON c.season_id = r.season_id "
+                    + "AND c.character_id = r.target_bread_id WHERE r.season_id = ? AND r.target_bread_id <> ? "
+                    + "AND c.cast_role <> 'FRIEND'", String.class, season.pk(), secure));
         }
 
         // 최종 리포트는 기존 경로·형식 그대로, 시즌은 완료
@@ -697,9 +701,13 @@ class AiStoryFlowIntegrationTest {
         complete(user, 9);
         readyContent(user, 10);
         complete(user, 10);
-        // office 배경은 연인이 없으면 정리 단계가 casual을 줘도 모두 formal로 남는다.
-        assertEquals(List.of("FORMAL"), jdbcTemplate.queryForList(
-                "SELECT DISTINCT speech_level FROM ai_bread_relations WHERE season_id = ?", String.class, season.pk()));
+        // office 배경은 연인이 없으면 정리 단계가 casual을 줘도 친구 말고는 모두 formal로 남는다. 친구는 처음부터 casual이다.
+        assertEquals(List.of("FORMAL"), jdbcTemplate.queryForList("SELECT DISTINCT r.speech_level FROM "
+                + "ai_bread_relations r JOIN ai_season_characters c ON c.season_id = r.season_id "
+                + "AND c.character_id = r.target_bread_id WHERE r.season_id = ? AND c.cast_role <> 'FRIEND'",
+                String.class, season.pk()));
+        assertEquals("CASUAL", jdbcTemplate.queryForObject("SELECT r.speech_level FROM ai_bread_relations r JOIN ai_season_characters c "
+                + "ON c.season_id = r.season_id AND c.character_id = r.target_bread_id WHERE r.season_id = ? AND c.cast_role = 'FRIEND'", String.class, season.pk()));
         // 혼자 흐름이면 최종 상대가 없다(AI 응답의 finalPartnerId와 관계없이 null).
         assertTrue(data(get(user, "/report")).get("finalPartnerId").isNull());
     }
