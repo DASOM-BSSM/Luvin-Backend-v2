@@ -1,5 +1,10 @@
 package com.luvin.ai.client.story;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
+import java.util.UUID;
+import java.util.function.Consumer;
+
 /**
  * 러빈지옥 장면 블록 회차 생성용 FastAPI endpoint(공통 데이터 계약 5장). Spring은 Gemini를 직접 부르지 않고
  * 이 인터페이스로만 생성을 요청한다. app.ai.story.client=stub(기본)이면 {@link AiStoryStubClient}가,
@@ -59,5 +64,30 @@ public interface AiStoryClient {
     default SeasonReportResponse writeSeasonReport(String ownerSubject, SeasonReportRequest request,
                                                    GenerationCall call) {
         return writeSeasonReport(ownerSubject, request);
+    }
+
+    /**
+     * 5-2 본문을 블록 단위로 확정하며 생성한다(task episode-stream). input은 {@link EpisodeRequest}를 계약 JSON으로 바꾼
+     * 것이고, 이어 쓰기 때는 처음 보낸 원문을 그대로 넘긴다. 확정된 부분이 늘 때마다 onPartial을 부른다.
+     *
+     * previousJobId가 있으면 그 job부터 본다: 아직 진행 중이면 이어서 기다리고, 성공했으면 그 결과를, 실패했으면 그 job에서
+     * 이어 쓰는 새 job(resumeFromJobId)을 접수한다 — 이미 확정된 블록은 바뀌지 않는다.
+     *
+     * @throws AiStoryFeatureUnsupportedException 블록 단위 생성을 쓸 수 없다(기존 writeEpisode로 생성)
+     * @throws AiStreamResumeRejectedException    이어 쓰기를 거부했다(처음부터 다시 생성)
+     */
+    default EpisodeResponse streamEpisode(String ownerSubject, JsonNode input, UUID previousJobId,
+                                          GenerationCall call, Consumer<EpisodePartial> onPartial) {
+        throw new AiStoryFeatureUnsupportedException("블록 단위 생성을 지원하지 않습니다.");
+    }
+
+    /**
+     * 회차 쪽지를 회차를 끝내기 전에 미리 만든다(task episode-note-preview).
+     *
+     * @throws AiStoryFeatureUnsupportedException 미리 만들기를 쓸 수 없다(완료 때 기존 episode-note로 만든다)
+     */
+    default EpisodeNoteResponse previewEpisodeNote(String ownerSubject, PreviewNoteRequest request,
+                                                   GenerationCall call) {
+        throw new AiStoryFeatureUnsupportedException("쪽지 미리 만들기를 지원하지 않습니다.");
     }
 }

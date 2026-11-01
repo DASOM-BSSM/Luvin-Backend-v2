@@ -136,6 +136,33 @@ public class AiEpisodeContent {
     @Column(name = "completion_regenerating")
     private Boolean completionRegenerating;
 
+    /**
+     * 블록 단위 생성(AI episode-stream)의 job. 실패 뒤 다시 생성할 때 이 job에서 이어 쓴다(resumeFromJobId) — 이미 앱에
+     * 나간 블록(blocks)을 바꾸지 않기 위해서다. 블록 단위 생성을 쓰지 않았으면 null.
+     */
+    @Column(name = "stream_job_id", columnDefinition = "uuid")
+    private UUID streamJobId;
+
+    /** 블록 단위 생성에 보낸 입력 원문. 이어 쓰기는 같은 입력이어야 해서 그대로 다시 보낸다. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "stream_input", columnDefinition = "jsonb")
+    private String streamInputJson;
+
+    /** 이 회차의 전체 블록 수(선택 결과 블록 제외). 생성 중 진행 표시용. */
+    @Column(name = "total_blocks")
+    private Integer totalBlocks;
+
+    /**
+     * 앱에 나간 블록을 버리고 처음부터 다시 만든 횟수. AI가 이어 쓰기를 거부하면(입력·설정 변경) 올라간다 — 앱은 이 값이
+     * 바뀌면 처음부터 다시 재생한다. 이전 row는 null(0으로 본다).
+     */
+    @Column(name = "revision")
+    private Integer revision;
+
+    /** 생성 중 마지막으로 블록이 확정된 시각. 멈춘 생성 판단은 이 시각과 requestedAt 중 늦은 쪽으로 한다. */
+    @Column(name = "progressed_at")
+    private LocalDateTime progressedAt;
+
     @Version
     @Column(name = "jpa_version", nullable = false)
     private Long jpaVersion;
@@ -165,6 +192,51 @@ public class AiEpisodeContent {
         this.generationStage = null;
         this.generationJobId = null;
         this.generationRegenerating = null;
+    }
+
+    /**
+     * 생성 중인 채 staleBefore보다 오래 멈춰 있다. 블록 단위 생성은 전체가 오래 걸려도 블록이 확정될 때마다 진행으로 본다.
+     */
+    public boolean isStale(LocalDateTime staleBefore) {
+        LocalDateTime last = progressedAt != null && progressedAt.isAfter(requestedAt) ? progressedAt : requestedAt;
+        return status == AiStoryContentStatus.GENERATING && last.isBefore(staleBefore);
+    }
+
+    /** 블록 단위 생성을 시작한다(이어 쓸 job·입력이 없을 때). */
+    public void startStream(String inputJson, int totalBlocks) {
+        this.streamInputJson = inputJson;
+        this.totalBlocks = totalBlocks;
+        this.streamJobId = null;
+    }
+
+    public void recordStreamJob(UUID jobId) {
+        this.streamJobId = jobId;
+    }
+
+    /** 새로 확정된 블록까지 저장한다. intro·stageIntro는 처음 한 번만 채운다(이후 바뀌지 않는다). */
+    public void appendPartial(String introJson, String stageIntroJson, String blocksJson) {
+        if (this.introJson == null) {
+            this.introJson = introJson;
+        }
+        if (this.stageIntroJson == null) {
+            this.stageIntroJson = stageIntroJson;
+        }
+        this.blocksJson = blocksJson;
+        this.progressedAt = LocalDateTime.now();
+    }
+
+    /** 이어 쓸 수 없어 앱에 나간 블록을 버리고 처음부터 다시 만든다. 1화 무대 소개는 그대로 둔다. */
+    public void resetStream() {
+        this.introJson = null;
+        this.blocksJson = null;
+        this.streamJobId = null;
+        this.streamInputJson = null;
+        this.totalBlocks = null;
+        this.revision = currentRevision() + 1;
+    }
+
+    public int currentRevision() {
+        return revision == null ? 0 : revision;
     }
 
     public int currentGenerationRound() {

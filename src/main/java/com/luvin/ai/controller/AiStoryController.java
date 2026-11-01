@@ -46,6 +46,15 @@ public class AiStoryController {
             `generating`이면 `progress`에 생성 단계(`stage`: stage-intro | episode | interview)와 `regenerating`이 있다.
             `regenerating: true`는 AI가 문장을 다시 다듬는 중이라는 뜻이고 실패가 아니다("문장을 다듬고 있어요" 등으로 표시).
             생성이 오래 걸려도 같은 요청을 계속 보내면 같은 생성의 진행 상태를 이어서 본다.
+
+            **블록 단위 반환**: `generating`이어도 지금까지 확정된 블록이 `blocks`에 설계 순서대로 들어 있다(아직 없으면 null).
+            `intro`는 첫 블록과 함께, 1화 `stageIntro`는 본문보다 먼저 들어온다. `progress.readyBlocks`/`progress.totalBlocks`는
+            확정된 블록 수/전체 블록 수(선택 결과 블록 제외)다. 한 번 나간 블록은 내용·순서·blockId·messageId가 바뀌지 않으므로
+            앱은 새로 붙은 블록만 이어서 재생한다(blockId로 중복 재생을 막는다). 전체 완료 신호는 `status: ready`다.
+            중간에 실패해 `failed`여도 이미 나간 블록은 `blocks`에 그대로 있고, 다시 요청하면 그 뒤부터 이어서 만든다.
+            드물게 이어서 만들 수 없으면 처음부터 다시 만들고 `revision`이 1 오른다 — 앱은 `revision`이 바뀌면 처음부터 다시
+            재생한다. 생성 중에 나간 1:1 장면 대사에도 피드백·좋아요를 남길 수 있다.
+
             서버는 다음 회차를 미리 만든다 — 2·3화는 이전 회차 완료 직후, 4~10화는 회차를 연(unlock) 직후. 그래서 처음 요청해도
             이미 `ready`이거나 `generating` 진행 중일 수 있다(응답 형식은 같다). 미리 만들다 실패한 경우에는 `failed`를 보여 주지
             않고 바로 다시 생성해 `generating`으로 응답한다.
@@ -154,8 +163,13 @@ public class AiStoryController {
     }
 
     @Operation(summary = "회차 완료", description = """
-            관계 기록을 갱신하고(정리 단계) 회차 쪽지를 만든다. 10화면 최종 리포트를 만들고 시즌을 완료한다.
+            관계 기록을 갱신하고(정리 단계) 회차 쪽지를 보낸다. 10화면 최종 리포트를 만들고 시즌을 완료한다.
             AI 생성을 여러 번 기다려 수십 초가 걸리므로 **접수만 하고 바로 응답한다**(비동기).
+
+            **쪽지(1~9화)**: 서버가 회차를 끝내기 전에 미리 만들어 두고(선택 없는 회차는 본문 생성 직후, 선택 회차는 선택 결과
+            장면이 준비된 직후) 이 요청에서 도착시킨다 — 응답을 받은 직후 `GET /api/ai/seasons/letters/unread`로 바로 조회된다.
+            아직 만드는 중이면 만들어지는 대로(보통 몇 초 안에) 조회된다. 정리 단계(completion)가 끝나기를 기다리지 않아도 된다.
+            쪽지를 만들지 못해도 회차 완료는 계속되고, 쪽지는 다시 만든다. 10화 시즌 종료 쪽지는 지금처럼 완료가 끝날 때 생긴다.
 
             - 응답의 `completion`이 `{"order":N,"status":"completing"}`이면 진행 중이다.
               `GET /api/ai/seasons/me`의 `story.completion`을 2~3초 간격으로 폴링한다.

@@ -1,17 +1,22 @@
 package com.luvin.ai.service.story;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.luvin.ai.client.exception.AiServiceException;
 import com.luvin.ai.client.story.AiStoryClient;
+import com.luvin.ai.client.story.AiStoryFeatureUnsupportedException;
+import com.luvin.ai.client.story.AiStreamResumeRejectedException;
 import com.luvin.ai.client.story.ChoiceResultRequest;
 import com.luvin.ai.client.story.ChoiceResultResponse;
 import com.luvin.ai.client.story.EpisodeNoteRequest;
 import com.luvin.ai.client.story.EpisodeNoteResponse;
+import com.luvin.ai.client.story.EpisodePartial;
 import com.luvin.ai.client.story.EpisodeRequest;
-import com.luvin.ai.client.story.GenerationCall;
 import com.luvin.ai.client.story.EpisodeResponse;
+import com.luvin.ai.client.story.GenerationCall;
 import com.luvin.ai.client.story.InterviewRequest;
 import com.luvin.ai.client.story.InterviewResponse;
+import com.luvin.ai.client.story.PreviewNoteRequest;
 import com.luvin.ai.client.story.SeasonDesignRequest;
 import com.luvin.ai.client.story.SeasonDesignResponse;
 import com.luvin.ai.client.story.SeasonReportRequest;
@@ -21,15 +26,17 @@ import com.luvin.ai.client.story.StageIntroResponse;
 import com.luvin.ai.client.story.StoryTypes;
 import com.luvin.ai.client.story.SummarizeRequest;
 import com.luvin.ai.client.story.SummarizeResponse;
+import com.luvin.ai.config.AiStoryConfig;
 import com.luvin.ai.config.AiStoryProperties;
 import com.luvin.ai.domain.AiCastRole;
+import com.luvin.ai.domain.AiJobStatus;
 import com.luvin.ai.domain.AiSceneBlockType;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSeasonSetting;
 import com.luvin.ai.domain.AiSeasonStatus;
 import com.luvin.ai.domain.AiStoryContentStatus;
-import com.luvin.ai.domain.AiStoryRoute;
 import com.luvin.ai.domain.AiStoryFeedback;
+import com.luvin.ai.domain.AiStoryRoute;
 import com.luvin.ai.dto.AiHighlightView;
 import com.luvin.ai.dto.AiMessageLikeView;
 import com.luvin.ai.dto.AiReportHighlightsView;
@@ -98,6 +105,8 @@ import java.util.function.Function;
 public class AiStoryService {
 
     private static final Logger log = LoggerFactory.getLogger(AiStoryService.class);
+    /** 미리 만든 쪽지의 표시 방식(AI 응답에 없으면). */
+    static final String NOTE_RENDER_MODE = "default";
     private static final int MAX_ATTEMPTS = 2;
     /** 회차 완료 저장이 낙관적 락 충돌로 실패하면 FastAPI를 다시 부르지 않고 저장만 다시 하는 횟수. */
     private static final int SAVE_ATTEMPTS = 3;
@@ -262,6 +271,122 @@ public class AiStoryService {
         }
     }
 
+    // ---------------------------------------------------------------- 회차 쪽지 미리 만들기
+
+    /**
+     * 1~9화 쪽지를 회차를 끝내기 전에 만든다(AI episode-note-preview). 선택이 없는 회차는 본문이 준비된 뒤, 선택 회차는
+     * 선택 결과 장면이 준비된 뒤(혼자 있기 포함) 부른다. 정리 단계 결과 없이 이번 회차 블록과 이전 회차까지의 관계 기록으로
+     * 쓴다. 만든 쪽지는 회차 완료를 요청하기 전까지 앱에 보이지 않고, 완료를 이미 요청했으면 바로 도착한다.
+     * 회차당 한 통이라 여러 번 불러도 다시 만들지 않는다(다른 실행이 만드는 중이면 그대로 둔다). 어떤 오류도 던지지 않는다.
+     *
+     * @return 쪽지가 있거나 만드는 중이면 true. 만들 수 없었으면(미리 만들기를 쓸 수 없는 AI 연결, 생성 실패) false —
+     *         회차 완료가 정리 단계 뒤 기존 방식으로 만든다
+     */
+    boolean prepareEpisodeNote(Long memberId, Long seasonPk, int order) {
+        if (order >= AiStoryCatalog.FINAL_ORDER) {
+            return false;
+        }
+        AiStoryStateWriter.NoteReservation reservation = null;
+        try {
+            AiStorySnapshot snapshot = stateWriter.snapshot(seasonPk);
+            AiStorySnapshot.Content content = snapshot.content(order)
+                    .filter(c -> c.status() == AiStoryContentStatus.READY).orElse(null);
+            Integer pointId = AiStoryCatalog.pointOf(order);
+            AiStorySnapshot.Choice choice = pointId == null ? null : snapshot.choice(pointId).orElse(null);
+            if (content == null || pointId != null && (choice == null || !choice.resultReady())) {
+                return false;
+            }
+            AiStoryCastMember sender = noteSender(snapshot, content, order);
+            try {
+                reservation = stateWriter.reserveEpisodeNote(seasonPk, order, sender.breadId(), staleBefore())
+                        .orElse(null);
+            } catch (DataIntegrityViolationException raceLoser) {
+                return true; // 다른 실행이 같은 쪽지를 먼저 만들기 시작했다.
+            }
+            if (reservation == null) {
+                return true;
+            }
+            String ownerSubject = ownerSubjectProvider.resolve(memberId);
+            AiStoryContractMapper mapper = new AiStoryContractMapper(snapshot, storedStageIntro(snapshot));
+            StoryTypes.GenerationContext context = context(snapshot, mapper, userWithAge(memberId).getAge(), memberId);
+            List<AiSceneBlockView> resultBlocks = choice == null ? List.of()
+                    : AiStoryJson.read(choice.resultBlocksJson(), BLOCK_LIST);
+            AiStorySnapshot.Relation senderRelation = snapshot.relation(sender.breadId()).orElse(null);
+            PreviewNoteRequest request = new PreviewNoteRequest(context, order,
+                    AiStoryCatalog.settingScene(snapshot.setting(), order),
+                    mapper.sceneBlocks(AiStoryJson.read(content.blocksJson(), BLOCK_LIST), resultBlocks),
+                    choice == null ? null : mapper.choiceRecords().stream()
+                            .filter(c -> c.pointId() == pointId).findFirst().orElse(null),
+                    mapper.relationRecords(),
+                    new EpisodeNoteRequest.Sender(sender.castRole().contractId(),
+                            senderRelation == null ? null : senderRelation.speechLevel().wireValue(), sender.name(),
+                            sender.castRole().attachmentStyle().wireValue(),
+                            senderRelation == null ? null : senderRelation.statusText()),
+                    stateWriter.findEpisodeNoteBodies(seasonPk).stream().map(AiStoryService::firstSentence).toList());
+            List<String> castIds = mapper.castIds();
+            StoryRun run = new StoryRun(jobKeyBase(snapshot, content.id(), "note", reservation.attempt()),
+                    StepRecorder.NONE);
+            EpisodeNoteResponse note = callWithRetry("episode-note-preview", run,
+                    call -> storyClient.previewEpisodeNote(ownerSubject, request, call),
+                    r -> AiStoryResponseValidator.validateNote(r, castIds));
+            stateWriter.saveEpisodeNote(reservation.letterPk(), note.body(),
+                    note.renderMode() != null ? note.renderMode() : NOTE_RENDER_MODE);
+            return true;
+        } catch (AiStoryFeatureUnsupportedException unsupported) {
+            if (reservation != null) {
+                stateWriter.releaseEpisodeNote(reservation.letterPk());
+            }
+            return false;
+        } catch (Exception e) {
+            Throwable cause = e instanceof AiStoryGenerationFailedException && e.getCause() != null ? e.getCause() : e;
+            log.warn("story episode note preview failed: seasonPk={}, order={}, cause={}", seasonPk, order,
+                    cause.getClass().getSimpleName());
+            if (reservation != null) {
+                stateWriter.markEpisodeNoteFailed(reservation.letterPk(), AiStoryGenerationFailedException.CODE);
+            }
+            return false;
+        }
+    }
+
+    /**
+     * 회차 완료 중: 쪽지가 있는지 확인하고, 없거나 실패했으면 만든다. 미리 만들던 쪽지가 아직 진행 중이면 끝날 때까지
+     * (jobWaitTimeout까지) 기다렸다가, 실패했으면 다시 만든다. 그래도 끝나지 않으면 그 실행이 끝나는 대로 도착하도록 둔다.
+     *
+     * @return 쪽지가 있거나 아직 만드는 중이면 true. 만들 수 없었으면 false(정리 단계 뒤 기존 방식으로 만든다)
+     */
+    private boolean ensureEpisodeNote(Long memberId, Long seasonPk, int order) {
+        long deadline = System.nanoTime() + properties.jobWaitTimeout().toNanos();
+        while (prepareEpisodeNote(memberId, seasonPk, order)) {
+            AiJobStatus status = stateWriter.episodeNoteStatus(seasonPk, order).orElse(null);
+            if (status == AiJobStatus.SUCCEEDED || System.nanoTime() > deadline) {
+                return true;
+            }
+            try {
+                Thread.sleep(properties.jobPollInterval().toMillis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 안 읽은 쪽지가 없을 때(GET /letters/unread) 부른다: 완료한 최근 회차(1~9화)의 쪽지가 실패해 없으면 백그라운드에서
+     * 다시 만든다. 만들어지면 다음 조회부터 보인다.
+     */
+    public void retryMissingEpisodeNote(Long memberId) {
+        seasonRepository.findFirstByMemberIdOrderBySeasonNumberDesc(memberId).ifPresent(season -> {
+            AiStorySnapshot snapshot = stateWriter.snapshot(season.getId());
+            snapshot.contents().stream()
+                    .filter(c -> c.completed() && c.order() < AiStoryCatalog.FINAL_ORDER)
+                    .max(java.util.Comparator.comparingInt(AiStorySnapshot.Content::order))
+                    .filter(c -> stateWriter.episodeNoteStatus(season.getId(), c.order())
+                            .map(status -> status == AiJobStatus.FAILED).orElse(true))
+                    .ifPresent(c -> executor.execute(() -> prepareEpisodeNote(memberId, season.getId(), c.order())));
+        });
+    }
+
     // ---------------------------------------------------------------- 회차 열기
 
     /**
@@ -319,9 +444,13 @@ public class AiStoryService {
             User user = userWithAge(memberId);
             int age = user.getAge();
             AiSeasonDesignRecord seasonDesign = stateWriter.findSeasonDesign(seasonPk).orElse(null);
+            AiStoryStateWriter.StreamState stream = stateWriter.streamState(contentPk);
             AiStageIntroView stageIntro;
             if (order != AiStoryCatalog.FIRST_ORDER) {
                 stageIntro = storedStageIntro(snapshot);
+            } else if (stream.stageIntroJson() != null) {
+                // 이어 쓰기: 이미 앱에 보여 준 무대 소개를 그대로 쓴다.
+                stageIntro = AiStoryJson.read(stream.stageIntroJson(), AiStageIntroView.class);
             } else {
                 if (seasonDesign == null && snapshot.seasonNumber() > 1) {
                     seasonDesign = designSeason(ownerSubject, snapshot, user, run).orElse(null);
@@ -351,25 +480,112 @@ public class AiStoryService {
                     mapper.choiceRecords(), usedMaterials(snapshot, order),
                     seasonDesign == null ? null
                             : AiSeasonDesigns.episodeContext(snapshot.seasonNumber(), seasonDesign, order));
-            EpisodeResponse episode = callWithRetry("episode", run,
-                    call -> storyClient.writeEpisode(ownerSubject, request, call),
+            String stageIntroJson = order == AiStoryCatalog.FIRST_ORDER ? AiStoryJson.write(stageIntro) : null;
+            BlockAssembly assembly = new BlockAssembly(plan, snapshot, mapper);
+            EpisodeResponse episode = writeEpisodeBody(ownerSubject, contentPk, round, request, stream, assembly,
+                    stageIntroJson, run,
                     r -> AiStoryResponseValidator.validateEpisode(r, designed.stream().map(mapper::expected).toList()));
 
-            Map<String, StoryTypes.GeneratedBlock> generated = new HashMap<>();
-            episode.blocks().forEach(b -> generated.put(b.id(), b));
-
-            List<AiSceneBlockView> blocks = toBlockViews(plan, generated, interviews.join(), snapshot, mapper);
-            AiStoryIntroView intro = new AiStoryIntroView(episode.intro().title(), episode.intro().episodeName(),
-                    episode.intro().situation());
-            stateWriter.saveGenerated(contentPk, round, AiStoryJson.write(intro),
-                    order == AiStoryCatalog.FIRST_ORDER ? AiStoryJson.write(stageIntro) : null,
-                    AiStoryJson.write(blocks));
+            // 생성 중 앱에 나간 블록(메시지 id 포함)은 그대로 두고 남은 블록과 인터뷰만 붙인다.
+            AiStoryStateWriter.StreamState saved = stateWriter.streamState(contentPk);
+            List<AiSceneBlockView> blocks = assembly.append(readBlocks(saved.blocksJson()), episode.blocks(),
+                    interviews.join());
+            if (blocks.size() != plan.blocks().size()) {
+                throw new AiStoryInvalidResponseException("본문에 없는 블록이 있습니다.");
+            }
+            String introJson = saved.introJson() != null ? saved.introJson() : AiStoryJson.write(introView(episode.intro()));
+            stateWriter.saveGenerated(contentPk, round, introJson, stageIntroJson, AiStoryJson.write(blocks));
+            if (AiStoryCatalog.pointOf(order) == null) {
+                // 선택이 없는 회차는 본문이 준비되면 쪽지를 미리 만든다(선택 회차는 선택 결과 장면 뒤).
+                prepareEpisodeNote(memberId, seasonPk, order);
+            }
         } catch (Exception e) {
             Throwable cause = e instanceof CompletionException && e.getCause() != null ? e.getCause() : e;
             log.warn("story episode generation failed: seasonPk={}, order={}, prefetched={}, cause={}",
                     seasonPk, order, prefetched, cause.getClass().getSimpleName());
             stateWriter.markGenerationFailed(contentPk, round, AiStoryGenerationFailedException.CODE, prefetched);
         }
+    }
+
+    /**
+     * 본문(5-2)을 블록 단위로 확정하며 만든다(AI episode-stream). 확정된 블록은 바로 앱용 블록으로 바꿔 저장해, 생성 중인
+     * GET content에도 나간다. 한 번 나간 블록은 바꾸지 않는다:
+     * - 실패하면 같은 입력으로 실패한 job에서 이어 쓴다(이 실행 안에서 한 번 더, 다음 GET content의 다시 시도에서도).
+     * - AI가 이어 쓰기를 거부하면(입력·설정 변경) 나간 블록을 버리고 처음부터 만든다 — revision이 올라 앱이 처음부터 재생한다.
+     * - 끝난 결과가 Spring 검사에 걸리면 이어 쓸 수 없으므로 나간 블록을 버리고 실패로 남긴다(다음 시도는 처음부터).
+     * 블록 단위 생성을 쓸 수 없는 AI 연결이면 기존 본문 생성(writeEpisode)으로 만든다.
+     */
+    private EpisodeResponse writeEpisodeBody(String ownerSubject, Long contentPk, int round, EpisodeRequest request,
+                                             AiStoryStateWriter.StreamState stream, BlockAssembly assembly,
+                                             String stageIntroJson, StoryRun run, Consumer<EpisodeResponse> validate) {
+        JsonNode input;
+        UUID previousJobId = null;
+        if (stream.jobId() != null && stream.inputJson() != null) {
+            input = AiStoryJson.read(stream.inputJson(), JsonNode.class);
+            previousJobId = stream.jobId();
+        } else {
+            if (stream.blocksJson() != null) {
+                stateWriter.resetStream(contentPk, round); // 이어 쓸 job 없이 남은 블록은 쓰지 않는다.
+            }
+            input = AiStoryConfig.STORY_OBJECT_MAPPER.valueToTree(request);
+            stateWriter.startStream(contentPk, round, AiStoryJson.write(input), assembly.plan().blocks().size(),
+                    stageIntroJson);
+        }
+        run.recorder().record("episode", null, false);
+        RuntimeException last = null;
+        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+            UUID[] currentJob = {previousJobId};
+            GenerationCall call = new GenerationCall(run.key("episode", attempt), progress -> {
+                run.recorder().record("episode", progress.jobId(), progress.regenerating());
+                if (progress.jobId() != null && !progress.jobId().equals(currentJob[0])) {
+                    currentJob[0] = progress.jobId();
+                    stateWriter.recordStreamJob(contentPk, round, progress.jobId());
+                }
+            });
+            try {
+                EpisodeResponse episode = storyClient.streamEpisode(ownerSubject, input, previousJobId, call,
+                        partial -> appendPartial(contentPk, round, assembly, partial));
+                try {
+                    validate.accept(episode);
+                } catch (AiStoryInvalidResponseException invalid) {
+                    stateWriter.resetStream(contentPk, round);
+                    throw new AiStoryGenerationFailedException("episode", invalid);
+                }
+                return episode;
+            } catch (AiStoryFeatureUnsupportedException unsupported) {
+                if (stateWriter.streamState(contentPk).blocksJson() != null) {
+                    stateWriter.resetStream(contentPk, round);
+                }
+                return callWithRetry("episode", run, c -> storyClient.writeEpisode(ownerSubject, request, c), validate);
+            } catch (AiStreamResumeRejectedException rejected) {
+                log.info("story episode stream resume rejected, restarting: contentPk={}, code={}", contentPk,
+                        rejected.getAiErrorCode());
+                stateWriter.resetStream(contentPk, round);
+                input = AiStoryConfig.STORY_OBJECT_MAPPER.valueToTree(request);
+                stateWriter.startStream(contentPk, round, AiStoryJson.write(input), assembly.plan().blocks().size(),
+                        stageIntroJson);
+                previousJobId = null;
+                last = rejected;
+            } catch (AiServiceException failed) {
+                log.warn("story episode stream attempt {} failed: {}", attempt, failed.getMessage());
+                previousJobId = currentJob[0];
+                last = failed;
+            }
+        }
+        throw new AiStoryGenerationFailedException("episode", last);
+    }
+
+    /** 새로 확정된 블록을 앱용 블록으로 바꿔 이어 붙인다. 다른 실행이 먼저 저장했으면 그쪽 블록을 그대로 둔다. */
+    private void appendPartial(Long contentPk, int round, BlockAssembly assembly, EpisodePartial partial) {
+        AiStoryStateWriter.StreamState state = stateWriter.streamState(contentPk);
+        List<AiSceneBlockView> built = readBlocks(state.blocksJson());
+        List<AiSceneBlockView> views = assembly.append(built, partial.blocks(), Map.of());
+        boolean newIntro = state.introJson() == null && partial.intro() != null;
+        if (views.size() == built.size() && !newIntro) {
+            return;
+        }
+        stateWriter.appendPartial(contentPk, round, built.size(),
+                partial.intro() == null ? null : AiStoryJson.write(introView(partial.intro())), AiStoryJson.write(views));
     }
 
     /**
@@ -496,10 +712,13 @@ public class AiStoryService {
             return existingOutcome(memberId, season.getId(),
                     reloaded.choice(pointId).orElseThrow(() -> raceLoser), breadId);
         }
+        Long seasonPk = season.getId();
         if (breadId != null) {
-            startChoiceResult(memberId, season.getId(), pointId, order, 1);
+            startChoiceResult(memberId, seasonPk, pointId, order, 1);
+        } else {
+            executor.execute(() -> prepareEpisodeNote(memberId, seasonPk, order)); // 혼자 있기는 결과가 바로 준비된다.
         }
-        return choiceOutcome(stateWriter.snapshot(season.getId()), pointId);
+        return choiceOutcome(stateWriter.snapshot(seasonPk), pointId);
     }
 
     /** 이미 한 선택을 다시 보냈다. 다른 빵이면 409, 결과 장면이 실패했거나 멈췄으면 다시 만들기 시작한다. */
@@ -518,6 +737,45 @@ public class AiStoryService {
 
     private void startChoiceResult(Long memberId, Long seasonPk, int pointId, int order, int round) {
         executor.execute(() -> runChoiceResult(memberId, seasonPk, pointId, order, round));
+    }
+
+    /**
+     * 정리 단계 결과로 쓰는 기존 회차 쪽지(5-6 episode-note). 10화 시즌 종료 쪽지와, 1~9화 쪽지를 미리 만들지 못했을 때
+     * (미리 만들기를 쓸 수 없는 AI 연결이거나 실패)만 쓴다.
+     */
+    private AiStoryStateWriter.EpisodeNote writeNoteAfterSummary(String ownerSubject, AiStorySnapshot snapshot,
+                                                                 AiStorySnapshot.Content content, int order,
+                                                                 AiStoryContractMapper mapper,
+                                                                 StoryTypes.GenerationContext context,
+                                                                 SummarizeResponse summary, StoryRun run) {
+        Integer pointId = AiStoryCatalog.pointOf(order);
+        List<String> castIds = mapper.castIds();
+        String settingScene = AiStoryCatalog.settingScene(snapshot.setting(), order);
+        StoryTypes.ChoiceRecord choice = pointId == null ? null : mapper.choiceRecords().stream()
+                .filter(c -> c.pointId() == pointId).findFirst().orElse(null);
+        List<EpisodeNoteRequest.Relation> noteRelations = summary.relations().stream()
+                .map(u -> new EpisodeNoteRequest.Relation(u.breadId(), u.statusText(), u.recentMemory()))
+                .toList();
+        AiStoryCastMember sender = noteSender(snapshot, content, order);
+        String senderStatus = summary.relations().stream()
+                .filter(u -> u.breadId().equals(sender.castRole().contractId()))
+                .map(SummarizeResponse.RelationUpdate::statusText)
+                .findFirst()
+                .orElseGet(() -> snapshot.relation(sender.breadId()).map(AiStorySnapshot.Relation::statusText)
+                        .orElse(null));
+        EpisodeNoteRequest noteRequest = new EpisodeNoteRequest(context, order, settingScene, summary.episodeSummary(),
+                choice, noteRelations,
+                new EpisodeNoteRequest.Sender(sender.castRole().contractId(),
+                        snapshot.relation(sender.breadId()).map(r -> r.speechLevel().wireValue()).orElse(null),
+                        sender.name(),
+                        sender.castRole().attachmentStyle().wireValue(), senderStatus),
+                stateWriter.findEpisodeNoteBodies(snapshot.seasonPk()).stream().map(AiStoryService::firstSentence)
+                        .toList());
+        EpisodeNoteResponse note = callWithRetry("episode-note", run,
+                call -> storyClient.writeEpisodeNote(ownerSubject, noteRequest, call),
+                r -> AiStoryResponseValidator.validateNote(r, castIds));
+
+        return new AiStoryStateWriter.EpisodeNote(sender.breadId(), note.body(), note.renderMode());
     }
 
     /** 응답: 결과 장면이 준비됐으면 그 블록, 아니면 빈 배열과 생성 상태. */
@@ -564,6 +822,7 @@ public class AiStoryService {
         try {
             stateWriter.saveChoiceResult(seasonPk, pointId, round,
                     AiStoryJson.write(writeChoiceResult(memberId, seasonPk, pointId, order, round)));
+            prepareEpisodeNote(memberId, seasonPk, order); // 선택 결과 장면까지 준비됐으니 쪽지를 미리 만든다.
         } catch (Exception e) {
             log.warn("story choice result failed: seasonPk={}, pointId={}, cause={}",
                     seasonPk, pointId, e.getClass().getSimpleName());
@@ -660,8 +919,10 @@ public class AiStoryService {
     }
 
     /**
-     * 백그라운드 회차 완료: 정리 단계(5-5) → 회차 쪽지(5-6) → (10화면) 최종 리포트(5-7)를 FastAPI로 만들고 한 트랜잭션에
-     * 저장한다. 하나라도 실패하면 아무것도 저장하지 않고 완료 실패로 남긴다(스레드 밖으로 던지지 않는다).
+     * 백그라운드 회차 완료: (1~9화) 쪽지 확인 → 정리 단계(5-5) → (10화면) 시즌 종료 쪽지(5-6)·최종 리포트(5-7)를 FastAPI로
+     * 만들고 한 트랜잭션에 저장한다. 1~9화 쪽지는 미리 만들어 완료 요청에서 도착하므로 정리 단계를 기다리지 않고, 쪽지
+     * 실패는 완료를 실패시키지 않는다. 그 밖의 단계가 실패하면 아무것도 저장하지 않고 완료 실패로 남긴다(스레드 밖으로
+     * 던지지 않는다).
      */
     void runCompletion(Long memberId, Long seasonPk, int order, Long contentPk, int round) {
         try {
@@ -680,6 +941,9 @@ public class AiStoryService {
                         stateWriter.recordCompletionProgress(contentPk, round, stage, jobId, regenerating));
         AiStorySnapshot.Content content = readyContent(snapshot, order);
         Integer pointId = AiStoryCatalog.pointOf(order);
+        // 1~9화 쪽지는 정리 단계를 기다리지 않는다: 미리 만든 쪽지는 완료 요청에서 이미 도착했고, 없거나 실패했으면 여기서
+        // 먼저 만들어 바로 도착시킨다. 쪽지가 실패해도 회차 완료(관계 갱신)는 계속한다.
+        boolean notePrepared = order < AiStoryCatalog.FINAL_ORDER && ensureEpisodeNote(memberId, seasonPk, order);
         String ownerSubject = ownerSubjectProvider.resolve(memberId);
         AiStoryContractMapper mapper = new AiStoryContractMapper(snapshot, storedStageIntro(snapshot));
         StoryTypes.GenerationContext context = context(snapshot, mapper, userWithAge(memberId).getAge(), memberId);
@@ -695,30 +959,19 @@ public class AiStoryService {
                 call -> storyClient.summarize(ownerSubject, summarizeRequest, call),
                 r -> AiStoryResponseValidator.validateSummary(r, relationIds));
 
-        String settingScene = AiStoryCatalog.settingScene(snapshot.setting(), order);
-        StoryTypes.ChoiceRecord choice = pointId == null ? null : mapper.choiceRecords().stream()
-                .filter(c -> c.pointId() == pointId).findFirst().orElse(null);
-        List<EpisodeNoteRequest.Relation> noteRelations = summary.relations().stream()
-                .map(u -> new EpisodeNoteRequest.Relation(u.breadId(), u.statusText(), u.recentMemory()))
-                .toList();
-        AiStoryCastMember sender = noteSender(snapshot, content, order);
-        String senderStatus = summary.relations().stream()
-                .filter(u -> u.breadId().equals(sender.castRole().contractId()))
-                .map(SummarizeResponse.RelationUpdate::statusText)
-                .findFirst()
-                .orElseGet(() -> snapshot.relation(sender.breadId()).map(AiStorySnapshot.Relation::statusText)
-                        .orElse(null));
-        EpisodeNoteRequest noteRequest = new EpisodeNoteRequest(context, order, settingScene, summary.episodeSummary(),
-                choice, noteRelations,
-                new EpisodeNoteRequest.Sender(sender.castRole().contractId(),
-                        snapshot.relation(sender.breadId()).map(r -> r.speechLevel().wireValue()).orElse(null),
-                        sender.name(),
-                        sender.castRole().attachmentStyle().wireValue(), senderStatus),
-                stateWriter.findEpisodeNoteBodies(snapshot.seasonPk()).stream().map(AiStoryService::firstSentence)
-                        .toList());
-        EpisodeNoteResponse note = callWithRetry("episode-note", run,
-                call -> storyClient.writeEpisodeNote(ownerSubject, noteRequest, call),
-                r -> AiStoryResponseValidator.validateNote(r, castIds));
+        AiStoryStateWriter.EpisodeNote episodeNote = null;
+        if (!notePrepared) {
+            try {
+                episodeNote = writeNoteAfterSummary(ownerSubject, snapshot, content, order, mapper, context, summary,
+                        run);
+            } catch (RuntimeException noteFailure) {
+                if (order == AiStoryCatalog.FINAL_ORDER) {
+                    throw noteFailure; // 시즌 종료 쪽지는 리포트와 함께 완료 조건이다.
+                }
+                log.warn("story episode note failed, completing without it: seasonPk={}, order={}, cause={}",
+                        seasonPk, order, noteFailure.getClass().getSimpleName());
+            }
+        }
 
         String reportJson = null;
         if (order == AiStoryCatalog.FINAL_ORDER) {
@@ -741,8 +994,6 @@ public class AiStoryService {
                         u.recentMemory(), u.newFacts(), u.threadsAdd(), u.threadsResolved(), u.statusText(),
                         u.affinityDelta(), u.choiceMemory(), u.speechLevel()))
                 .toList();
-        AiStoryStateWriter.EpisodeNote episodeNote = new AiStoryStateWriter.EpisodeNote(sender.breadId(), note.body(),
-                note.renderMode());
         // 생성 결과는 그대로 두고 저장만 다시 한다. 그사이 같은 시즌을 다른 요청(피드백 등)이 바꾸면 낙관적 락 충돌이 난다.
         for (int attempt = 1; ; attempt++) {
             try {
@@ -805,11 +1056,15 @@ public class AiStoryService {
         }
         AiSeason season = currentSeason(memberId);
         AiStorySnapshot snapshot = startedSnapshot(season);
-        AiStorySnapshot.Content content = readyContent(snapshot, order);
-        List<AiSceneBlockView> blocks = new ArrayList<>(AiStoryJson.read(content.blocksJson(), BLOCK_LIST));
+        // 생성 중이어도 이미 나간 블록의 대사에는 남길 수 있다(블록 단위 생성).
+        AiStorySnapshot.Content content = snapshot.content(order)
+                .filter(c -> c.status() == AiStoryContentStatus.READY || c.blocksJson() != null)
+                .orElseThrow(() -> new AiStoryConflictException(AiStoryConflictException.CONTENT_NOT_READY,
+                        order + "화가 아직 준비되지 않았습니다."));
+        List<AiSceneBlockView> blocks = new ArrayList<>(readBlocks(content.blocksJson()));
         Integer pointId = AiStoryCatalog.pointOf(order);
         if (pointId != null) {
-            snapshot.choice(pointId).ifPresent(c -> blocks.addAll(AiStoryJson.read(c.resultBlocksJson(), BLOCK_LIST)));
+            snapshot.choice(pointId).ifPresent(c -> blocks.addAll(readBlocks(c.resultBlocksJson())));
         }
         AiSceneBlockView block = blocks.stream().filter(b -> b.id().equals(blockId)).findFirst()
                 .orElseThrow(() -> new AiInputValidationException(AiInputValidationException.SCENE_BLOCK_NOT_FOUND,
@@ -1123,42 +1378,75 @@ public class AiStoryService {
     }
 
     /** 설계 블록 순서대로 FastAPI가 쓴 대사를 붙여 앱 응답 블록을 만든다. 10화 인터뷰는 인터뷰 호출 결과로 채운다. */
-    private static List<AiSceneBlockView> toBlockViews(AiEpisodePlan plan, Map<String, StoryTypes.GeneratedBlock> generated,
-                                                       Map<String, List<StoryTypes.Message>> interviews,
-                                                       AiStorySnapshot snapshot, AiStoryContractMapper mapper) {
-        int[] sequence = {1};
-        List<AiSceneBlockView> views = new ArrayList<>();
-        for (BlockPlan blockPlan : plan.blocks()) {
+    /**
+     * 생성 결과를 앱용 블록으로 바꾼다. 설계 순서대로 앞에서부터, 재료(본문 블록·인터뷰)가 있는 데까지만 붙인다 — 블록 단위
+     * 생성 중에는 확정된 블록만 와서 그 앞까지만 만든다. 이미 만든 블록(메시지 id·순번)은 다시 만들지 않고 그 뒤를 잇는다.
+     */
+    private record BlockAssembly(AiEpisodePlan plan, AiStorySnapshot snapshot, AiStoryContractMapper mapper) {
+
+        List<AiSceneBlockView> append(List<AiSceneBlockView> built, List<StoryTypes.GeneratedBlock> generatedBlocks,
+                                      Map<String, List<StoryTypes.Message>> interviews) {
+            Map<String, StoryTypes.GeneratedBlock> generated = new HashMap<>();
+            generatedBlocks.forEach(b -> generated.put(b.id(), b));
+            List<AiSceneBlockView> views = new ArrayList<>(built);
+            int[] sequence = {1 + views.stream().mapToInt(v -> v.messages() == null ? 0 : v.messages().size()).sum()};
+            for (int i = views.size(); i < plan.blocks().size(); i++) {
+                AiSceneBlockView view = toView(plan.blocks().get(i), generated, interviews, sequence);
+                if (view == null) {
+                    break;
+                }
+                views.add(view);
+            }
+            return views;
+        }
+
+        /** 재료가 아직 없으면 null. */
+        private AiSceneBlockView toView(BlockPlan blockPlan, Map<String, StoryTypes.GeneratedBlock> generated,
+                                        Map<String, List<StoryTypes.Message>> interviews, int[] sequence) {
             String type = blockPlan.type().wireValue();
-            switch (blockPlan.type()) {
+            if (blockPlan.type() == AiSceneBlockType.INTERVIEW) {
+                List<StoryTypes.Message> messages = interviews.get(mapper.contractId(blockPlan.focusBreadId()));
+                return messages == null ? null : new AiSceneBlockView(blockPlan.id(), type,
+                        mapper.participants(blockPlan.participantIds()), mapper.messageViews(messages, sequence),
+                        null, null, null, null, new AiSceneBlockView.SceneInterview(blockPlan.focusBreadId()));
+            }
+            StoryTypes.GeneratedBlock block = generated.get(blockPlan.id());
+            if (block == null) {
+                return null;
+            }
+            return switch (blockPlan.type()) {
                 case CHOICE -> {
                     Map<String, String> memories = new HashMap<>();
-                    generated.get(blockPlan.id()).candidates().forEach(c -> memories.put(c.breadId(), c.memory()));
+                    if (block.candidates() != null) {
+                        block.candidates().forEach(c -> memories.put(c.breadId(), c.memory()));
+                    }
                     List<AiSceneBlockView.SceneChoiceCandidate> candidates = blockPlan.choice().candidateIds().stream()
                             .map(id -> new AiSceneBlockView.SceneChoiceCandidate(id,
                                     memories.getOrDefault(mapper.contractId(id), memoryLine(snapshot, id))))
                             .toList();
-                    views.add(new AiSceneBlockView(blockPlan.id(), type, null, null, null, null,
+                    yield new AiSceneBlockView(blockPlan.id(), type, null, null, null, null,
                             new AiSceneBlockView.SceneChoice(blockPlan.choice().pointId(), blockPlan.choice().question(),
                                     candidates),
-                            null, null));
+                            null, null);
                 }
-                case TRANSITION -> views.add(new AiSceneBlockView(blockPlan.id(), type, null, null,
-                        generated.get(blockPlan.id()).transitionText(), null, null, null, null));
-                case INTERVIEW -> views.add(new AiSceneBlockView(blockPlan.id(), type,
-                        mapper.participants(blockPlan.participantIds()),
-                        mapper.messageViews(interviews.get(mapper.contractId(blockPlan.focusBreadId())), sequence),
-                        null, null, null, null, new AiSceneBlockView.SceneInterview(blockPlan.focusBreadId())));
+                case TRANSITION -> new AiSceneBlockView(blockPlan.id(), type, null, null, block.transitionText(), null,
+                        null, null, null);
                 default -> {
                     AiSceneBlockView.SceneMessenger messenger = blockPlan.type() == AiSceneBlockType.MESSENGER
                             ? new AiSceneBlockView.SceneMessenger(blockPlan.messengerKind(), blockPlan.roomName()) : null;
-                    views.add(new AiSceneBlockView(blockPlan.id(), type, mapper.participants(blockPlan.participantIds()),
-                            mapper.messageViews(generated.get(blockPlan.id()).messages(), sequence), null, messenger,
-                            null, null, null));
+                    yield new AiSceneBlockView(blockPlan.id(), type, mapper.participants(blockPlan.participantIds()),
+                            mapper.messageViews(block.messages(), sequence), null, messenger, null, null, null);
                 }
-            }
+            };
         }
-        return views;
+    }
+
+    private static List<AiSceneBlockView> readBlocks(String blocksJson) {
+        return blocksJson == null ? List.of() : AiStoryJson.read(blocksJson, BLOCK_LIST);
+    }
+
+    private static AiStoryIntroView introView(StoryTypes.Intro intro) {
+        return new AiStoryIntroView(intro.title(), intro.episodeName(), intro.situation());
     }
 
     /** 선택 카드의 "기억 한 줄" 대체값: 정리 단계의 선택용 기억 → 최근 장면 → 기본 문구 순. */
@@ -1172,20 +1460,25 @@ public class AiStoryService {
 
     private AiEpisodeContentView toContentView(AiStorySnapshot snapshot, AiStorySnapshot.Content content) {
         String status = content.status().name().toLowerCase();
-        if (content.status() != AiStoryContentStatus.READY) {
-            AiGenerationProgressView progress = content.status() == AiStoryContentStatus.GENERATING
-                    ? new AiGenerationProgressView(content.generationStage(), content.generationRegenerating()) : null;
-            return new AiEpisodeContentView(content.order(), status, content.errorCode(), null, null, null,
-                    content.completed(), List.of(), List.of(), progress);
-        }
         List<AiStoryFeedbackView> feedbacks = stateWriter.findFeedbacks(snapshot.seasonPk(), content.order()).stream()
                 .map(f -> new AiStoryFeedbackView(f.getEpisodeOrder(), f.getBlockId(), f.getMessageId(), f.getText()))
                 .toList();
-        return new AiEpisodeContentView(content.order(), status, null,
-                AiStoryJson.read(content.introJson(), AiStoryIntroView.class),
-                AiStoryJson.read(content.stageIntroJson(), AiStageIntroView.class),
-                blocksWithChoiceResult(snapshot, content), content.completed(), feedbacks,
-                stateWriter.findLikedMessageIds(snapshot.seasonPk(), content.order()), null);
+        List<UUID> likedMessageIds = stateWriter.findLikedMessageIds(snapshot.seasonPk(), content.order());
+        AiStoryIntroView intro = AiStoryJson.read(content.introJson(), AiStoryIntroView.class);
+        AiStageIntroView stageIntro = AiStoryJson.read(content.stageIntroJson(), AiStageIntroView.class);
+        if (content.status() != AiStoryContentStatus.READY) {
+            // 블록 단위 생성: 생성 중(또는 중간 실패)에도 지금까지 확정된 블록을 준다. 아직 없으면 null.
+            List<AiSceneBlockView> partial = content.blocksJson() == null ? null : readBlocks(content.blocksJson());
+            AiGenerationProgressView progress = content.status() == AiStoryContentStatus.GENERATING
+                    ? new AiGenerationProgressView(content.generationStage(), content.generationRegenerating(),
+                    partial == null ? 0 : partial.size(), content.totalBlocks())
+                    : null;
+            return new AiEpisodeContentView(content.order(), status, content.errorCode(), intro, stageIntro, partial,
+                    content.completed(), feedbacks, likedMessageIds, progress, content.revision());
+        }
+        return new AiEpisodeContentView(content.order(), status, null, intro, stageIntro,
+                blocksWithChoiceResult(snapshot, content), content.completed(), feedbacks, likedMessageIds, null,
+                content.revision());
     }
 
     /**

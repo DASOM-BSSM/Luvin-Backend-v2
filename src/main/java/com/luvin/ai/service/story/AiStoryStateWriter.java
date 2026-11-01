@@ -8,6 +8,7 @@ import com.luvin.ai.domain.AiCastRole;
 import com.luvin.ai.domain.AiCharacterRole;
 import com.luvin.ai.domain.AiEpisodeContent;
 import com.luvin.ai.domain.AiEpisodeUnlock;
+import com.luvin.ai.domain.AiJobStatus;
 import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.domain.AiSpeechLevel;
 import com.luvin.ai.domain.AiSeasonCharacter;
@@ -294,7 +295,7 @@ public class AiStoryStateWriter {
                         c.getSummaryJson(), c.getRequestedAt(), c.isCompleted(), c.getCompletionRequestedAt(),
                         c.getCompletionErrorCode(), c.getGenerationStage(),
                         Boolean.TRUE.equals(c.getGenerationRegenerating()), c.getCompletionStage(),
-                        Boolean.TRUE.equals(c.getCompletionRegenerating())))
+                        Boolean.TRUE.equals(c.getCompletionRegenerating()), c.getTotalBlocks(), c.currentRevision()))
                 .toList();
         return new AiStorySnapshot(season.getId(), season.getSeasonId(), season.getMemberId(), season.getSeasonNumber(),
                 season.getStatus(), season.getSetting(), season.getCurrentOrder(), season.getRoute(),
@@ -318,8 +319,7 @@ public class AiStoryStateWriter {
                     new AiEpisodeContent(season.getMemberId(), season, order, route));
             return new GenerationTicket(created.getId(), true, created.currentGenerationRound());
         }
-        boolean stale = existing.getStatus() == AiStoryContentStatus.GENERATING
-                && existing.getRequestedAt().isBefore(staleBefore);
+        boolean stale = existing.isStale(staleBefore);
         if (existing.getStatus() == AiStoryContentStatus.FAILED && existing.reportFailureOnce()) {
             contentRepository.saveAndFlush(existing);
             return new GenerationTicket(existing.getId(), false, existing.currentGenerationRound());
@@ -352,6 +352,65 @@ public class AiStoryStateWriter {
                         c.markFailed(errorCode);
                     }
                 });
+    }
+
+    // ---------------------------------------------------------------- 블록 단위 생성(episode-stream)
+
+    /** 블록 단위 생성의 이어 쓰기 상태. jobId·inputJson이 있으면 그 job에서 같은 입력으로 이어 쓴다. */
+    public record StreamState(UUID jobId, String inputJson, String introJson, String stageIntroJson,
+                              String blocksJson) {
+    }
+
+    @Transactional(readOnly = true)
+    public StreamState streamState(Long contentPk) {
+        AiEpisodeContent c = contentRepository.findById(contentPk).orElseThrow();
+        return new StreamState(c.getStreamJobId(), c.getStreamInputJson(), c.getIntroJson(), c.getStageIntroJson(),
+                c.getBlocksJson());
+    }
+
+    /** 새로 블록 단위 생성을 시작한다. 1화면 무대 소개를 먼저 저장해 생성 중에도 보이게 한다. */
+    @Transactional
+    public void startStream(Long contentPk, int round, String inputJson, int totalBlocks, String stageIntroJson) {
+        contentRepository.findById(contentPk)
+                .filter(c -> isCurrentGeneration(c, round))
+                .ifPresent(c -> {
+                    c.startStream(inputJson, totalBlocks);
+                    c.appendPartial(null, stageIntroJson, c.getBlocksJson());
+                });
+    }
+
+    @Transactional
+    public void recordStreamJob(Long contentPk, int round, UUID jobId) {
+        contentRepository.findById(contentPk)
+                .filter(c -> isCurrentGeneration(c, round))
+                .filter(c -> !jobId.equals(c.getStreamJobId()))
+                .ifPresent(c -> c.recordStreamJob(jobId));
+    }
+
+    /**
+     * 새로 확정된 블록을 이어 붙인다. 저장된 블록 수가 expectedCount일 때만 저장한다 — 같은 회차를 두 실행이 함께 보고
+     * 있어도(멈춘 생성 재시작 등) 먼저 저장한 쪽의 블록(메시지 id 포함)을 그대로 쓴다. 저장했으면 true.
+     */
+    @Transactional
+    public boolean appendPartial(Long contentPk, int round, int expectedCount, String introJson, String blocksJson) {
+        AiEpisodeContent c = contentRepository.findById(contentPk).orElse(null);
+        if (c == null || !isCurrentGeneration(c, round)) {
+            return false;
+        }
+        List<?> stored = c.getBlocksJson() == null ? List.of() : AiStoryJson.read(c.getBlocksJson(), List.class);
+        if (stored.size() != expectedCount) {
+            return false;
+        }
+        c.appendPartial(introJson, null, blocksJson);
+        return true;
+    }
+
+    /** 이어 쓸 수 없어(AI가 이어 쓰기를 거부) 앱에 나간 블록을 버리고 처음부터 다시 만든다. revision이 올라간다. */
+    @Transactional
+    public void resetStream(Long contentPk, int round) {
+        contentRepository.findById(contentPk)
+                .filter(c -> c.currentGenerationRound() == round)
+                .ifPresent(AiEpisodeContent::resetStream);
     }
 
     /** 이어서 진행할 회차 생성·완료 한 건. round는 그때의 생성(또는 완료) 회차 번호다. */
@@ -397,6 +456,7 @@ public class AiStoryStateWriter {
         }
         content.beginCompletion();
         contentRepository.saveAndFlush(content);
+        deliverEpisodeNote(seasonPk, order);
         return new GenerationTicket(content.getId(), true, content.currentCompletionRound());
     }
 
@@ -505,8 +565,10 @@ public class AiStoryStateWriter {
     }
 
     /**
-     * 회차 완료: 정리 단계 결과를 관계 기록에 반영(호감 변화는 -5~+5로 잘라서), 회차 요약 저장, 회차 쪽지 저장,
+     * 회차 완료: 정리 단계 결과를 관계 기록에 반영(호감 변화는 -5~+5로 잘라서), 회차 요약 저장, 회차 쪽지 도착,
      * 다음 회차로 진행. 10화면 최종 리포트를 저장하고 시즌을 완료 처리한다. 이미 완료한 회차면 아무것도 하지 않는다.
+     * note는 완료 때 만든 쪽지다(10화, 또는 1~9화 쪽지를 미리 만들지 못했을 때). 미리 만든 쪽지만 있으면 null이고,
+     * 쪽지를 끝내 만들지 못한 1~9화도 null이다(쪽지 없이 완료하고 나중에 다시 만든다).
      */
     @Transactional
     public void completeEpisode(Long seasonPk, int order, int round, String episodeSummary,
@@ -557,9 +619,16 @@ public class AiStoryStateWriter {
         }
 
         content.markCompleted(AiStoryJson.write(Map.of("episodeSummary", episodeSummary)));
-        if (!letterRepository.existsBySeason_IdAndEpisodeOrder(seasonPk, order)) {
+        // 미리 만든 쪽지가 있으면 도착시키고, 완료 때 만든 쪽지(note)는 미리 만든 본문이 없을 때만 쓴다.
+        Optional<PartnerLetter> letter = letterRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order);
+        if (letter.isEmpty() && note != null) {
             letterRepository.save(PartnerLetter.forEpisode(season.getMemberId(), season, order,
                     note.partnerId(), note.body(), note.renderMode()));
+        } else if (letter.isPresent()) {
+            if (letter.get().getMessage() == null && note != null) {
+                letter.get().markSucceeded(note.partnerId(), note.body(), note.renderMode());
+            }
+            letter.get().deliver();
         }
 
         if (order < AiStoryCatalog.FINAL_ORDER) {
@@ -607,6 +676,83 @@ public class AiStoryStateWriter {
 
     /** 이번 시즌에 이미 보낸 회차 쪽지 본문(회차 순). */
     @Transactional(readOnly = true)
+    // ---------------------------------------------------------------- 회차 쪽지 미리 만들기
+
+    /** 이번 실행이 쪽지를 만든다: 쪽지 row와 시도 번호(AI job 키에 쓴다). */
+    public record NoteReservation(Long letterPk, int attempt) {
+    }
+
+    /**
+     * 회차 쪽지를 미리 만들 차례인지 정한다. 쪽지 row가 없으면 만들고, 실패했거나 오래 멈춰 있으면 다시 만든다. 이미 본문이
+     * 있거나 다른 실행이 만드는 중이면 empty. 같은 회차를 동시에 처음 만들면 unique 제약 위반으로 이 트랜잭션만 롤백된다
+     * (호출부는 다른 실행이 만드는 중으로 본다).
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Optional<NoteReservation> reserveEpisodeNote(Long seasonPk, int order, UUID partnerId,
+                                                        LocalDateTime staleBefore) {
+        Optional<PartnerLetter> existing = letterRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order);
+        if (existing.isEmpty()) {
+            AiSeason season = seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
+            PartnerLetter created = letterRepository.saveAndFlush(
+                    PartnerLetter.forEpisodePreview(season.getMemberId(), season, order, partnerId));
+            return Optional.of(new NoteReservation(created.getId(), created.getAttempts()));
+        }
+        PartnerLetter letter = existing.get();
+        boolean stale = letter.getJobStatus() == AiJobStatus.QUEUED && letter.getRequestedAt() != null
+                && letter.getRequestedAt().isBefore(staleBefore);
+        if (letter.getMessage() != null || letter.getJobStatus() != AiJobStatus.FAILED && !stale) {
+            return Optional.empty();
+        }
+        letter.restartPreview(partnerId);
+        letterRepository.saveAndFlush(letter);
+        return Optional.of(new NoteReservation(letter.getId(), letter.getAttempts()));
+    }
+
+    /** 미리 만든 쪽지 본문을 저장한다. 그사이 회차 완료를 요청했으면 바로 도착시킨다. */
+    @Transactional
+    public void saveEpisodeNote(Long letterPk, String body, String renderMode) {
+        letterRepository.findById(letterPk)
+                .filter(l -> l.getMessage() == null)
+                .ifPresent(letter -> {
+                    letter.markSucceeded(letter.getPartnerId(), body, renderMode);
+                    boolean completionRequested = contentRepository
+                            .findBySeason_IdAndEpisodeOrder(letter.getSeason().getId(), letter.getEpisodeOrder())
+                            .map(c -> c.getCompletionRequestedAt() != null)
+                            .orElse(false);
+                    if (completionRequested) {
+                        letter.deliver();
+                    }
+                });
+    }
+
+    @Transactional
+    public void markEpisodeNoteFailed(Long letterPk, String errorCode) {
+        letterRepository.findById(letterPk)
+                .filter(l -> l.getMessage() == null)
+                .ifPresent(l -> l.markFailed(errorCode));
+    }
+
+    /** 미리 만들기를 쓸 수 없는 AI 연결이라 만들지 않은 쪽지 row를 지운다(완료 때 기존 방식으로 만든다). */
+    @Transactional
+    public void releaseEpisodeNote(Long letterPk) {
+        letterRepository.findById(letterPk)
+                .filter(l -> l.getMessage() == null)
+                .ifPresent(letterRepository::delete);
+    }
+
+    /** 회차 완료 요청: 미리 만든 쪽지가 있으면 도착시킨다(본문이 아직이면 만들어지는 대로 도착한다). */
+    @Transactional
+    public void deliverEpisodeNote(Long seasonPk, int order) {
+        letterRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order).ifPresent(PartnerLetter::deliver);
+    }
+
+    /** 회차 쪽지 상태. 없으면 empty. */
+    @Transactional(readOnly = true)
+    public Optional<AiJobStatus> episodeNoteStatus(Long seasonPk, int order) {
+        return letterRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order)
+                .map(l -> l.getMessage() != null ? AiJobStatus.SUCCEEDED : l.getJobStatus());
+    }
+
     public List<String> findEpisodeNoteBodies(Long seasonPk) {
         return letterRepository.findAllBySeason_IdAndEpisodeOrderIsNotNullOrderByEpisodeOrderAsc(seasonPk).stream()
                 .map(PartnerLetter::getMessage)

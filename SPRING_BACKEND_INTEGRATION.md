@@ -295,6 +295,17 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
 - 블록 JSON 형식과 오류 code는 `openapi.json`(`AiEpisodeContentView`, `AiSceneBlockView`)을 따릅니다.
 - 생성 중에는 jobId가 없어 job SSE를 쓰지 않습니다. `status`가 `ready`가 될 때까지 GET content를 1~3초 간격으로
   다시 부릅니다. `failed`면 다시 부를 때 생성을 다시 시작합니다.
+- 블록 단위 반환: `generating`(또는 중간 실패한 `failed`)이어도 지금까지 확정된 블록이 `blocks`에 설계 순서대로 들어
+  있습니다(아직 없으면 null). `intro`는 첫 블록과 함께, 1화 `stageIntro`는 본문보다 먼저 옵니다.
+  `progress.readyBlocks`/`progress.totalBlocks`는 확정된 블록 수/전체 블록 수(선택 결과 제외)입니다. 한 번 나간 블록은
+  내용·순서·blockId·messageId가 바뀌지 않으니 새로 붙은 블록만 이어서 재생합니다. 다 만들어지면 `ready`입니다.
+  중간에 실패한 뒤 다시 부르면 이미 나간 블록 뒤부터 이어 만듭니다. 이어 만들 수 없을 때(그사이 AI 설정 변경 등, 드묾)만
+  처음부터 다시 만들고 `revision`이 1 오릅니다 — `revision`이 바뀌면 처음부터 다시 재생합니다.
+- Spring은 본문을 FastAPI `episode-stream` task로 만듭니다(블록이 확정될 때마다 job 조회의 `partial`로 받음). 실패한 job은
+  같은 입력(처음 보낸 원문을 저장해 둠)과 `resumeFromJobId`로 이어 쓰고, AI가 이어 쓰기를 거부하면(404
+  `GENERATION_JOB_NOT_FOUND`, 409 `RESUME_*`) 처음부터 다시 만듭니다. AI가 스트리밍을 지원하지 않으면(503
+  `STREAMING_NOT_SUPPORTED`) 기존 `episode` task로 만듭니다. 블록이 확정될 때마다 진행으로 보므로 전체 생성은
+  `job-wait-timeout`(3분)을 넘을 수 있고, 그만큼 아무 진행이 없을 때만 실패로 봅니다.
 - 생성·완료 중 응답의 `progress`(`{ stage, regenerating }`)로 진행 단계를 보여줄 수 있습니다. `regenerating: true`는
   AI가 문장을 다시 다듬는 중이라는 뜻이고 실패가 아닙니다. 회차 생성은 `content.progress`, 회차 완료는
   `story.completion.progress`에 있습니다.
@@ -308,6 +319,13 @@ FastAPI story endpoint(`AiStoryClient`)로 생성합니다. Spring은 Gemini를 
   `story.completion`이 `{ order, status: "completing" }`이면 `GET /api/ai/seasons/me`를 2~3초 간격으로 폴링하고,
   `completion`이 null이 되고 `completedOrders`에 들어가면 끝난 것입니다. `status: "failed"`
   (`errorCode: STORY_GENERATION_FAILED`)면 아무것도 저장되지 않았으니 POST complete를 다시 보내 재시도합니다.
+- 회차 쪽지(1~9화)는 회차를 끝내기 전에 미리 만듭니다(FastAPI `episode-note-preview`: 정리 단계 요약 대신 이번 회차
+  블록·선택 결과·이전 회차까지의 관계 기록으로 씀). 선택 없는 회차는 본문 생성 직후, 선택 회차는 선택 결과 장면이 준비된
+  직후(혼자 있기 포함) 만들고, 회차 완료 전에는 앱에 보이지 않습니다(`partner_letters.delivered_at`이 null). POST complete가
+  같은 트랜잭션에서 도착시키므로 응답 직후 `GET /letters/unread`로 조회됩니다. 아직 만드는 중이면 만들어지는 대로 도착합니다.
+  회차당 한 통이라 complete를 다시 보내도 새로 만들지 않습니다. 미리 만들지 못했으면 완료가 정리 단계 전에 다시 만들고,
+  그래도 안 되면 정리 단계 뒤 기존 `episode-note`로 만듭니다. 쪽지 실패는 회차 완료를 실패시키지 않고, 다음
+  `GET /letters/unread`가 다시 만듭니다. 10화 시즌 종료 쪽지는 지금처럼 완료 때 만듭니다.
 - 진행 순서: 이전 회차 완료(409 `PREVIOUS_EPISODE_NOT_COMPLETED`) → (4화 이상이면) 회차 열기(열지 않았으면 409
   `EPISODE_NOT_UNLOCKED`) → content. 선택 회차(3·5·6·8화)는 선택해야 완료됩니다(409 `CHOICE_REQUIRED`).
   그래서 4화는 ①, 6화는 ②, 7화는 ③, 9화는 ④ 이후에만 생성됩니다.
