@@ -314,7 +314,8 @@ public class AiStoryStateWriter {
     public GenerationTicket beginGeneration(Long seasonPk, int order, AiStoryRoute route, LocalDateTime staleBefore) {
         AiEpisodeContent existing = contentRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order).orElse(null);
         if (existing == null) {
-            AiSeason season = seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
+            // 시즌 초기화(시즌 삭제)와 겹치지 않게 시즌을 잠그고 만든다 — 삭제 중인 시즌에 회차 row가 남지 않게.
+            AiSeason season = seasonRepository.findWithLockById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
             AiEpisodeContent created = contentRepository.saveAndFlush(
                     new AiEpisodeContent(season.getMemberId(), season, order, route));
             return new GenerationTicket(created.getId(), true, created.currentGenerationRound());
@@ -573,7 +574,8 @@ public class AiStoryStateWriter {
     @Transactional
     public void completeEpisode(Long seasonPk, int order, int round, String episodeSummary,
                                 List<RelationChange> changes, EpisodeNote note, String reportJson) {
-        AiSeason season = seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
+        // 시즌 초기화(시즌 삭제)와 겹치지 않게 시즌을 잠근다 — 삭제 중인 시즌에 쪽지·리포트가 남지 않게.
+        AiSeason season = seasonRepository.findWithLockById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
         AiEpisodeContent content = contentRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order).orElseThrow();
         if (content.isCompleted() || content.currentCompletionRound() != round) {
             return; // 이미 반영했거나(중복 완료) 그사이 새 완료 회차가 시작됐다(늦은 결과는 버린다).
@@ -692,7 +694,8 @@ public class AiStoryStateWriter {
                                                         LocalDateTime staleBefore) {
         Optional<PartnerLetter> existing = letterRepository.findBySeason_IdAndEpisodeOrder(seasonPk, order);
         if (existing.isEmpty()) {
-            AiSeason season = seasonRepository.findById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
+            // 시즌 초기화(시즌 삭제)와 겹치지 않게 시즌을 잠그고 만든다 — 삭제 중인 시즌에 쪽지 row가 남지 않게.
+            AiSeason season = seasonRepository.findWithLockById(seasonPk).orElseThrow(AiSeasonNotFoundException::new);
             PartnerLetter created = letterRepository.saveAndFlush(
                     PartnerLetter.forEpisodePreview(season.getMemberId(), season, order, partnerId));
             return Optional.of(new NoteReservation(created.getId(), created.getAttempts()));

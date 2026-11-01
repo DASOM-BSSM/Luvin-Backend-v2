@@ -33,6 +33,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -97,6 +99,8 @@ class AiStoryHttpContractIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
     @Autowired
+    private PlatformTransactionManager transactionManager;
+    @Autowired
     private UserTokenRepository userTokenRepository;
 
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
@@ -107,17 +111,27 @@ class AiStoryHttpContractIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        List.of("ai_season_choices", "ai_bread_relations", "ai_episode_contents", "ai_season_story_reports",
-                "partner_letters", "ai_story_feedbacks", "ai_story_message_likes", "ai_season_characters")
-                .forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
-        jdbcTemplate.update("DELETE FROM ai_episode_unlocks WHERE season_id = ?", seasonPk);
-        jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
+        deleteSeason(seasonPk, List.of("ai_season_choices", "ai_bread_relations", "ai_episode_contents",
+                "ai_season_story_reports", "partner_letters", "ai_story_feedbacks", "ai_story_message_likes",
+                "ai_season_characters", "ai_episode_unlocks"));
         jdbcTemplate.update("DELETE FROM diary WHERE user_id = ?", userId);
         jdbcTemplate.update("DELETE FROM diary_room WHERE owner_id = ?", userId);
         jdbcTemplate.update("DELETE FROM user_tokens WHERE member_id = ?", userId);
         jdbcTemplate.update("DELETE FROM token_histories WHERE member_id = ?", userId);
         userRepository.deleteById(userId);
         RECEIVED.clear();
+    }
+
+    /**
+     * 시즌을 잠근 한 트랜잭션에서 시즌 데이터를 지운다. 백그라운드 생성(다음 회차 미리 생성·쪽지 미리 만들기)도 시즌을
+     * 잠근 뒤 row를 만들므로, 지우는 사이에 새 row가 끼어들지 않는다.
+     */
+    private void deleteSeason(Long seasonPk, List<String> tables) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbcTemplate.queryForList("SELECT id FROM ai_seasons WHERE id = ? FOR UPDATE", seasonPk);
+            tables.forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
+            jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
+        });
     }
 
     @Test

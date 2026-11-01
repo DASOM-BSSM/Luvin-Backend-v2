@@ -32,6 +32,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -120,6 +122,8 @@ class AiStoryGenerationJobIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
     @Autowired
+    private PlatformTransactionManager transactionManager;
+    @Autowired
     private AiStoryService storyService;
     @Autowired
     private AiStoryStateWriter stateWriter;
@@ -150,11 +154,20 @@ class AiStoryGenerationJobIntegrationTest {
     void tearDown() throws InterruptedException {
         HOLD.clear();
         Thread.sleep(200); // 붙잡아 둔 job을 기다리던 백그라운드 생성이 끝나게 둔다.
-        for (Long seasonPk : seasonIds) {
-            SEASON_TABLES.forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
-            jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
-        }
+        seasonIds.forEach(seasonPk -> deleteSeason(seasonPk, SEASON_TABLES));
         userRepository.deleteAllById(userIds);
+    }
+
+    /**
+     * 시즌을 잠근 한 트랜잭션에서 시즌 데이터를 지운다. 백그라운드 생성(다음 회차 미리 생성·쪽지 미리 만들기)도 시즌을
+     * 잠근 뒤 row를 만들므로, 지우는 사이에 새 row가 끼어들지 않는다.
+     */
+    private void deleteSeason(Long seasonPk, List<String> tables) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbcTemplate.queryForList("SELECT id FROM ai_seasons WHERE id = ? FOR UPDATE", seasonPk);
+            tables.forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
+            jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
+        });
     }
 
     @Test
