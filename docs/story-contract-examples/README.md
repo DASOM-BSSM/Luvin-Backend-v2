@@ -7,11 +7,12 @@ Spring이 FastAPI story endpoint에 실제로 보내는 요청 JSON입니다. `A
 | 파일 | endpoint | 계약 |
 |---|---|---|
 | stage-intro.json | POST /luvin/stage-intro | 5-1 |
-| episode.json | POST /luvin/episode (1화) | 5-2 |
+| episode.json | generation-jobs task episode-stream (1화). 이어 쓰기 때는 같은 원문에 resumeFromJobId만 더한다 | 5-2 |
 | choice-result.json | POST /luvin/choice-result (3화 ①) | 5-3 |
 | interview.json | POST /luvin/interview (10화) | 5-4 |
 | summarize.json | POST /luvin/summarize (1화 완료) | 5-5 |
 | episode-note.json | POST /luvin/episode-note (10화) | 5-6 |
+| episode-note-preview.json | generation-jobs task episode-note-preview (1화, 회차 완료 전 쪽지 미리 만들기) | 5-6 |
 | season-report.json | POST /luvin/season-report | 5-7 |
 
 모든 요청은 계약 v6 5장 필드 그대로입니다(계약에 없는 필드는 보내지 않습니다).

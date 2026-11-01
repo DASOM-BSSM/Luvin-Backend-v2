@@ -6,6 +6,8 @@ import com.luvin.LuvinBackendV2Application;
 import com.luvin.ai.client.story.AiStoryStubClient;
 import com.luvin.ai.client.story.EpisodeNoteRequest;
 import com.luvin.ai.client.story.EpisodeRequest;
+import com.luvin.ai.client.story.EpisodeResponse;
+import com.luvin.ai.client.story.PreviewNoteRequest;
 import com.luvin.ai.client.story.StageIntroRequest;
 import com.luvin.ai.client.story.SummarizeRequest;
 import com.luvin.ai.config.AiStoryConfig;
@@ -30,6 +32,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -54,6 +58,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -83,8 +88,15 @@ class AiStoryGenerationJobIntegrationTest {
     private static final List<String> SUBMITTED_KEYS = Collections.synchronizedList(new ArrayList<>());
     /** 이 task의 job은 regenerating(attempt 2)에 머문다. */
     private static final Set<String> HOLD = ConcurrentHashMap.newKeySet();
-    /** 이 task의 job은 첫 조회에 GENERATION_REJECTED로 실패한다. */
+    /** 이 task의 job은 첫 조회에 GENERATION_REJECTED로 실패한다(블록 단위 생성은 FAIL_AT까지 확정한 뒤). */
     private static final Set<String> FAIL = ConcurrentHashMap.newKeySet();
+    /** 블록 단위 생성: 이만큼 확정한 뒤 HOLD면 멈추고(regenerating), FAIL이면 실패한다. 기본 0. */
+    private static volatile int STOP_AT = 0;
+    /** 블록 단위 생성의 이어 쓰기(resumeFromJobId)를 409 RESUME_CONFIG_CHANGED로 거부한다. */
+    private static volatile boolean REJECT_RESUME = false;
+    private static final String STREAM = "episode-stream";
+    /** 이 task는 모르는 task로 보고 접수를 422로 거부한다(새 task를 받기 전의 AI 버전). */
+    private static final Set<String> UNKNOWN = ConcurrentHashMap.newKeySet();
     private static final HttpServer FAKE_AI = startFakeAi();
 
     @DynamicPropertySource
@@ -110,6 +122,8 @@ class AiStoryGenerationJobIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
     @Autowired
+    private PlatformTransactionManager transactionManager;
+    @Autowired
     private AiStoryService storyService;
     @Autowired
     private AiStoryStateWriter stateWriter;
@@ -131,64 +145,77 @@ class AiStoryGenerationJobIntegrationTest {
         SUBMITTED_KEYS.clear();
         HOLD.clear();
         FAIL.clear();
+        STOP_AT = 0;
+        REJECT_RESUME = false;
+        UNKNOWN.clear();
     }
 
     @AfterEach
     void tearDown() throws InterruptedException {
         HOLD.clear();
         Thread.sleep(200); // 붙잡아 둔 job을 기다리던 백그라운드 생성이 끝나게 둔다.
-        for (Long seasonPk : seasonIds) {
-            SEASON_TABLES.forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
-            jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
-        }
+        seasonIds.forEach(seasonPk -> deleteSeason(seasonPk, SEASON_TABLES));
         userRepository.deleteAllById(userIds);
+    }
+
+    /**
+     * 시즌을 잠근 한 트랜잭션에서 시즌 데이터를 지운다. 백그라운드 생성(다음 회차 미리 생성·쪽지 미리 만들기)도 시즌을
+     * 잠근 뒤 row를 만들므로, 지우는 사이에 새 row가 끼어들지 않는다.
+     */
+    private void deleteSeason(Long seasonPk, List<String> tables) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbcTemplate.queryForList("SELECT id FROM ai_seasons WHERE id = ? FOR UPDATE", seasonPk);
+            tables.forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
+            jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
+        });
     }
 
     @Test
     void 회차_생성은_job으로_접수하고_다시_쓰는_중이면_progress에_보인다() throws Exception {
         TestUser user = createUser();
         Season season = createSeason(user);
-        HOLD.add("episode");
+        HOLD.add(STREAM);
 
         JsonNode first = content(user, 1);
         assertEquals("generating", first.get("status").asText());
         JsonNode held = awaitContent(user, 1, c -> c.path("progress").path("regenerating").asBoolean());
         assertEquals("episode", held.get("progress").get("stage").asText(), held.toString());
 
-        HOLD.remove("episode");
+        HOLD.remove(STREAM);
         JsonNode ready = awaitContent(user, 1, c -> "ready".equals(c.get("status").asText()));
         assertTrue(ready.get("progress").isNull());
 
         long contentPk = contentPk(season, 1);
         String base = "luvin:" + season.aiSeasonId() + ":c" + contentPk + ":gen1:";
-        assertEquals(List.of(base + "stage-intro:a1", base + "episode:a1"), SUBMITTED_KEYS);
+        assertEquals(List.of(base + "stage-intro:a1", base + "episode:a1"), SUBMITTED_KEYS.subList(0, 2));
     }
 
     @Test
     void 재시작으로_같은_회차를_다시_돌리면_같은_키로_접수해_새_job을_만들지_않는다() throws Exception {
         TestUser user = createUser();
         Season season = createSeason(user);
-        HOLD.add("episode");
+        HOLD.add(STREAM);
         content(user, 1);
         awaitContent(user, 1, c -> c.path("progress").path("regenerating").asBoolean());
 
         // 서버가 재시작된 것처럼 끝나지 않은 생성을 다시 돌린다(지금 돌던 것과 같은 회차).
         storyService.resumeInterrupted();
         Thread.sleep(300);
-        HOLD.remove("episode");
+        HOLD.remove(STREAM);
         awaitContent(user, 1, c -> "ready".equals(c.get("status").asText()));
 
+        // 블록 단위 생성은 접수한 job을 기억해 두므로, 다시 돌리면 다시 접수하지 않고 그 job을 이어서 본다.
         long contentPk = contentPk(season, 1);
         String episodeKey = "luvin:" + season.aiSeasonId() + ":c" + contentPk + ":gen1:episode:a1";
-        assertTrue(SUBMITTED_KEYS.stream().filter(episodeKey::equals).count() >= 2, SUBMITTED_KEYS.toString());
-        assertEquals(1, JOBS.values().stream().filter(j -> j.task.equals("episode")).count());
+        assertEquals(1, SUBMITTED_KEYS.stream().filter(episodeKey::equals).count(), SUBMITTED_KEYS.toString());
+        assertEquals(1, JOBS.values().stream().filter(j -> j.task.equals(STREAM)).count());
     }
 
     @Test
     void job이_실패하면_failed이고_다시_요청하면_새_회차의_새_키로_생성하며_이전_회차_결과는_버린다() throws Exception {
         TestUser user = createUser();
         Season season = createSeason(user);
-        FAIL.add("episode");
+        FAIL.add(STREAM);
 
         content(user, 1);
         JsonNode failed = awaitContent(user, 1, c -> "failed".equals(c.get("status").asText()));
@@ -199,15 +226,15 @@ class AiStoryGenerationJobIntegrationTest {
                 SUBMITTED_KEYS.toString());
 
         // 다시 시도: 2회차로 새로 생성한다. 그사이 늦게 온 1회차 결과는 저장하지 않는다.
-        FAIL.remove("episode");
-        HOLD.add("episode");
+        FAIL.remove(STREAM);
+        HOLD.add(STREAM);
         content(user, 1);
         awaitContent(user, 1, c -> c.path("progress").path("regenerating").asBoolean());
         stateWriter.saveGenerated(contentPk, 1, "{}", null, "[]");
         assertEquals("GENERATING", jdbcTemplate.queryForObject(
                 "SELECT status FROM ai_episode_contents WHERE id = ?", String.class, contentPk));
 
-        HOLD.remove("episode");
+        HOLD.remove(STREAM);
         JsonNode ready = awaitContent(user, 1, c -> "ready".equals(c.get("status").asText()));
         assertTrue(ready.get("blocks").size() > 0);
         String round2 = "luvin:" + season.aiSeasonId() + ":c" + contentPk + ":gen2:";
@@ -238,7 +265,11 @@ class AiStoryGenerationJobIntegrationTest {
         assertEquals(1, jdbcTemplate.queryForObject("SELECT count(*) FROM partner_letters WHERE season_id = ? "
                 + "AND episode_order = 1", Integer.class, season.pk()));
         assertEquals(1, JOBS.values().stream().filter(j -> j.task.equals("summarize")).count());
-        assertEquals(1, JOBS.values().stream().filter(j -> j.task.equals("episode-note")).count());
+        // 1화 쪽지는 본문이 준비됐을 때 미리 만들었고(한 번), 완료 때 다시 만들지 않는다.
+        String episode1 = ":c" + contentPk(season, 1) + ":";
+        assertEquals(1, JOBS.entrySet().stream().filter(e -> e.getKey().contains(episode1)
+                && e.getValue().task.equals("episode-note-preview")).count());
+        assertEquals(0, JOBS.values().stream().filter(j -> j.task.equals("episode-note")).count());
     }
 
     @Test
@@ -249,17 +280,156 @@ class AiStoryGenerationJobIntegrationTest {
         awaitContent(user, 1, c -> "ready".equals(c.get("status").asText()));
         long contentPk = contentPk(season, 1);
         String base = "luvin:" + season.aiSeasonId() + ":c" + contentPk + ":done1:";
-        // 이전 실행에서 이미 실패한 summarize job, 다른 입력으로 쓰인 episode-note 키
+        // 이전 실행에서 이미 실패한 summarize job, 그다음 번호는 다른 입력으로 쓰인 키
         JOBS.put(base + "summarize:a1", FakeJob.failed("summarize"));
-        JOBS.put(base + "episode-note:a1", new FakeJob("episode-note", "{\"other\":true}", null));
+        JOBS.put(base + "summarize:a1:n1", new FakeJob("summarize", "{\"other\":true}", null));
 
         post(user, "/episodes/1/complete");
         awaitStory(user, s -> s.get("completedOrders").toString().equals("[1]"));
         assertTrue(SUBMITTED_KEYS.containsAll(List.of(base + "summarize:a1", base + "summarize:a1:n1",
-                base + "episode-note:a1", base + "episode-note:a1:n1")), SUBMITTED_KEYS.toString());
+                base + "summarize:a1:n2")), SUBMITTED_KEYS.toString());
+    }
+
+    @Test
+    void 블록_단위_생성은_확정된_블록을_generating_응답에_담고_한_번_나간_블록은_바뀌지_않는다() throws Exception {
+        TestUser user = createUser();
+        createSeason(user);
+        STOP_AT = 2;
+        HOLD.add(STREAM);
+
+        JsonNode partial = awaitContent(user, 1, c -> c.path("blocks").size() == 2
+                && c.path("progress").path("regenerating").asBoolean());
+        assertEquals("generating", partial.get("status").asText());
+        assertEquals(2, partial.get("progress").get("readyBlocks").asInt());
+        int total = partial.get("progress").get("totalBlocks").asInt();
+        assertTrue(total > 2, partial.toString());
+        assertFalse(partial.get("intro").isNull());
+        assertFalse(partial.get("stageIntro").isNull());
+
+        HOLD.remove(STREAM);
+        JsonNode ready = awaitContent(user, 1, c -> "ready".equals(c.get("status").asText()));
+        assertEquals(total, ready.get("blocks").size());
+        // 앞서 나간 블록(메시지 id 포함)과 intro는 그대로다.
+        assertEquals(partial.get("blocks").get(0), ready.get("blocks").get(0));
+        assertEquals(partial.get("blocks").get(1), ready.get("blocks").get(1));
+        assertEquals(partial.get("intro"), ready.get("intro"));
+        assertEquals(0, ready.get("revision").asInt());
+    }
+
+    @Test
+    void 중간에_실패하면_나간_블록은_그대로_두고_실패한_job에서_이어_쓴다() throws Exception {
+        TestUser user = createUser();
+        createSeason(user);
+        STOP_AT = 2;
+        FAIL.add(STREAM);
+
+        JsonNode failed = awaitContent(user, 1, c -> "failed".equals(c.get("status").asText()));
+        assertEquals("STORY_GENERATION_FAILED", failed.get("errorCode").asText());
+        assertEquals(2, failed.get("blocks").size());
+        // 같은 실행의 두 번째 시도도 처음부터가 아니라 실패한 job에서 이어 썼다.
+        assertTrue(resumedJobs() >= 1);
+
+        FAIL.remove(STREAM);
+        JsonNode ready = awaitContent(user, 1, c -> "ready".equals(c.get("status").asText()));
+        assertEquals(failed.get("blocks").get(0), ready.get("blocks").get(0));
+        assertEquals(failed.get("blocks").get(1), ready.get("blocks").get(1));
+        assertEquals(0, ready.get("revision").asInt());
+        assertTrue(resumedJobs() >= 2);
+    }
+
+    @Test
+    void 이어_쓰기를_거부하면_나간_블록을_버리고_처음부터_만들며_revision이_오른다() throws Exception {
+        TestUser user = createUser();
+        createSeason(user);
+        STOP_AT = 2;
+        FAIL.add(STREAM);
+        awaitContent(user, 1, c -> "failed".equals(c.get("status").asText()));
+
+        FAIL.remove(STREAM);
+        REJECT_RESUME = true;
+        JsonNode ready = awaitContent(user, 1, c -> "ready".equals(c.get("status").asText()));
+        // 처음부터 다시 만들었다(이어 쓰기 job 없이 새 job으로 끝까지).
+        assertEquals(1, ready.get("revision").asInt());
+        assertTrue(ready.get("blocks").size() > 2, ready.toString());
+    }
+
+    @Test
+    void 쪽지는_미리_만들어_두고_회차_완료_요청_직후_바로_보인다() throws Exception {
+        TestUser user = createUser();
+        Season season = createSeason(user);
+        content(user, 1);
+        awaitContent(user, 1, c -> "ready".equals(c.get("status").asText()));
+        awaitNotePrepared(season, 1);
+        // 회차를 끝내기 전에는 보이지 않는다.
+        assertTrue(unreadLetter(user).isNull());
+
+        HOLD.add("summarize");
+        post(user, "/episodes/1/complete");
+        JsonNode letter = unreadLetter(user);
+        assertFalse(letter.isNull());
+        assertFalse(letter.get("message").asText().isBlank());
+        // 정리 단계는 아직 진행 중이다 — 쪽지는 기다리지 않는다.
+        assertEquals("completing", data(send(user, "GET", "/api/ai/seasons/me")).get("story").get("completion")
+                .get("status").asText());
+
+        HOLD.remove("summarize");
+        awaitStory(user, s -> s.get("completedOrders").toString().equals("[1]"));
+        assertEquals(1, jdbcTemplate.queryForObject("SELECT count(*) FROM partner_letters WHERE season_id = ? "
+                + "AND episode_order = 1", Integer.class, season.pk()));
+    }
+
+    @Test
+    void 쪽지를_미리_만들지_못했으면_완료_때_만들고_회차_완료는_계속된다() throws Exception {
+        TestUser user = createUser();
+        createSeason(user);
+        FAIL.add("episode-note-preview");
+        content(user, 1);
+        awaitContent(user, 1, c -> "ready".equals(c.get("status").asText()));
+
+        post(user, "/episodes/1/complete");
+        awaitStory(user, s -> s.get("completedOrders").toString().equals("[1]"));
+        assertEquals(1, JOBS.values().stream().filter(j -> j.task.equals("episode-note")).count());
+        assertFalse(unreadLetter(user).isNull());
+    }
+
+    @Test
+    void 새_task를_모르는_AI면_기존_본문_생성과_완료_때_쪽지로_만든다() throws Exception {
+        TestUser user = createUser();
+        createSeason(user);
+        UNKNOWN.add(STREAM);
+        UNKNOWN.add("episode-note-preview");
+
+        content(user, 1);
+        JsonNode ready = awaitContent(user, 1, c -> "ready".equals(c.get("status").asText()));
+        assertTrue(ready.get("blocks").size() > 0);
+        assertEquals(1, JOBS.values().stream().filter(j -> j.task.equals("episode")).count());
+
+        post(user, "/episodes/1/complete");
+        awaitStory(user, s -> s.get("completedOrders").toString().equals("[1]"));
+        assertEquals(1, JOBS.values().stream().filter(j -> j.task.equals("episode-note")).count());
+        assertFalse(unreadLetter(user).isNull());
     }
 
     // ------------------------------------------------------------------ helpers
+
+    private long resumedJobs() {
+        return JOBS.values().stream().filter(j -> j.input != null && j.input.contains("resumeFromJobId")).count();
+    }
+
+    private void awaitNotePrepared(Season season, int order) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (jdbcTemplate.queryForObject("SELECT count(*) FROM partner_letters WHERE season_id = ? "
+                + "AND episode_order = ? AND message IS NOT NULL", Integer.class, season.pk(), order) == 0) {
+            assertTrue(System.currentTimeMillis() < deadline, order + "화 쪽지를 미리 만들지 않았습니다.");
+            Thread.sleep(50);
+        }
+    }
+
+    private JsonNode unreadLetter(TestUser user) throws Exception {
+        HttpResponse<String> res = send(user, "GET", "/api/ai/seasons/letters/unread");
+        assertEquals(200, res.statusCode(), res.body());
+        return data(res);
+    }
 
     private JsonNode content(TestUser user, int order) throws Exception {
         HttpResponse<String> res = send(user, "GET", "/api/ai/seasons/episodes/" + order + "/content");
@@ -347,6 +517,8 @@ class AiStoryGenerationJobIntegrationTest {
         volatile String status = "queued";
         volatile int attempt;
         volatile String errorCode;
+        /** 블록 단위 생성: 확정한 블록 수. */
+        volatile int confirmed;
 
         FakeJob(String task, String input, Object result) {
             this.task = task;
@@ -367,6 +539,10 @@ class AiStoryGenerationJobIntegrationTest {
             if ("succeeded".equals(status) || "failed".equals(status)) {
                 return;
             }
+            if (STREAM.equals(task)) {
+                advanceStream();
+                return;
+            }
             if (FAIL.contains(task)) {
                 status = "failed";
                 attempt = 2;
@@ -382,8 +558,37 @@ class AiStoryGenerationJobIntegrationTest {
             }
         }
 
+        /** 블록 단위 생성: 블록을 하나씩 확정한다. STOP_AT까지 확정하면 HOLD는 멈추고 FAIL은 실패한다. */
+        private void advanceStream() {
+            int total = ((EpisodeResponse) result).blocks().size();
+            boolean stopHere = confirmed >= Math.min(STOP_AT, total);
+            if (FAIL.contains(task) && stopHere) {
+                status = "failed";
+                attempt = 2;
+                errorCode = "GENERATION_REJECTED";
+            } else if (HOLD.contains(task) && stopHere) {
+                status = "regenerating";
+                attempt = 2;
+            } else if (confirmed < total) {
+                confirmed++;
+                status = "generating";
+                attempt = 1;
+            } else {
+                status = "succeeded";
+            }
+        }
+
         Map<String, Object> view() {
             Map<String, Object> view = new HashMap<>();
+            if (STREAM.equals(task) && result != null) {
+                EpisodeResponse episode = (EpisodeResponse) result;
+                Map<String, Object> partial = new HashMap<>();
+                partial.put("intro", confirmed > 0 ? episode.intro() : null);
+                partial.put("stageIntro", null);
+                partial.put("blocks", episode.blocks().subList(0, confirmed));
+                partial.put("lastConfirmedSequence", confirmed > 0 ? confirmed : null);
+                view.put("partial", partial);
+            }
             view.put("jobId", id.toString());
             view.put("status", status);
             view.put("attempt", attempt);
@@ -421,13 +626,38 @@ class AiStoryGenerationJobIntegrationTest {
             SUBMITTED_KEYS.add(key);
             JsonNode submit = CONTRACT.readTree(raw);
             String task = submit.get("task").asText();
+            if (UNKNOWN.contains(task)) {
+                respond(exchange, 422, Map.of("detail", List.of(Map.of("type", "literal_error", "loc", List.of("task")))));
+                return;
+            }
             String input = CONTRACT.writeValueAsString(submit.get("input"));
             FakeJob existing = JOBS.get(key);
             if (existing != null && existing.input != null && !existing.input.equals(input)) {
                 respond(exchange, 409, Map.of("detail", Map.of("code", "IDEMPOTENCY_CONFLICT")));
                 return;
             }
-            FakeJob job = JOBS.computeIfAbsent(key, k -> new FakeJob(task, input, answer(task, submit.get("input"))));
+            JsonNode resumeFrom = submit.get("input").get("resumeFromJobId");
+            FakeJob source = null;
+            if (resumeFrom != null && !resumeFrom.isNull()) {
+                source = JOBS.values().stream().filter(j -> j.id.toString().equals(resumeFrom.asText())).findFirst()
+                        .orElse(null);
+                if (source == null) {
+                    respond(exchange, 404, Map.of("detail", Map.of("code", "GENERATION_JOB_NOT_FOUND")));
+                    return;
+                }
+                if (REJECT_RESUME) {
+                    respond(exchange, 409, Map.of("detail", Map.of("code", "RESUME_CONFIG_CHANGED")));
+                    return;
+                }
+            }
+            FakeJob resumed = source;
+            FakeJob job = JOBS.computeIfAbsent(key, k -> {
+                FakeJob created = new FakeJob(task, input, answer(task, submit.get("input")));
+                if (resumed != null) {
+                    created.confirmed = resumed.confirmed; // 확정된 앞부분을 그대로 이어받는다.
+                }
+                return created;
+            });
             respond(exchange, 202, job.view());
             return;
         }
@@ -446,6 +676,13 @@ class AiStoryGenerationJobIntegrationTest {
             return switch (task) {
                 case "stage-intro" -> STUB.stageIntro(null, CONTRACT.treeToValue(input, StageIntroRequest.class));
                 case "episode" -> STUB.writeEpisode(null, CONTRACT.treeToValue(input, EpisodeRequest.class));
+                case STREAM -> {
+                    com.fasterxml.jackson.databind.node.ObjectNode episodeInput = input.deepCopy();
+                    episodeInput.remove("resumeFromJobId");
+                    yield STUB.writeEpisode(null, CONTRACT.treeToValue(episodeInput, EpisodeRequest.class));
+                }
+                case "episode-note-preview" ->
+                        STUB.previewEpisodeNote(null, CONTRACT.treeToValue(input, PreviewNoteRequest.class), null);
                 case "summarize" -> STUB.summarize(null, CONTRACT.treeToValue(input, SummarizeRequest.class));
                 case "episode-note" -> STUB.writeEpisodeNote(null, CONTRACT.treeToValue(input, EpisodeNoteRequest.class));
                 default -> throw new IllegalArgumentException("이 테스트에서 쓰지 않는 task: " + task);

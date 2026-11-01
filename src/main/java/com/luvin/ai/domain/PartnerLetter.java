@@ -22,7 +22,9 @@ import java.util.UUID;
 
 /**
  * 장면 블록 회차(1~10화)에서는 회차를 완료할 때마다 쪽지가 1개씩 생긴다(episodeOrder). 10화 쪽지가 시즌 종료 쪽지다.
- * 이 쪽지는 회차 완료 요청 안에서 바로 생성돼 job 컬럼을 쓰지 않는다. 기존 5화 흐름 쪽지는 episodeOrder가 null이다.
+ * 1~9화 쪽지는 회차를 끝내기 전에 미리 만들어 두고(jobStatus QUEUED → SUCCEEDED, deliveredAt 없음) 회차 완료 요청에서
+ * 도착시킨다(deliveredAt) — 도착 전 쪽지는 앱에 보이지 않는다. 10화 쪽지는 완료 때 만들어 바로 도착한다. 기존 5화 흐름
+ * 쪽지는 episodeOrder가 null이고 deliveredAt을 쓰지 않는다.
  *
  * (기존 5화 흐름) EP5(시즌 마무리) 완료 시 최종 매칭 상대가 보내는 "SECRET LOVE" 쪽지. 시즌당 정확히 1개만
  * 존재한다(episode_order가 null인 row는 season_id당 1개 — V8의 partial unique index). AI 서비스가 POST/GET /v1/seasons/{season_id}/letter로 비동기
@@ -99,6 +101,10 @@ public class PartnerLetter {
     @Column(name = "poll_attempts", nullable = false)
     private int pollAttempts = 0;
 
+    /** 장면 블록 회차 쪽지가 앱에 도착한 시각(회차 완료 요청). 미리 만든 쪽지는 그 전까지 null이다. */
+    @Column(name = "delivered_at")
+    private LocalDateTime deliveredAt;
+
     @Version
     @Column(name = "jpa_version", nullable = false)
     private Long jpaVersion;
@@ -115,7 +121,36 @@ public class PartnerLetter {
         PartnerLetter letter = new PartnerLetter(memberId, season);
         letter.episodeOrder = episodeOrder;
         letter.markSucceeded(partnerId, message, renderMode);
+        letter.deliveredAt = letter.createdAt;
         return letter;
+    }
+
+    /** 회차를 끝내기 전에 미리 만드는 회차 쪽지. 본문은 만든 뒤 채우고, 회차를 완료하면 도착한다. */
+    public static PartnerLetter forEpisodePreview(Long memberId, AiSeason season, int episodeOrder, UUID partnerId) {
+        PartnerLetter letter = new PartnerLetter(memberId, season);
+        letter.episodeOrder = episodeOrder;
+        letter.partnerId = partnerId;
+        letter.jobStatus = AiJobStatus.QUEUED;
+        letter.attempts = 1;
+        letter.requestedAt = letter.createdAt;
+        return letter;
+    }
+
+    /** 미리 만들기가 실패했거나 멈춘 쪽지를 다시 만든다. */
+    public void restartPreview(UUID partnerId) {
+        this.partnerId = partnerId;
+        this.jobStatus = AiJobStatus.QUEUED;
+        this.errorCode = null;
+        this.attempts += 1;
+        this.requestedAt = LocalDateTime.now();
+    }
+
+    /** 본문이 있으면 도착시킨다(이미 도착했으면 그대로). 도착했으면 true. */
+    public boolean deliver() {
+        if (deliveredAt == null && message != null) {
+            this.deliveredAt = LocalDateTime.now();
+        }
+        return deliveredAt != null;
     }
 
     /** POST /letter가 새 job을 접수했을 때. FAILED 이후 재시도도 같은 row를 재사용한다. */

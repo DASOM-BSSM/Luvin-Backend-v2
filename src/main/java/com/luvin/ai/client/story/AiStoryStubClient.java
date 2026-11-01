@@ -1,6 +1,9 @@
 package com.luvin.ai.client.story;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.luvin.ai.client.dto.TraitsDto;
+import com.luvin.ai.config.AiStoryConfig;
 import com.luvin.ai.client.story.StoryTypes.ChoiceCandidate;
 import com.luvin.ai.client.story.StoryTypes.GeneratedBlock;
 import com.luvin.ai.client.story.StoryTypes.Message;
@@ -12,6 +15,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * FastAPI 계약이 연결되기 전에 장면 블록 회차 흐름을 끝까지 돌려보기 위한 stub. 받은 설계(블록 id·참여 빵)를 그대로
@@ -179,6 +184,31 @@ public class AiStoryStubClient implements AiStoryClient {
     @Override
     public EpisodeNoteResponse writeEpisodeNote(String ownerSubject, EpisodeNoteRequest request) {
         return new EpisodeNoteResponse(null, request.sender().breadId(), NOTES.get(request.order() - 1), "default");
+    }
+
+    /** 본문을 만든 뒤 블록을 하나씩 확정된 것처럼 넘긴다. */
+    @Override
+    public EpisodeResponse streamEpisode(String ownerSubject, JsonNode input, UUID previousJobId,
+                                         GenerationCall call, Consumer<EpisodePartial> onPartial) {
+        EpisodeRequest request;
+        try {
+            request = AiStoryConfig.STORY_OBJECT_MAPPER.treeToValue(input, EpisodeRequest.class);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException(e);
+        }
+        UUID jobId = previousJobId != null ? previousJobId : UUID.randomUUID();
+        call.report(new GenerationProgress(jobId, "generating", 1, false));
+        EpisodeResponse episode = writeEpisode(ownerSubject, request);
+        for (int i = 1; i <= episode.blocks().size(); i++) {
+            onPartial.accept(new EpisodePartial(episode.intro(), episode.blocks().subList(0, i), i));
+        }
+        return episode;
+    }
+
+    @Override
+    public EpisodeNoteResponse previewEpisodeNote(String ownerSubject, PreviewNoteRequest request,
+                                                  GenerationCall call) {
+        return new EpisodeNoteResponse(null, null, NOTES.get(request.order() - 1), null);
     }
 
     @Override

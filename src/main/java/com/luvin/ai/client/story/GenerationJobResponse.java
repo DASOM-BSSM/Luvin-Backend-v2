@@ -12,7 +12,14 @@ import java.util.UUID;
  * 실패 코드, 그 외에는 null.
  */
 public record GenerationJobResponse(UUID jobId, String status, int attempt, JsonNode result, String errorCode,
-                                    String code) {
+                                    String code,
+                                    /** 블록 단위 생성(episode-stream)만: 지금까지 확정된 부분. 그 외 task는 null */
+                                    JsonNode partial) {
+
+    public GenerationJobResponse(UUID jobId, String status, int attempt, JsonNode result, String errorCode,
+                                 String code) {
+        this(jobId, status, attempt, result, errorCode, code, null);
+    }
 
     public static final String SUCCEEDED = "succeeded";
     public static final String FAILED = "failed";

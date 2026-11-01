@@ -1,11 +1,15 @@
 package com.luvin.ai.client.story;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.luvin.ai.client.AiServiceClient;
 import com.luvin.ai.client.exception.AiContractViolationException;
+import com.luvin.ai.client.exception.AiNotFoundException;
 import com.luvin.ai.client.exception.AiSelectionConflictException;
 import com.luvin.ai.client.exception.AiServerException;
 import com.luvin.ai.client.exception.AiServiceException;
+import com.luvin.ai.client.exception.AiValidationException;
 import com.luvin.ai.config.AiStoryConfig;
 import com.luvin.ai.config.AiStoryProperties;
 import org.slf4j.Logger;
@@ -19,6 +23,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /**
  * FastAPI story endpoint 호출(공통 데이터 계약 5장의 경로·camelCase 형식).
@@ -45,6 +50,9 @@ public class AiStoryHttpClient implements AiStoryClient {
     static final String SEASON_REPORT_PATH = "/luvin/season-report";
     static final String JOBS_PATH = "/luvin/generation-jobs";
     static final String IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT";
+    static final String STREAM_TASK = "episode-stream";
+    /** 이어 쓰기 거부 코드(RESUME_SOURCE_NOT_FAILED | RESUME_INPUT_CHANGED | RESUME_CONFIG_CHANGED). */
+    static final String RESUME_ERROR_PREFIX = "RESUME_";
     /** 같은 논리 작업에서 이미 실패한 job(또는 다른 입력의 409)을 건너뛰며 새 키를 쓰는 최대 횟수. */
     private static final int MAX_KEY_SUFFIX = 5;
 
@@ -150,6 +158,139 @@ public class AiStoryHttpClient implements AiStoryClient {
                 : writeSeasonReport(ownerSubject, request);
     }
 
+    @Override
+    public EpisodeNoteResponse previewEpisodeNote(String ownerSubject, PreviewNoteRequest request, GenerationCall call) {
+        if (!properties.usesJobs()) {
+            throw new AiStoryFeatureUnsupportedException("쪽지 미리 만들기는 비동기 job으로만 부를 수 있습니다.");
+        }
+        try {
+            return runJob("episode-note-preview", ownerSubject, request, EpisodeNoteResponse.class, call);
+        } catch (AiValidationException unknownTask) {
+            // 이 task를 모르는 이전 AI 버전은 접수를 422로 거부한다 — 완료 때 기존 episode-note로 만든다.
+            throw new AiStoryFeatureUnsupportedException("[episode-note-preview] AI가 쪽지 미리 만들기를 받지 않습니다.");
+        }
+    }
+
+    /**
+     * 블록 단위 생성(episode-stream). 전체 job은 여러 블록과 대기열로 jobWaitTimeout(본문 한 번의 대기 기준)을 넘을 수 있어,
+     * 블록이 확정되거나 상태가 바뀔 때마다 대기 시간을 다시 잰다(그만큼 아무 진행이 없을 때만 실패로 본다).
+     */
+    @Override
+    public EpisodeResponse streamEpisode(String ownerSubject, JsonNode input, UUID previousJobId,
+                                         GenerationCall call, Consumer<EpisodePartial> onPartial) {
+        if (!properties.usesJobs()) {
+            throw new AiStoryFeatureUnsupportedException("블록 단위 생성은 비동기 job으로만 부를 수 있습니다.");
+        }
+        GenerationJobResponse job;
+        if (previousJobId == null) {
+            job = submitStream(ownerSubject, input, null, call.idempotencyKey());
+        } else {
+            try {
+                job = getJob(ownerSubject, previousJobId);
+            } catch (AiNotFoundException gone) {
+                throw new AiStreamResumeRejectedException("[" + STREAM_TASK + "] 이어 쓸 job이 없습니다.",
+                        "GENERATION_JOB_NOT_FOUND");
+            }
+            if (GenerationJobResponse.FAILED.equals(job.status())) {
+                job = submitStream(ownerSubject, input, previousJobId, call.idempotencyKey());
+            }
+        }
+        return awaitStream(ownerSubject, job, call, onPartial);
+    }
+
+    private GenerationJobResponse submitStream(String ownerSubject, JsonNode input, UUID resumeFromJobId, String key) {
+        ObjectNode body = input.deepCopy();
+        if (resumeFromJobId != null) {
+            body.put("resumeFromJobId", resumeFromJobId.toString());
+        }
+        try {
+            return submit(STREAM_TASK, ownerSubject, body, key);
+        } catch (AiNotFoundException gone) {
+            throw new AiStreamResumeRejectedException("[" + STREAM_TASK + "] 이어 쓸 job이 없습니다.",
+                    "GENERATION_JOB_NOT_FOUND");
+        } catch (AiSelectionConflictException conflict) {
+            if (conflict.getAiErrorCode() != null && conflict.getAiErrorCode().startsWith(RESUME_ERROR_PREFIX)) {
+                throw new AiStreamResumeRejectedException("[" + STREAM_TASK + "] 이어 쓰기 거부: "
+                        + conflict.getAiErrorCode(), conflict.getAiErrorCode());
+            }
+            throw conflict;
+        } catch (AiValidationException unknownTask) {
+            // 이 task를 모르는 이전 AI 버전은 접수를 422로 거부한다 — 기존 episode task로 만든다.
+            throw new AiStoryFeatureUnsupportedException("[" + STREAM_TASK + "] AI가 블록 단위 생성을 받지 않습니다.");
+        } catch (AiServerException unavailable) {
+            if (unavailable.getRawBody() != null
+                    && unavailable.getRawBody().contains(AiStoryFeatureUnsupportedException.STREAMING_NOT_SUPPORTED)) {
+                throw new AiStoryFeatureUnsupportedException("[" + STREAM_TASK + "] AI가 스트리밍을 지원하지 않습니다.");
+            }
+            throw unavailable;
+        }
+    }
+
+    private EpisodeResponse awaitStream(String ownerSubject, GenerationJobResponse job, GenerationCall call,
+                                        Consumer<EpisodePartial> onPartial) {
+        call.report(progressOf(job));
+        GenerationJobResponse reported = job;
+        Integer confirmed = emitPartial(job, null, onPartial);
+        long deadline = System.nanoTime() + properties.jobWaitTimeout().toNanos();
+        while (!job.terminal()) {
+            if (System.nanoTime() > deadline) {
+                throw new AiServerException("[" + JOBS_PATH + " " + STREAM_TASK + "] " + properties.jobWaitTimeout()
+                        + " 동안 진행이 없습니다.", (String) null);
+            }
+            sleep(properties.jobPollInterval());
+            try {
+                job = getJob(ownerSubject, job.jobId());
+            } catch (AiServerException transientFailure) {
+                continue;
+            }
+            Integer latest = emitPartial(job, confirmed, onPartial);
+            boolean changed = !Objects.equals(reported.status(), job.status()) || reported.attempt() != job.attempt()
+                    || reported.regenerating() != job.regenerating();
+            if (changed) {
+                call.report(progressOf(job));
+                reported = job;
+            }
+            if (changed || !Objects.equals(latest, confirmed)) {
+                deadline = System.nanoTime() + properties.jobWaitTimeout().toNanos();
+            }
+            confirmed = latest;
+        }
+        if (GenerationJobResponse.FAILED.equals(job.status())) {
+            throw new AiServiceException("[" + JOBS_PATH + " " + STREAM_TASK + "] 생성 실패: " + job.failureCode(),
+                    job.failureCode(), null);
+        }
+        try {
+            return AiStoryConfig.STORY_OBJECT_MAPPER.treeToValue(job.result(), EpisodeResponse.class);
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            throw new AiContractViolationException("[" + JOBS_PATH + " " + STREAM_TASK + "] result 형식이 계약과 다릅니다.",
+                    (String) null);
+        }
+    }
+
+    /** 확정 순번이 늘었으면 onPartial을 부르고 새 순번을 돌려준다. */
+    private static Integer emitPartial(GenerationJobResponse job, Integer confirmed, Consumer<EpisodePartial> onPartial) {
+        if (job.partial() == null || job.partial().isNull()) {
+            return confirmed;
+        }
+        EpisodePartial partial;
+        try {
+            partial = AiStoryConfig.STORY_OBJECT_MAPPER.treeToValue(job.partial(), EpisodePartial.class);
+        } catch (JsonProcessingException | IllegalArgumentException e) {
+            throw new AiContractViolationException("[" + JOBS_PATH + " " + STREAM_TASK + "] partial 형식이 계약과 다릅니다.",
+                    (String) null);
+        }
+        if (partial.lastConfirmedSequence() == null || partial.lastConfirmedSequence().equals(confirmed)) {
+            return confirmed;
+        }
+        onPartial.accept(partial);
+        return partial.lastConfirmedSequence();
+    }
+
+    private GenerationJobResponse getJob(String ownerSubject, UUID jobId) {
+        return aiServiceClient.get(storyRestClient, AiStoryConfig.STORY_OBJECT_MAPPER, JOBS_PATH + "/{jobId}",
+                JOBS_PATH + "/" + jobId, ownerSubject, GenerationJobResponse.class);
+    }
+
     private <T> T post(String path, String ownerSubject, Object request, Class<T> type) {
         return aiServiceClient.post(storyRestClient, AiStoryConfig.STORY_OBJECT_MAPPER, path, ownerSubject,
                 UUID.randomUUID(), request, type);
@@ -171,8 +312,7 @@ public class AiStoryHttpClient implements AiStoryClient {
             }
             sleep(properties.jobPollInterval());
             try {
-                job = aiServiceClient.get(storyRestClient, AiStoryConfig.STORY_OBJECT_MAPPER, JOBS_PATH + "/{jobId}",
-                        JOBS_PATH + "/" + job.jobId(), ownerSubject, GenerationJobResponse.class);
+                job = getJob(ownerSubject, job.jobId());
             } catch (AiServerException transientFailure) {
                 continue;
             }

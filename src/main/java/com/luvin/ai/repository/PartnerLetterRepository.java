@@ -17,6 +17,8 @@ public interface PartnerLetterRepository extends JpaRepository<PartnerLetter, Lo
 
     boolean existsBySeason_IdAndEpisodeOrder(Long seasonPk, Integer episodeOrder);
 
+    Optional<PartnerLetter> findBySeason_IdAndEpisodeOrder(Long seasonPk, Integer episodeOrder);
+
     /** 장면 블록 회차 쪽지(회차 순). episode-note의 previousNoteOpenings 재료. */
     List<PartnerLetter> findAllBySeason_IdAndEpisodeOrderIsNotNullOrderByEpisodeOrderAsc(Long seasonPk);
 
@@ -26,11 +28,13 @@ public interface PartnerLetterRepository extends JpaRepository<PartnerLetter, Lo
      * 안 읽은 쪽지가 여러 개 쌓여도 최신 1개만 돌려준다(요구사항) — 응답에 seasonId(UUID, AiSeason의
      * 연관관계)가 필요해 JOIN FETCH로 함께 가져온다. 트랜잭션 밖에서 season을 지연 로딩하면
      * LazyInitializationException이 나기 때문이다. job이 아직 SUCCEEDED되지 않아 message가 없는
-     * row는 "쪽지"로 보여줄 내용이 없으므로 제외한다.
+     * row는 "쪽지"로 보여줄 내용이 없으므로 제외한다. 미리 만든 회차 쪽지(requestedAt 있음)는 도착(deliveredAt)한 뒤에만
+     * 보인다 — 완료 때 바로 만든 회차 쪽지(requestedAt 없음, 배포 중 이전 버전이 만든 것 포함)는 그대로 보인다.
      */
     @Query("SELECT l FROM PartnerLetter l JOIN FETCH l.season "
             + "WHERE l.memberId = :memberId AND l.read = false AND l.message IS NOT NULL "
-            + "ORDER BY l.createdAt DESC")
+            + "AND (l.episodeOrder IS NULL OR l.deliveredAt IS NOT NULL OR l.requestedAt IS NULL) "
+            + "ORDER BY COALESCE(l.deliveredAt, l.createdAt) DESC")
     List<PartnerLetter> findUnreadOrderByCreatedAtDesc(@Param("memberId") Long memberId);
 
     /** job SSE 구독 전 소유권 확인용. 재시도로 새 job을 받으면 jobId가 덮어써지므로 최신 job만 맞는다. */

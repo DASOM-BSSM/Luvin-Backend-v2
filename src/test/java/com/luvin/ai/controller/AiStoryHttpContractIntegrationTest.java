@@ -7,6 +7,7 @@ import com.luvin.ai.client.story.AiStoryStubClient;
 import com.luvin.ai.client.story.ChoiceResultRequest;
 import com.luvin.ai.client.story.EpisodeNoteRequest;
 import com.luvin.ai.client.story.EpisodeRequest;
+import com.luvin.ai.client.story.PreviewNoteRequest;
 import com.luvin.ai.client.story.InterviewRequest;
 import com.luvin.ai.client.story.SeasonReportRequest;
 import com.luvin.ai.client.story.StageIntroRequest;
@@ -32,6 +33,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -60,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 가짜 FastAPI는 요청을 계약 타입으로 읽어 stub 로직으로 답하면서 받은 원문 JSON을 남긴다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = LuvinBackendV2Application.class)
-@TestPropertySource(properties = "app.ai.story.client=http")
+@TestPropertySource(properties = {"app.ai.story.client=http", "app.ai.story.job-poll-interval=50ms"})
 class AiStoryHttpContractIntegrationTest {
 
     private static final ObjectMapper CONTRACT = AiStoryConfig.STORY_OBJECT_MAPPER;
@@ -96,6 +99,8 @@ class AiStoryHttpContractIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
     @Autowired
+    private PlatformTransactionManager transactionManager;
+    @Autowired
     private UserTokenRepository userTokenRepository;
 
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
@@ -106,17 +111,27 @@ class AiStoryHttpContractIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        List.of("ai_season_choices", "ai_bread_relations", "ai_episode_contents", "ai_season_story_reports",
-                "partner_letters", "ai_story_feedbacks", "ai_story_message_likes", "ai_season_characters")
-                .forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
-        jdbcTemplate.update("DELETE FROM ai_episode_unlocks WHERE season_id = ?", seasonPk);
-        jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
+        deleteSeason(seasonPk, List.of("ai_season_choices", "ai_bread_relations", "ai_episode_contents",
+                "ai_season_story_reports", "partner_letters", "ai_story_feedbacks", "ai_story_message_likes",
+                "ai_season_characters", "ai_episode_unlocks"));
         jdbcTemplate.update("DELETE FROM diary WHERE user_id = ?", userId);
         jdbcTemplate.update("DELETE FROM diary_room WHERE owner_id = ?", userId);
         jdbcTemplate.update("DELETE FROM user_tokens WHERE member_id = ?", userId);
         jdbcTemplate.update("DELETE FROM token_histories WHERE member_id = ?", userId);
         userRepository.deleteById(userId);
         RECEIVED.clear();
+    }
+
+    /**
+     * 시즌을 잠근 한 트랜잭션에서 시즌 데이터를 지운다. 백그라운드 생성(다음 회차 미리 생성·쪽지 미리 만들기)도 시즌을
+     * 잠근 뒤 row를 만들므로, 지우는 사이에 새 row가 끼어들지 않는다.
+     */
+    private void deleteSeason(Long seasonPk, List<String> tables) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbcTemplate.queryForList("SELECT id FROM ai_seasons WHERE id = ? FOR UPDATE", seasonPk);
+            tables.forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
+            jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
+        });
     }
 
     @Test
@@ -175,8 +190,12 @@ class AiStoryHttpContractIntegrationTest {
         complete(1);
         JsonNode summarize = last("/luvin/summarize");
         assertEquals("narrator", summarize.get("blocks").get(0).get("messages").get(0).get("speakerId").asText());
-        JsonNode note1 = last("/luvin/episode-note");
+        // 1~9화 쪽지는 회차를 끝내기 전에 미리 만든다(episode-note-preview): 정리 단계 요약 대신 회차 블록으로 쓴다.
+        JsonNode note1 = last("/luvin/episode-note-preview");
         assertTrue(note1.has("settingScene"));
+        assertFalse(note1.has("episodeSummary"));
+        assertEquals(blockIds(ep1), texts(note1.get("blocks"), "id"));
+        assertEquals(0, count("/luvin/episode-note"));
         // 1화 쪽지 발신 빵 = 1화 1:1 상대(첫 번째 후보), 아직 보낸 쪽지가 없다.
         assertTrue(java.util.Set.of("avoidant", "anxious", "secure")
                 .contains(note1.get("sender").get("attachmentStyle").asText()));
@@ -202,7 +221,7 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals(1, feedbacks.get(0).get("order").asInt());
         complete(2);
         // 2화 쪽지 요청에는 1화 쪽지 첫 문장이 들어간다.
-        assertEquals(1, last("/luvin/episode-note").get("previousNoteOpenings").size());
+        assertEquals(1, last("/luvin/episode-note-preview").get("previousNoteOpenings").size());
 
         // 3화 ① 혼자 있기는 FastAPI를 부르지 않는다. 결과 반응 장면의 대사는 비어 있다.
         readyContent(3);
@@ -257,7 +276,7 @@ class AiStoryHttpContractIntegrationTest {
         java.nio.file.Path dir = java.nio.file.Path.of("build", "story-contract-examples");
         java.nio.file.Files.createDirectories(dir);
         for (String path : List.of("/luvin/stage-intro", "/luvin/episode", "/luvin/choice-result", "/luvin/interview",
-                "/luvin/summarize", "/luvin/episode-note", "/luvin/season-report")) {
+                "/luvin/summarize", "/luvin/episode-note", "/luvin/episode-note-preview", "/luvin/season-report")) {
             JsonNode example = path.equals("/luvin/episode-note") ? finaleNote : first(path);
             java.nio.file.Files.writeString(dir.resolve(path.substring("/luvin/".length()) + ".json"),
                     CONTRACT.writerWithDefaultPrettyPrinter().writeValueAsString(example));
@@ -459,6 +478,10 @@ class AiStoryHttpContractIntegrationTest {
         throw new AssertionError(field + "=" + value + " 항목이 없습니다.");
     }
 
+    private static List<String> blockIds(JsonNode content) {
+        return texts(content.get("blocks"), "id");
+    }
+
     private static List<String> texts(JsonNode array) {
         List<String> values = new ArrayList<>();
         array.forEach(n -> values.add(n.asText()));
@@ -506,6 +529,7 @@ class AiStoryHttpContractIntegrationTest {
             Map<String, Object> job = JOBS.computeIfAbsent(key, k -> {
                 Map<String, Object> created = new java.util.concurrent.ConcurrentHashMap<>();
                 created.put("jobId", UUID.randomUUID().toString());
+                created.put("task", submit.get("task").asText());
                 created.put("status", "queued");
                 created.put("attempt", 0);
                 try {
@@ -525,7 +549,9 @@ class AiStoryHttpContractIntegrationTest {
             respond(exchange, 404, Map.of("detail", Map.of("code", "GENERATION_JOB_NOT_FOUND")));
             return;
         }
-        if ("queued".equals(job.get("status"))) {
+        if ("episode-stream".equals(job.get("task"))) {
+            advanceStream(job);
+        } else if ("queued".equals(job.get("status"))) {
             job.put("status", "generating");
             job.put("attempt", 1);
         } else {
@@ -533,6 +559,30 @@ class AiStoryHttpContractIntegrationTest {
             job.put("result", job.get("pending"));
         }
         respond(exchange, 200, jobView(job));
+    }
+
+    /** 블록 단위 생성: 조회할 때마다 블록을 하나씩 확정하고(partial), 모두 확정한 다음 조회에 성공한다. */
+    private static void advanceStream(Map<String, Object> job) {
+        JsonNode result = (JsonNode) job.get("pending");
+        int total = result.get("blocks").size();
+        int confirmed = (int) job.getOrDefault("confirmed", 0) + 1;
+        job.put("confirmed", Math.min(confirmed, total));
+        job.put("attempt", 1);
+        com.fasterxml.jackson.databind.node.ObjectNode partial = CONTRACT.createObjectNode();
+        partial.set("intro", result.get("intro"));
+        partial.putNull("stageIntro");
+        com.fasterxml.jackson.databind.node.ArrayNode blocks = partial.putArray("blocks");
+        for (int i = 0; i < Math.min(confirmed, total); i++) {
+            blocks.add(result.get("blocks").get(i));
+        }
+        partial.put("lastConfirmedSequence", Math.min(confirmed, total));
+        job.put("partial", partial);
+        if (confirmed > total) {
+            job.put("status", "succeeded");
+            job.put("result", result);
+        } else {
+            job.put("status", "generating");
+        }
     }
 
     private static Map<String, Object> jobView(Map<String, Object> job) {
@@ -543,6 +593,7 @@ class AiStoryHttpContractIntegrationTest {
         view.put("result", job.get("result"));
         view.put("errorCode", null);
         view.put("code", null);
+        view.put("partial", job.get("partial"));
         return view;
     }
 
@@ -562,6 +613,16 @@ class AiStoryHttpContractIntegrationTest {
         return switch (path) {
             case "/luvin/stage-intro" -> STUB.stageIntro(null, CONTRACT.readValue(raw, StageIntroRequest.class));
             case "/luvin/episode" -> STUB.writeEpisode(null, CONTRACT.readValue(raw, EpisodeRequest.class));
+            case "/luvin/episode-stream" -> {
+                // 블록 단위 생성의 입력은 본문 입력 + resumeFromJobId다. 본문 입력은 "/luvin/episode"로도 남긴다.
+                com.fasterxml.jackson.databind.node.ObjectNode episodeInput =
+                        (com.fasterxml.jackson.databind.node.ObjectNode) CONTRACT.readTree(raw);
+                episodeInput.remove("resumeFromJobId");
+                RECEIVED.add(Map.entry("/luvin/episode", episodeInput));
+                yield STUB.writeEpisode(null, CONTRACT.treeToValue(episodeInput, EpisodeRequest.class));
+            }
+            case "/luvin/episode-note-preview" ->
+                    STUB.previewEpisodeNote(null, CONTRACT.readValue(raw, PreviewNoteRequest.class), null);
             case "/luvin/choice-result" -> STUB.writeChoiceResult(null, CONTRACT.readValue(raw, ChoiceResultRequest.class));
             case "/luvin/interview" -> STUB.writeInterview(null, CONTRACT.readValue(raw, InterviewRequest.class));
             case "/luvin/summarize" -> STUB.summarize(null, CONTRACT.readValue(raw, SummarizeRequest.class));

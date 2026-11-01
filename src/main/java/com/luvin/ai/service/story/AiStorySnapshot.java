@@ -53,7 +53,11 @@ public record AiStorySnapshot(
                           String introJson, String stageIntroJson, String blocksJson, String summaryJson,
                           LocalDateTime requestedAt, boolean completed, LocalDateTime completionRequestedAt,
                           String completionErrorCode, String generationStage, boolean generationRegenerating,
-                          String completionStage, boolean completionRegenerating) {
+                          String completionStage, boolean completionRegenerating,
+                          /** 블록 단위 생성의 전체 블록 수(선택 결과 제외). 블록 단위로 만들지 않았으면 null */
+                          Integer totalBlocks,
+                          /** 앱에 나간 블록을 버리고 처음부터 다시 만든 횟수 */
+                          int revision) {
 
         /** 완료를 시작했고 아직 끝나지도, 실패하지도 않았다. */
         public boolean completing() {

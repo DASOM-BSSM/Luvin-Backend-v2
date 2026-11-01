@@ -81,6 +81,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -516,7 +517,12 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
         if (latest == null) {
             return null;
         }
-        return stateWriter.findUnreadLetter(memberId, latest.getId())
+        Optional<PartnerLetter> unread = stateWriter.findUnreadLetter(memberId, latest.getId());
+        if (unread.isEmpty()) {
+            // 완료한 최근 회차 쪽지를 만들지 못했으면 다시 만든다(다음 조회부터 보인다).
+            storyService.retryMissingEpisodeNote(memberId);
+        }
+        return unread
                 .map(letter -> {
                     // 발신 빵 이름·빵 종류는 시즌 출연진에서 찾는다(partnerId = characterId).
                     AiSeasonCharacter partner = letter.getPartnerId() == null ? null : seasonCharacterRepository
@@ -525,7 +531,8 @@ public class AiSeasonOrchestrationServiceImpl implements AiSeasonOrchestrationSe
                     return new PartnerLetterView(letter.getId(), letter.getSeason().getSeasonId(),
                             letter.getPartnerId(), partner == null ? null : partner.getName(),
                             partner == null ? null : partner.getBreadType(), letter.getMessage(),
-                            letter.getCreatedAt(), letter.getRenderMode());
+                            letter.getDeliveredAt() != null ? letter.getDeliveredAt() : letter.getCreatedAt(),
+                            letter.getRenderMode());
                 })
                 .orElse(null);
     }

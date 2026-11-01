@@ -12,6 +12,14 @@ public record AiGenerationProgressView(
         @Schema(types = {"string", "null"},
                 allowableValues = {"stage-intro", "episode", "interview", "summarize", "episode-note", "season-report"})
         String stage,
-        boolean regenerating
+        boolean regenerating,
+        /** 회차 생성만: 지금까지 확정돼 blocks에 들어 있는 블록 수. 그 외 null */
+        @Schema(types = {"integer", "null"}) Integer readyBlocks,
+        /** 회차 생성만: 이 회차의 전체 블록 수(선택 결과 블록 제외). 아직 모르면 null */
+        @Schema(types = {"integer", "null"}) Integer totalBlocks
 ) {
+
+    public AiGenerationProgressView(String stage, boolean regenerating) {
+        this(stage, regenerating, null, null);
+    }
 }

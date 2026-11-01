@@ -22,6 +22,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
@@ -96,6 +98,8 @@ class AiStoryFlowIntegrationTest {
     private JwtTokenProvider jwtTokenProvider;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -110,11 +114,20 @@ class AiStoryFlowIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        for (Long seasonPk : seasonIds) {
-            SEASON_TABLES.forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
-            jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
-        }
+        seasonIds.forEach(seasonPk -> deleteSeason(seasonPk, SEASON_TABLES));
         userRepository.deleteAllById(userIds);
+    }
+
+    /**
+     * 시즌을 잠근 한 트랜잭션에서 시즌 데이터를 지운다. 백그라운드 생성(다음 회차 미리 생성·쪽지 미리 만들기)도 시즌을
+     * 잠근 뒤 row를 만들므로, 지우는 사이에 새 row가 끼어들지 않는다.
+     */
+    private void deleteSeason(Long seasonPk, List<String> tables) {
+        new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
+            jdbcTemplate.queryForList("SELECT id FROM ai_seasons WHERE id = ? FOR UPDATE", seasonPk);
+            tables.forEach(t -> jdbcTemplate.update("DELETE FROM " + t + " WHERE season_id = ?", seasonPk));
+            jdbcTemplate.update("DELETE FROM ai_seasons WHERE id = ?", seasonPk);
+        });
     }
 
     @Test
