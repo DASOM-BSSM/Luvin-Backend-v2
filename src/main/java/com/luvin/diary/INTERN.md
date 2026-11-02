@@ -47,7 +47,9 @@ diary/
   코드는 Flyway `V7__diary_room_invite_code.sql`이 기존 방에 채우고 NOT NULL·UNIQUE를 건다.
   방장은 나갈 수 없다(400).
   방장 확인은 `diary_room.owner_id` 하나로만 한다. 방을 만들면 방장이 `OWNER`로 멤버 테이블에도 들어간다.
-- **그룹 질문.** 방 멤버 누구나 "질문 생성하기"로 AI 질문을 만든다. 방당 하루(KST) 1개(`UNIQUE(room_id, question_date)`).
+- **그룹 질문.** 방 멤버 누구나 "질문 생성하기"로 AI 질문을 만든다. 방당 KST 정각 칸(예: 09:00~09:59)마다 1개(`UNIQUE(room_id, slot_start_at)`, Flyway V20).
+  칸은 생성 버튼을 누른 시각을 KST 정각으로 내린 것이다(`slotStartAt`). 응답의 `creatorNickname`·`creatorBreadType`은 `requested_by`
+  사용자이고 피드 작성자 정보와 같은 규칙(계정 닉네임, 없으면 이름 / 탈퇴면 null). 실패 후 다시 누르면 다시 누른 사람으로 바뀐다.
   생성은 비동기: POST는 바로 202 + `status: generating`, AI 응답이 오면 `ready`(실패하면 `failed`). 오래 멈춘 generating은 failed로 보이고 다시 생성할 수 있다.
   AI에는 방 이름·멤버 수·최근 질문만 넘긴다(일기 본문은 안 넘김). 답은 한 사람당 질문 하나에 1개(다시 보내면 수정, 1~200자).
 - **학습 신호.** 내가 쓴 일기·댓글·그룹 질문 답은 쓸 때 `user_learning_signal`에 신호로 남는다(`LearningSignalService.record`, 학습 동의가 꺼져 있으면 안 남김).
@@ -119,13 +121,14 @@ table diary_room_member [note: '공유방 멤버'] {
 table room_question [note: '그룹 질문 (Flyway V12)'] {
   id bigint [pk, increment]
   room_id bigint [not null]
-  question_date date [not null]               // KST
+  question_date date [not null]               // 칸의 날짜(KST). 응답 questionDate 하위 호환
+  slot_start_at timestamptz [not null]        // 칸 = 만든 시각의 KST 정각. 기존 행은 V20이 created_at으로 채움
   content varchar(300)                        // READY일 때만
   status varchar(20) [not null]               // GENERATING | READY | FAILED
   requested_by bigint [not null]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
-  indexes { (room_id, question_date) [unique] }
+  indexes { (room_id, slot_start_at) [unique] }   // V20 전에는 (room_id, question_date)
 }
 
 table room_question_answer [note: '그룹 질문 답 (Flyway V12)'] {
@@ -233,11 +236,12 @@ Swagger(`/swagger-ui`)의 "감정일기", "감정일기 공유방", "감정일�
 
 | 기능 | Method | Path | 비고 |
 |---|---|---|---|
-| 질문 생성 | POST | `/api/diary-rooms/{roomId}/questions` | 202 + `status: generating`, 오늘 질문이 있으면 409 `ROOM_QUESTION_ALREADY_EXISTS`(data에 그 질문) |
-| 지금 질문 | GET | `/api/diary-rooms/{roomId}/questions/current` | 가장 최근 날짜 질문, 없으면 `data: null` |
+| 질문 생성 | POST | `/api/diary-rooms/{roomId}/questions` | 202 + `status: generating`, 이 칸(KST 정각)에 질문이 있으면 409 `ROOM_QUESTION_ALREADY_EXISTS`(data에 그 질문) |
+| 지금 질문 | GET | `/api/diary-rooms/{roomId}/questions/current` | 가장 최근 칸 질문, 없으면 `data: null` |
+| 질문 상세 | GET | `/api/diary-rooms/{roomId}/questions/{questionId}` | current와 같은 형태(답 포함), 지난 질문도 가능, 다른 방 질문 404 `ROOM_QUESTION_NOT_FOUND` |
 | 답하기 | POST | `/api/diary-rooms/{roomId}/questions/{questionId}/answers` | `{content}` 1~200자(400 `ROOM_ANSWER_INVALID`), ready가 아니면 409 `ROOM_QUESTION_NOT_READY`, 학습 신호 기록 |
 | 내 답 삭제 | DELETE | `/api/diary-rooms/{roomId}/questions/{questionId}/answers/me` | 답이 없어도 200, 학습 신호도 삭제 |
-| 지난 질문 목록 | GET | `/api/diary-rooms/{roomId}/questions?page=&size=` | 최신순, size 최대 50, `answerCount` 포함 |
+| 지난 질문 목록 | GET | `/api/diary-rooms/{roomId}/questions?from=&to=&page=&size=` | 최신순, size 최대 50, `answerCount` 포함. `from`·`to`는 KST 날짜(포함), 형식 오류·역순 400 `ROOM_QUESTION_RANGE_INVALID` |
 
 ## 테스트
 

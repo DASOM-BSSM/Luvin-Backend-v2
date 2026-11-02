@@ -14,6 +14,8 @@ import com.luvin.diary.repository.RoomQuestionAnswerRepository;
 import com.luvin.diary.repository.RoomQuestionRepository;
 import com.luvin.learning.domain.LearningSourceType;
 import com.luvin.learning.service.LearningSignalService;
+import com.luvin.user.domain.User;
+import com.luvin.user.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -25,13 +27,17 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
 /**
- * 그룹(공유방) 질문. 그룹 멤버 누구나 "질문 생성하기"로 AI 질문을 만들 수 있고, 그룹당 하루(KST) 1개다.
+ * 그룹(공유방) 질문. 그룹 멤버 누구나 "질문 생성하기"로 AI 질문을 만들 수 있고, 그룹당 KST 정각 칸(예: 09:00~09:59)마다 1개다.
+ * 칸은 생성 버튼을 누른 시각을 KST 정각으로 내린 것이다.
  * 생성은 비동기다: POST는 바로 status generating으로 응답하고, AI 응답이 오면 ready(실패하면 failed)로 바뀐다.
  * AI에는 그룹 이름·멤버 수·최근 질문만 넘긴다(일기 본문은 넘기지 않는다).
  */
@@ -47,6 +53,7 @@ public class RoomQuestionService {
     public static final String ROOM_QUESTION_ALREADY_EXISTS = "ROOM_QUESTION_ALREADY_EXISTS";
     public static final String ROOM_QUESTION_NOT_READY = "ROOM_QUESTION_NOT_READY";
     public static final String ROOM_ANSWER_INVALID = "ROOM_ANSWER_INVALID";
+    public static final String ROOM_QUESTION_RANGE_INVALID = "ROOM_QUESTION_RANGE_INVALID";
 
     static final int ANSWER_MAX_LENGTH = 200;
     static final int QUESTION_MAX_LENGTH = 150;
@@ -57,6 +64,7 @@ public class RoomQuestionService {
     private final RoomQuestionRepository questionRepository;
     private final RoomQuestionAnswerRepository answerRepository;
     private final DiaryRoomRepository roomRepository;
+    private final UserRepository userRepository;
     private final LearningSignalService learningSignalService;
     private final AiEmodiClient emodiClient;
     private final OwnerSubjectProvider ownerSubjectProvider;
@@ -67,6 +75,7 @@ public class RoomQuestionService {
     public RoomQuestionService(RoomQuestionRepository questionRepository,
                                RoomQuestionAnswerRepository answerRepository,
                                DiaryRoomRepository roomRepository,
+                               UserRepository userRepository,
                                LearningSignalService learningSignalService,
                                AiEmodiClient emodiClient,
                                OwnerSubjectProvider ownerSubjectProvider,
@@ -76,6 +85,7 @@ public class RoomQuestionService {
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.roomRepository = roomRepository;
+        this.userRepository = userRepository;
         this.learningSignalService = learningSignalService;
         this.emodiClient = emodiClient;
         this.ownerSubjectProvider = ownerSubjectProvider;
@@ -85,19 +95,20 @@ public class RoomQuestionService {
     }
 
     /**
-     * 오늘 질문 생성을 시작한다. 이미 오늘 질문이 있으면(생성 중이거나 준비됨) 409 ROOM_QUESTION_ALREADY_EXISTS와 함께
+     * 지금 칸(KST 정각)의 질문 생성을 시작한다. 이미 이 칸에 질문이 있으면(생성 중이거나 준비됨) 409 ROOM_QUESTION_ALREADY_EXISTS와 함께
      * 그 질문을 data로 돌려준다. 실패했거나 오래 멈춘 생성은 다시 시작한다.
      */
     public RoomQuestionDto.QuestionView create(Long memberId, Long roomId) {
         DiaryRoom room = requireMember(memberId, roomId);
-        LocalDate today = LocalDate.now(KST);
+        ZonedDateTime slot = ZonedDateTime.now(KST).truncatedTo(ChronoUnit.HOURS);
+        OffsetDateTime slotStartAt = slot.toOffsetDateTime();
 
         Long questionId = transactionTemplate.execute(status -> {
-            boolean claimed = questionRepository.claimToday(roomId, today, memberId) == 1;
-            RoomQuestion question = questionRepository.findByRoomIdAndQuestionDate(roomId, today).orElseThrow();
+            boolean claimed = questionRepository.claimSlot(roomId, slotStartAt, slot.toLocalDate(), memberId) == 1;
+            RoomQuestion question = questionRepository.findByRoomIdAndSlotStartAt(roomId, slotStartAt).orElseThrow();
             if (!claimed && questionRepository.reclaim(question.getId(), memberId, staleBefore()) == 0) {
                 throw new CodedApiException(HttpStatus.CONFLICT, ROOM_QUESTION_ALREADY_EXISTS,
-                        "오늘 질문이 이미 있습니다.", view(question, memberId));
+                        "이 시간대 질문이 이미 있습니다.", view(question, memberId));
             }
             return question.getId();
         });
@@ -109,12 +120,18 @@ public class RoomQuestionService {
                 view(questionRepository.findById(questionId).orElseThrow(), memberId));
     }
 
-    /** 지금 질문(가장 최근 날짜). 없으면 null. */
+    /** 지금 질문(가장 최근 칸). 없으면 null. */
     public RoomQuestionDto.QuestionView getCurrent(Long memberId, Long roomId) {
         requireMember(memberId, roomId);
-        return transactionTemplate.execute(status -> questionRepository.findFirstByRoomIdOrderByQuestionDateDesc(roomId)
+        return transactionTemplate.execute(status -> questionRepository.findFirstByRoomIdOrderBySlotStartAtDesc(roomId)
                 .map(question -> view(question, memberId))
                 .orElse(null));
+    }
+
+    /** 질문 하나(지난 질문 포함). 응답은 GET current와 같은 형태. */
+    public RoomQuestionDto.QuestionView get(Long memberId, Long roomId, Long questionId) {
+        requireMember(memberId, roomId);
+        return transactionTemplate.execute(status -> view(questionInRoom(roomId, questionId), memberId));
     }
 
     /** 답하기. 한 사람당 1개이고 다시 보내면 내용을 바꾼다. 응답은 답이 반영된 질문. */
@@ -149,20 +166,35 @@ public class RoomQuestionService {
         });
     }
 
-    /** 지난 질문 목록(최신순). */
-    public List<RoomQuestionDto.HistoryItem> getHistory(Long memberId, Long roomId, int page, int size) {
+    /**
+     * 지난 질문 목록(최신순). from·to(KST 날짜 yyyy-MM-dd, 둘 다 포함)를 주면 그 날짜 범위의 칸만 준다.
+     * 한쪽만 주면 다른 쪽은 끝까지. 형식이 틀렸거나 from이 to보다 뒤면 400 ROOM_QUESTION_RANGE_INVALID.
+     */
+    public List<RoomQuestionDto.HistoryItem> getHistory(Long memberId, Long roomId, String rawFrom, String rawTo,
+                                                        int page, int size) {
         requireMember(memberId, roomId);
+        LocalDate from = parseDate(rawFrom);
+        LocalDate to = parseDate(rawTo);
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new CodedApiException(HttpStatus.BAD_REQUEST, ROOM_QUESTION_RANGE_INVALID,
+                    "from은 to보다 늦을 수 없습니다.");
+        }
         int safeSize = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        PageRequest pageable = PageRequest.of(Math.max(page, 0), safeSize);
         return transactionTemplate.execute(status -> {
-            List<RoomQuestion> questions = questionRepository.findByRoomIdOrderByQuestionDateDesc(roomId,
-                    PageRequest.of(Math.max(page, 0), safeSize));
+            List<RoomQuestion> questions = from == null && to == null
+                    ? questionRepository.findByRoomIdOrderBySlotStartAtDesc(roomId, pageable)
+                    : questionRepository.findInSlotRange(roomId,
+                            startOfDay(from == null ? LocalDate.EPOCH : from),
+                            startOfDay((to == null ? LocalDate.now(KST) : to).plusDays(1)),
+                            pageable);
             Map<Long, Long> counts = questions.isEmpty() ? Map.of()
                     : answerRepository.countByQuestionIds(questions.stream().map(RoomQuestion::getId).toList())
                     .stream().collect(Collectors.toMap(row -> (Long) row[0], row -> (Long) row[1]));
             return questions.stream()
                     .map(q -> {
                         String wire = wireStatus(q);
-                        return new RoomQuestionDto.HistoryItem(q.getId(), q.getQuestionDate(),
+                        return new RoomQuestionDto.HistoryItem(q.getId(), q.getQuestionDate(), q.getSlotStartAt(),
                                 "ready".equals(wire) ? q.getContent() : null, wire, q.getCreatedAt(),
                                 counts.getOrDefault(q.getId(), 0L));
                     })
@@ -209,14 +241,31 @@ public class RoomQuestionService {
 
     private RoomQuestionDto.QuestionView view(RoomQuestion question, Long memberId) {
         String status = wireStatus(question);
+        User creator = userRepository.findById(question.getRequestedBy()).orElse(null);
         if (!"ready".equals(status)) {
-            return RoomQuestionDto.QuestionView.of(question, status, null, List.of());
+            return RoomQuestionDto.QuestionView.of(question, status, creator, null, List.of());
         }
         List<RoomQuestionDto.AnswerItem> answers = answerRepository.findAnswerItems(question.getId());
         RoomQuestionDto.AnswerItem mine = answers.stream()
                 .filter(a -> a.authorId().equals(memberId))
                 .findFirst().orElse(null);
-        return RoomQuestionDto.QuestionView.of(question, status, mine, answers);
+        return RoomQuestionDto.QuestionView.of(question, status, creator, mine, answers);
+    }
+
+    private static LocalDate parseDate(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(raw.strip());
+        } catch (DateTimeParseException e) {
+            throw new CodedApiException(HttpStatus.BAD_REQUEST, ROOM_QUESTION_RANGE_INVALID,
+                    "날짜는 yyyy-MM-dd 형식으로 입력해주세요.");
+        }
+    }
+
+    private static OffsetDateTime startOfDay(LocalDate date) {
+        return date.atStartOfDay(KST).toOffsetDateTime();
     }
 
     /** 서버 재시작 등으로 오래 멈춘 GENERATING은 failed로 보여준다(POST로 다시 생성할 수 있다). */
