@@ -20,6 +20,10 @@
             "description": "\uacf5\uc720\ubc29(\uadf8\ub8f9)\ub9c8\ub2e4 AI\uac00 \ub9cc\ub4dc\ub294 \ud558\ub8e8 1\uac1c \uc9c8\ubb38\uacfc \uba64\ubc84\ub4e4\uc758 \ub2f5"
         },
         {
+            "name": "\uac10\uc815\uc77c\uae30 \ubc38\ub7f0\uc2a4 \uac8c\uc784",
+            "description": "\uac10\uc815\uc77c\uae30 \ud0ed \ud648\uc758 \uc624\ub298\uc758 \ubc38\ub7f0\uc2a4 \uac8c\uc784. \ubaa8\ub4e0 \uc0ac\uc6a9\uc790\uac00 \uac19\uc740 \uc9c8\ubb38\uc5d0 \ubcf4\uae30 2\uac1c \uc911 \ud558\ub098\ub97c \uace0\ub978\ub2e4"
+        },
+        {
             "name": "AI job \uc9c4\ud589 \uc774\ubca4\ud2b8",
             "description": "generation job \uc9c4\ud589 \uc0c1\ud669 SSE \uad6c\ub3c5"
         },
@@ -1537,6 +1541,97 @@
                                     "data": null,
                                     "message": "\uc544\uc9c1 \uc9c8\ubb38\uc774 \uc900\ube44\ub418\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4.",
                                     "code": "ROOM_QUESTION_NOT_READY"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/daily_questions/{questionId}/answer": {
+            "post": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \ubc38\ub7f0\uc2a4 \uac8c\uc784"
+                ],
+                "summary": "\ubc38\ub7f0\uc2a4 \uac8c\uc784 \ubcf4\uae30 \uace0\ub974\uae30",
+                "description": "body `{ selectedOption }` \u2014 \uace0\ub978 \ubcf4\uae30\uc758 optionId. \ud55c \uc0ac\ub78c\ub2f9 \uc9c8\ubb38 \ud558\ub098\uc5d0 1\ubc88\uc774\uace0 **\ubc14\uafc0 \uc218 \uc5c6\ub2e4**.\n\uc751\ub2f5\uc740 \uacb0\uacfc(results\u00b7totalCount)\uac00 \ucc44\uc6cc\uc9c4 \uc9c8\ubb38\uc774\ub2e4(GET today\uc640 \uac19\uc740 \ud615\uc2dd).\n\n**400 code**: `DAILY_QUESTION_INVALID_OPTION`(selectedOption \ub204\ub77d, \uc5c6\ub294 optionId, \ub2e4\ub978 \uc9c8\ubb38\uc758 \ubcf4\uae30)\n**404 code**: `DAILY_QUESTION_NOT_FOUND`(\uc5c6\ub294 questionId)\n**409 code**: `DAILY_QUESTION_ALREADY_ANSWERED`(\uc774\ubbf8 \uace0\ub984)\n",
+                "operationId": "answerBalanceGame",
+                "parameters": [
+                    {
+                        "name": "questionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/BalanceGameAnswerRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseBalanceGameView"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "code: DAILY_QUESTION_INVALID_OPTION(selectedOption \ub204\ub77d, \uc5c6\ub294 optionId, \ub2e4\ub978 \uc9c8\ubb38\uc758 \ubcf4\uae30)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uc774 \uc9c8\ubb38\uc758 \ubcf4\uae30\uac00 \uc544\ub2d9\ub2c8\ub2e4.",
+                                    "code": "DAILY_QUESTION_INVALID_OPTION"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "code: DAILY_QUESTION_NOT_FOUND(\uc5c6\ub294 questionId)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\ubc38\ub7f0\uc2a4 \uac8c\uc784 \uc9c8\ubb38\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                    "code": "DAILY_QUESTION_NOT_FOUND"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "code: DAILY_QUESTION_ALREADY_ANSWERED(\uc774\ubbf8 \uace0\ub984. \ub2f5\uc740 \ubc14\uafc0 \uc218 \uc5c6\ub2e4)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uc774\ubbf8 \ub2f5\ud55c \uc9c8\ubb38\uc785\ub2c8\ub2e4.",
+                                    "code": "DAILY_QUESTION_ALREADY_ANSWERED"
                                 }
                             }
                         }
@@ -3269,6 +3364,28 @@
                 }
             }
         },
+        "/api/daily_questions/today": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \ubc38\ub7f0\uc2a4 \uac8c\uc784"
+                ],
+                "summary": "\uc624\ub298\uc758 \ubc38\ub7f0\uc2a4 \uac8c\uc784",
+                "description": "\ud558\ub8e8(KST \uc790\uc815 \uae30\uc900) 1\uac1c, \ubaa8\ub4e0 \uc0ac\uc6a9\uc790\uc5d0\uac8c \uac19\uc740 \uc9c8\ubb38\uc774\ub2e4. \ubbf8\ub9ac \uc900\ube44\ud574 \ub454 \ubaa9\ub85d\uc5d0\uc11c \ub0a0\uc9dc\ubcc4\ub85c \uace0\ub978\ub2e4.\nanswered\u00b7selectedOptionId\ub294 \uc694\uccad\ud55c \uc0ac\uc6a9\uc790 \uae30\uc900\uc774\ub2e4.\n**results\u00b7totalCount\ub294 \ub0b4\uac00 \uace0\ub978 \ub4a4\uc5d0\ub9cc \ucc44\uc6cc\uc9c4\ub2e4** \u2014 \uace0\ub974\uae30 \uc804\uc5d0\ub294 `results: []`, `totalCount: 0`.\n\uc624\ub298 \uc9c8\ubb38\uc774 \uc5c6\uc73c\uba74 `data: null`(200)\uc774\ub2e4. \uc774\ub54c\ub294 \uc139\uc158\uc744 \uc228\uae34\ub2e4.\n",
+                "operationId": "getTodayBalanceGame",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseBalanceGameView"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/diary-rooms/{roomId}/diaries": {
             "get": {
                 "tags": [
@@ -4730,6 +4847,114 @@
                         "type": "string",
                         "description": "1~200\uc790(\uc55e\ub4a4 \uacf5\ubc31 \uc81c\uc678). \uc544\ub2c8\uba74 400 ROOM_ANSWER_INVALID",
                         "maxLength": 200
+                    }
+                }
+            },
+            "BalanceGameAnswerRequest": {
+                "type": "object",
+                "properties": {
+                    "selectedOption": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "\uace0\ub978 \ubcf4\uae30\uc758 optionId. \uc5c6\uac70\ub098 \uc774 \uc9c8\ubb38\uc758 \ubcf4\uae30\uac00 \uc544\ub2c8\uba74 400 DAILY_QUESTION_INVALID_OPTION"
+                    }
+                }
+            },
+            "BalanceGameOption": {
+                "type": "object",
+                "properties": {
+                    "optionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "content": {
+                        "type": "string"
+                    }
+                }
+            },
+            "BalanceGameResult": {
+                "type": "object",
+                "properties": {
+                    "optionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "content": {
+                        "type": "string"
+                    },
+                    "voteCount": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "\uc774 \ubcf4\uae30\ub97c \uace0\ub978 \uc0ac\ub78c \uc218"
+                    },
+                    "percentage": {
+                        "type": "number",
+                        "format": "double",
+                        "description": "\uc804\uccb4 \uc911 \ube44\uc728(0~100, \uc18c\uc218 \uccab\uc9f8 \uc790\ub9ac\uae4c\uc9c0)",
+                        "example": 62.5
+                    }
+                }
+            },
+            "BalanceGameView": {
+                "type": "object",
+                "properties": {
+                    "questionId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "question": {
+                        "type": "string",
+                        "description": "\uc9c8\ubb38 \ubb38\uc7a5"
+                    },
+                    "questionDate": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "\uc774 \uc9c8\ubb38\uc758 \ub0a0\uc9dc(KST). \ud558\ub8e8 1\uac1c, \ubaa8\ub4e0 \uc0ac\uc6a9\uc790 \uacf5\ud1b5"
+                    },
+                    "options": {
+                        "type": "array",
+                        "description": "\ubcf4\uae30 2\uac1c",
+                        "items": {
+                            "$ref": "#/components/schemas/BalanceGameOption"
+                        }
+                    },
+                    "answered": {
+                        "type": "boolean",
+                        "description": "\ub0b4\uac00 \uc774\ubbf8 \uace8\ub790\ub294\uc9c0"
+                    },
+                    "selectedOptionId": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "\ub0b4\uac00 \uace0\ub978 optionId. \uc548 \uace8\ub790\uc73c\uba74 null"
+                    },
+                    "results": {
+                        "type": "array",
+                        "description": "\ubcf4\uae30\ubcc4 \uacb0\uacfc(options\uc640 \uac19\uc740 \uc21c\uc11c). \uace0\ub974\uae30 \uc804\uc5d0\ub294 \ube48 \ubaa9\ub85d",
+                        "items": {
+                            "$ref": "#/components/schemas/BalanceGameResult"
+                        }
+                    },
+                    "totalCount": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "\uc804\uccb4 \uc751\ub2f5 \uc218. \uace0\ub974\uae30 \uc804\uc5d0\ub294 0"
+                    }
+                }
+            },
+            "ApiResponseBalanceGameView": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/BalanceGameView"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
                     }
                 }
             },
