@@ -435,14 +435,21 @@ Spring ↔ FastAPI 형식은 「러빈지옥 에피소드 재구성: 공통 데�
   시즌 약점·강점)를 보냅니다. 비교 자료는 설정을 만들 때 고정해 함께 저장합니다(`AiSeasonDesignRecord`).
 - 블록 설계·선택 지점·후보·수락 판정·호감은 지금처럼 Spring이 정합니다(설정 초안이 대신하지 않습니다).
 
+### 시즌 초기화
+
+`POST /api/ai/seasons/reset`(정식 경로, 운영 포함 모든 환경)
+
+- 내 AI 시즌을 시즌 행까지 모두 지웁니다(진행 중·완료 무관, 여러 시즌이면 전부). 시즌에 딸린 행(`AiSeasonResetWriter.SEASON_TABLES`,
+  시즌 편지 포함)과 시즌 생성 입력도 지웁니다. 계정·설문 결과·감정일기·공유방·토큰은 남깁니다.
+- 회차를 열며 쓴 토큰은 돌려주지 않습니다(`refundedTokens` 항상 0). 열람 → 초기화 → 환불을 반복해 유료 회차를 무료로 보는 것을 막습니다.
+- 시즌 row id는 다시 쓰이지 않아, 초기화 전에 돌던 회차 생성·완료·선택 결과는 저장할 대상을 찾지 못해 버려집니다.
+- 시즌이 없으면 아무것도 하지 않고 200입니다. 초기화 뒤 `GET /me`는 404 `SEASON_NOT_FOUND`이고, `from-survey`로 새 시즌을
+  만듭니다.
+
 ### 개발 전용
 
 `app.dev-tools.enabled=true`(환경변수 `APP_DEVTOOLS_ENABLED=true`)인 환경에서만
 `POST /api/dev/ai/seasons/current/story/reset`이 있습니다(운영 기본값 false라 경로 자체가 없음).
 
-- 내 AI 시즌을 시즌 행까지 모두 지웁니다(진행 중·완료 무관, 여러 시즌이면 전부). 시즌에 딸린 행(`AiSeasonResetWriter.SEASON_TABLES`,
-  시즌 편지 포함)과 시즌 생성 입력도 지웁니다. 계정·설문 결과·감정일기·공유방은 남깁니다.
-- 그 시즌들에서 회차를 열며 쓴 토큰(`ai_episode_unlocks.tokens_spent`)을 돌려주고 REWARD 내역을 남깁니다.
-- 시즌 row id는 다시 쓰이지 않아, 초기화 전에 돌던 회차 생성·완료·선택 결과는 저장할 대상을 찾지 못해 버려집니다.
-- 시즌이 없으면 아무것도 하지 않고 200입니다. 초기화 뒤 `GET /me`는 404 `SEASON_NOT_FOUND`이고, `from-survey`로 새 시즌을
-  만듭니다.
+- 정식 시즌 초기화와 같고, 그 시즌들에서 회차를 열며 쓴 토큰(`ai_episode_unlocks.tokens_spent`)을 돌려주고 REWARD 내역을
+  남기는 것만 다릅니다(테스트용).

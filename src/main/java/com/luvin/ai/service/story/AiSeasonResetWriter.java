@@ -16,11 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 /**
- * 개발 전용 시즌 초기화: 사용자의 AI 시즌을 시즌 행까지 모두 지운다. 계정·설문 결과·감정일기·공유방은 남긴다.
+ * 시즌 초기화: 사용자의 AI 시즌을 시즌 행까지 모두 지운다. 계정·설문 결과·감정일기·공유방은 남긴다.
  *
  * - 시즌에 딸린 행은 season_id로 전부 지운다(회차 본문·선택·관계·리포트·쪽지와 시즌 편지·좋아요·피드백·열린 회차·새 시즌
  *   설정·출연진, 기존 5화 흐름 기록). 시즌 생성 입력도 지워 다음 from-survey가 최신 설문으로 새 AI 시즌을 만든다.
- * - 그 시즌들에서 회차를 열며 쓴 토큰은 돌려준다(환불 내역은 REWARD로 남긴다).
+ * - refund면 그 시즌들에서 회차를 열며 쓴 토큰을 돌려준다(환불 내역은 REWARD로 남긴다). 개발 전용 경로만 돌려주고,
+ *   정식 경로는 돌려주지 않는다 — 열람 → 초기화 → 환불을 반복해 유료 회차를 무료로 보는 것을 막는다.
  * - 지운 시즌의 row id는 다시 쓰이지 않으므로, 초기화 전에 돌던 회차 생성·완료·선택 결과는 저장할 시즌·회차를 찾지 못해
  *   결과를 버린다.
  */
@@ -42,21 +43,23 @@ public class AiSeasonResetWriter {
     @PersistenceContext
     private EntityManager entityManager;
 
-    /** 지운 시즌 수, 돌려준 토큰, 환불 뒤 토큰 잔액. 시즌이 없으면 앞의 둘은 0이다. */
+    /** 지운 시즌 수, 돌려준 토큰, 초기화 뒤 토큰 잔액. 시즌이 없거나 환불하지 않으면 refundedTokens는 0이다. */
     public record Result(int deletedSeasons, int refundedTokens, int tokenBalance) {
     }
 
     @Transactional
-    public Result deleteAllSeasons(Long memberId) {
+    public Result deleteAllSeasons(Long memberId, boolean refund) {
         List<AiSeason> seasons = seasonRepository.findAllByMemberIdOrderBySeasonNumberDesc(memberId);
         int refunded = 0;
         for (AiSeason season : seasons) {
             // 같은 시즌을 쓰는 다른 쓰기(출연진 배정·새 시즌 설정 반영 등)와 겹치지 않게 잠근 뒤 지운다.
             seasonRepository.findWithLockById(season.getId());
-            refunded += ((Number) entityManager.createNativeQuery(
-                            "SELECT COALESCE(SUM(tokens_spent), 0) FROM ai_episode_unlocks WHERE season_id = :seasonPk")
-                    .setParameter("seasonPk", season.getId())
-                    .getSingleResult()).intValue();
+            if (refund) {
+                refunded += ((Number) entityManager.createNativeQuery(
+                                "SELECT COALESCE(SUM(tokens_spent), 0) FROM ai_episode_unlocks WHERE season_id = :seasonPk")
+                        .setParameter("seasonPk", season.getId())
+                        .getSingleResult()).intValue();
+            }
             for (String table : SEASON_TABLES) {
                 entityManager.createNativeQuery("DELETE FROM " + table + " WHERE season_id = :seasonPk")
                         .setParameter("seasonPk", season.getId())
