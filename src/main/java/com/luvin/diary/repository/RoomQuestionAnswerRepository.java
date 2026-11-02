@@ -29,7 +29,7 @@ public interface RoomQuestionAnswerRepository extends JpaRepository<RoomQuestion
 
     /** 답 목록(작성순). 닉네임은 피드와 같이 닉네임이 없으면 이름. 필드 순서는 AnswerItem과 같아야 한다. */
     @Query("select new com.luvin.diary.dto.RoomQuestionDto$AnswerItem(a.id, a.userId, coalesce(u.nickname, u.name), "
-            + "a.content, a.createdAt, a.updatedAt) "
+            + "a.content, a.createdAt, a.updatedAt, u.personalityType, u.latestSurveyResultId) "
             + "from RoomQuestionAnswer a left join User u on u.id = a.userId "
             + "where a.questionId = :questionId order by a.createdAt asc, a.id asc")
     List<RoomQuestionDto.AnswerItem> findAnswerItems(@Param("questionId") Long questionId);

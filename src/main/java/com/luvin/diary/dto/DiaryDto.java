@@ -1,5 +1,6 @@
 package com.luvin.diary.dto;
 
+import com.luvin.user.service.BreadNames;
 import io.swagger.v3.oas.annotations.media.Schema;
 import com.luvin.diary.domain.Diary;
 import jakarta.validation.constraints.NotBlank;
@@ -10,6 +11,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.UUID;
 
 public class DiaryDto {
 
@@ -113,7 +115,9 @@ public class DiaryDto {
 
     /**
      * 공유방·내 방들 피드 일기 목록 항목. emoji는 내 반응(없으면 null).
-     * authorNickname은 닉네임이 없으면 이름, authorBreadType은 빵 타입 id(예: "salt_bread", 설문 전이면 null). JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춰야 한다. */
+     * authorNickname은 닉네임이 없으면 이름, authorBreadType은 빵 타입 id(예: "salt_bread", 설문 전이면 null),
+     * authorBreadName은 빵 이름(예: "쫀쫀한 카스테라", 설문 전·탈퇴면 null — BreadNames).
+     * JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춰야 한다. */
     @Schema(name = "DiaryFeedItem")
     public record FeedItem(
             Long diaryId,
@@ -129,11 +133,54 @@ public class DiaryDto {
             boolean liked,
             String emoji,
             OffsetDateTime createdAt,
-            OffsetDateTime updatedAt
+            OffsetDateTime updatedAt,
+            @Schema(description = "작성자 빵 이름(예: \"쫀쫀한 카스테라\"). 설문 전·탈퇴면 null")
+            String authorBreadName
     ) {
         public FeedItem {
             createdAt = toKst(createdAt);
             updatedAt = toKst(updatedAt);
+        }
+
+        /** JPQL select new용: 작성자의 최신 설문 결과 id로 빵 이름을 만든다. */
+        public FeedItem(Long diaryId, Long roomId, Long authorId, String authorNickname, String authorBreadType,
+                        String title, String content, boolean isMine, long likeCount, long commentCount,
+                        boolean liked, String emoji, OffsetDateTime createdAt, OffsetDateTime updatedAt,
+                        UUID authorSurveyResultId) {
+            this(diaryId, roomId, authorId, authorNickname, authorBreadType, title, content, isMine, likeCount,
+                    commentCount, liked, emoji, createdAt, updatedAt,
+                    BreadNames.of(authorSurveyResultId, authorBreadType));
+        }
+    }
+
+    /**
+     * 최근 반응 알림 한 건(감정일기 홈 "쫀쫀한 조합들" 맨 위 카드): "{reactorBreadName}님이 {diaryAuthorBreadName}님의 일기에
+     * '{emoji}' 반응을 했습니다." 빵 이름 규칙은 DiaryFeedItem과 같다(설문 전·탈퇴면 null). reactedAt은 반응을 남기거나 다른
+     * 이모지로 바꾼 시각이다. JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춘다.
+     */
+    @Schema(name = "DiaryRecentReaction")
+    public record RecentReaction(
+            Long diaryId,
+            Long roomId,
+            String emoji,
+            OffsetDateTime reactedAt,
+            Long reactorId,
+            String reactorBreadName,
+            @Schema(description = "반응한 사람의 빵 타입 id(DiaryFeedItem.authorBreadType과 같은 값)")
+            String reactorBreadType,
+            Long diaryAuthorId,
+            String diaryAuthorBreadName
+    ) {
+        public RecentReaction {
+            reactedAt = toKst(reactedAt);
+        }
+
+        /** JPQL select new용: 반응한 사람·일기 작성자의 최신 설문 결과 id로 빵 이름을 만든다. */
+        public RecentReaction(Long diaryId, Long roomId, String emoji, OffsetDateTime reactedAt, Long reactorId,
+                              String reactorBreadType, UUID reactorSurveyResultId, Long diaryAuthorId,
+                              String diaryAuthorBreadType, UUID diaryAuthorSurveyResultId) {
+            this(diaryId, roomId, emoji, reactedAt, reactorId, BreadNames.of(reactorSurveyResultId, reactorBreadType),
+                    reactorBreadType, diaryAuthorId, BreadNames.of(diaryAuthorSurveyResultId, diaryAuthorBreadType));
         }
     }
 }

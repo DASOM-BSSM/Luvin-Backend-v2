@@ -74,7 +74,30 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             + "order by d.createdAt desc")
     List<DiaryDto.FeedItem> findMyRoomsFeed(@Param("me") Long me, Pageable pageable);
 
-    /** FeedItem 필드 순서와 정확히 같아야 한다. */
+    /**
+     * 내가 방장이거나 멤버인 방들의 일기에 다른 사람이 남긴 반응, 최신순(내가 남긴 반응은 뺀다 — 내 일기에 달린 반응은
+     * 포함). after가 있으면 그보다 뒤의 반응만.
+     */
+    @Query("select new com.luvin.diary.dto.DiaryDto$RecentReaction(" + RECENT_REACTION_SELECT
+            + "where (d.room.id in (select m.id.roomId from DiaryRoomMember m where m.id.userId = :me) "
+            + "or d.room.ownerId = :me) and r.id.userId <> :me "
+            + "order by r.createdAt desc, r.id.diaryId desc")
+    List<DiaryDto.RecentReaction> findRecentReactions(@Param("me") Long me, Pageable pageable);
+
+    @Query("select new com.luvin.diary.dto.DiaryDto$RecentReaction(" + RECENT_REACTION_SELECT
+            + "where (d.room.id in (select m.id.roomId from DiaryRoomMember m where m.id.userId = :me) "
+            + "or d.room.ownerId = :me) and r.id.userId <> :me and r.createdAt > :after "
+            + "order by r.createdAt desc, r.id.diaryId desc")
+    List<DiaryDto.RecentReaction> findRecentReactionsAfter(@Param("me") Long me, @Param("after") OffsetDateTime after,
+                                                           Pageable pageable);
+
+    /** RecentReaction의 JPQL용 생성자 순서와 같아야 한다. */
+    String RECENT_REACTION_SELECT = "d.id, d.room.id, r.emoji, r.createdAt, r.id.userId, ru.personalityType, "
+            + "ru.latestSurveyResultId, d.userId, au.personalityType, au.latestSurveyResultId) "
+            + "from DiaryReaction r join r.diary d left join User ru on ru.id = r.id.userId "
+            + "left join User au on au.id = d.userId ";
+
+    /** FeedItem의 JPQL용 생성자(마지막이 작성자 최신 설문 결과 id) 순서와 정확히 같아야 한다. */
     // 작성자 정보는 Diary-User 연관관계(FK)가 없어서 조건으로 조인한다(left join: 사용자가 없어도 일기는 나옴).
     String FEED_SELECT = "d.id, d.room.id, d.userId, coalesce(u.nickname, u.name), u.personalityType, "
             + "d.title, d.content, "
@@ -84,5 +107,5 @@ public interface DiaryRepository extends JpaRepository<Diary, Long> {
             + "(case when exists (select 1 from DiaryReaction r2 where r2.diary = d and r2.id.userId = :me) "
             + "then true else false end), "
             + "(select r3.emoji from DiaryReaction r3 where r3.diary = d and r3.id.userId = :me), "
-            + "d.createdAt, d.updatedAt) ";
+            + "d.createdAt, d.updatedAt, u.latestSurveyResultId) ";
 }

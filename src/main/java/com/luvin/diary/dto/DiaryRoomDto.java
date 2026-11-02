@@ -3,6 +3,7 @@ package com.luvin.diary.dto;
 import com.luvin.diary.domain.DiaryRoom;
 import com.luvin.diary.domain.DiaryRoomMember;
 import com.luvin.user.domain.User;
+import com.luvin.user.service.BreadNames;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -45,11 +46,16 @@ public class DiaryRoomDto {
             @Schema(description = "이 방에서 쓰는 닉네임")
             String nickname,
             @Schema(allowableValues = {"OWNER", "MEMBER"})
-            String role
+            String role,
+            @Schema(description = "빵 이름(예: \"쫀쫀한 카스테라\"). 설문 전이면 null")
+            String breadName,
+            @Schema(description = "빵 타입 id(DiaryFeedItem.authorBreadType과 같은 값). 설문 전이면 null")
+            String breadType
     ) {
         public MemberResponse(DiaryRoomMember m) {
             this(m.getMember().getId(), m.getMember().getName(), m.getMember().getEmail(),
-                    m.getNickname(), m.getRole().name());
+                    m.getNickname(), m.getRole().name(), BreadNames.of(m.getMember()),
+                    m.getMember().getPersonalityType());
         }
     }
 

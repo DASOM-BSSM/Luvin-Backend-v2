@@ -4148,6 +4148,49 @@
                     }
                 }
             }
+        },
+        "/api/diaries/reactions/recent": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30"
+                ],
+                "summary": "\ucd5c\uadfc \ubc18\uc751 \uc54c\ub9bc",
+                "description": "\ub0b4\uac00 \ubc29\uc7a5\uc774\uac70\ub098 \uba64\ubc84\uc778 \uacf5\uc720\ubc29\ub4e4\uc758 \uc77c\uae30\uc5d0 \ub0a8\uae34 \ubc18\uc751, \ucd5c\uc2e0\uc21c(\uac10\uc815\uc77c\uae30 \ud648 \"\ucac0\ucac0\ud55c \uc870\ud569\ub4e4\" \ub9e8 \uc704 \uce74\ub4dc:\n\"{reactorBreadName}\ub2d8\uc774 {diaryAuthorBreadName}\ub2d8\uc758 \uc77c\uae30\uc5d0 '{emoji}' \ubc18\uc751\uc744 \ud588\uc2b5\ub2c8\ub2e4.\").\n\n- \ub0b4\uac00 \ub0a8\uae34 \ubc18\uc751\uc740 \ube7c\uace0, \ub0b4 \uc77c\uae30\uc5d0 \ub2e4\ub978 \uc0ac\ub78c\uc774 \ub0a8\uae34 \ubc18\uc751\uc740 \ud3ec\ud568\ud55c\ub2e4.\n- limit: 1~20(\uae30\ubcf8 1). after(ISO-8601 \uc2dc\uac01, \uc120\ud0dd): \uc774 \uc2dc\uac01\ubcf4\ub2e4 \ub4a4\uc758 \ubc18\uc751\ub9cc \u2014 \uc571\uc774 \ub9c8\uc9c0\ub9c9\uc73c\ub85c \ubcf8 \ubc18\uc751\uc758\n  reactedAt\uc744 \uc800\uc7a5\ud574 \ub450\uace0 \ub118\uae30\uba74 \uc774\ubbf8 \ubcf8 \uc54c\ub9bc\uc744 \ub2e4\uc2dc \ubc1b\uc9c0 \uc54a\ub294\ub2e4(\uc11c\ubc84\uc5d0 \uc77d\uc74c \uc0c1\ud0dc\ub294 \uc5c6\ub2e4).\n- reactedAt\uc740 \ubc18\uc751\uc744 \ub0a8\uae30\uac70\ub098 \ub2e4\ub978 \uc774\ubaa8\uc9c0\ub85c \ubc14\uafbc \uc2dc\uac01\uc774\ub2e4. \ubc18\uc751\uc744 \ucde8\uc18c\ud558\uba74 \ubaa9\ub85d\uc5d0\uc11c \ube60\uc9c4\ub2e4.\n- \ube75 \uc774\ub984\uc740 \uc124\ubb38 \uc804\u00b7\ud0c8\ud1f4\uba74 null\uc774\ub2e4. \uc5c6\uc73c\uba74 \ube48 \ubc30\uc5f4.\n",
+                "operationId": "getRecentReactions",
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int32",
+                            "default": 1
+                        }
+                    },
+                    {
+                        "name": "after",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseListDiaryRecentReaction"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -4411,6 +4454,10 @@
                     },
                     "isMine": {
                         "type": "boolean"
+                    },
+                    "authorBreadName": {
+                        "type": "string",
+                        "description": "\uc791\uc131\uc790 \ube75 \uc774\ub984(\uc608: \"\ucac0\ucac0\ud55c \uce74\uc2a4\ud14c\ub77c\"). \uc124\ubb38 \uc804\u00b7\ud0c8\ud1f4\uba74 null"
                     }
                 }
             },
@@ -4899,6 +4946,14 @@
                     "updatedAt": {
                         "type": "string",
                         "format": "date-time"
+                    },
+                    "authorBreadType": {
+                        "type": "string",
+                        "description": "\uc791\uc131\uc790 \ube75 \ud0c0\uc785 id(DiaryFeedItem.authorBreadType\uacfc \uac19\uc740 \uac12). \uc124\ubb38 \uc804\u00b7\ud0c8\ud1f4\uba74 null"
+                    },
+                    "authorBreadName": {
+                        "type": "string",
+                        "description": "\uc791\uc131\uc790 \ube75 \uc774\ub984(\uc608: \"\ucac0\ucac0\ud55c \uce74\uc2a4\ud14c\ub77c\"). \uc124\ubb38 \uc804\u00b7\ud0c8\ud1f4\uba74 null"
                     }
                 }
             },
@@ -4958,6 +5013,15 @@
                         "items": {
                             "$ref": "#/components/schemas/RoomQuestionAnswerItem"
                         }
+                    },
+                    "creatorId": {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "\uc9c8\ubb38\uc744 \ub9cc\ub4e0 \uc0ac\ub78c\uc758 id. \ub0b4\uac00 \ub9cc\ub4e0 \uc9c8\ubb38\uc778\uc9c0 \uc54c \ub54c \uc4f4\ub2e4"
+                    },
+                    "creatorBreadName": {
+                        "type": "string",
+                        "description": "\uc9c8\ubb38\uc744 \ub9cc\ub4e0 \uc0ac\ub78c\uc758 \ube75 \uc774\ub984(\uc608: \"\ucac0\ucac0\ud55c \uce74\uc2a4\ud14c\ub77c\"). \uc124\ubb38 \uc804\u00b7\ud0c8\ud1f4\uba74 null"
                     }
                 }
             },
@@ -6506,6 +6570,10 @@
                     "learningEnabled": {
                         "type": "boolean",
                         "description": "\uac10\uc815\uc77c\uae30 \ud559\uc2b5 \ub3d9\uc758. \ub044\uba74 \uc77c\uae30\u00b7\ub313\uae00\u00b7\uadf8\ub8f9 \ub2f5\uc744 \ub0b4 \ube75 \ud559\uc2b5\uc5d0 \uc4f0\uc9c0 \uc54a\ub294\ub2e4"
+                    },
+                    "breadName": {
+                        "type": "string",
+                        "description": "\ub0b4 \ube75 \uc774\ub984(\uc608: \"\ucac0\ucac0\ud55c \uce74\uc2a4\ud14c\ub77c\"). \uac10\uc815\uc77c\uae30\uc5d0\uc11c \ub2e4\ub978 \uc0ac\ub78c\uc5d0\uac8c \ubcf4\uc774\ub294 \uc774\ub984\uacfc \uac19\ub2e4. \uc124\ubb38 \uc804\uc774\uba74 null"
                     }
                 }
             },
@@ -6955,6 +7023,14 @@
                             "OWNER",
                             "MEMBER"
                         ]
+                    },
+                    "breadName": {
+                        "type": "string",
+                        "description": "\ube75 \uc774\ub984(\uc608: \"\ucac0\ucac0\ud55c \uce74\uc2a4\ud14c\ub77c\"). \uc124\ubb38 \uc804\uc774\uba74 null"
+                    },
+                    "breadType": {
+                        "type": "string",
+                        "description": "\ube75 \ud0c0\uc785 id(DiaryFeedItem.authorBreadType\uacfc \uac19\uc740 \uac12). \uc124\ubb38 \uc804\uc774\uba74 null"
                     }
                 }
             },
@@ -7029,6 +7105,10 @@
                     "updatedAt": {
                         "type": "string",
                         "format": "date-time"
+                    },
+                    "authorBreadName": {
+                        "type": "string",
+                        "description": "\uc791\uc131\uc790 \ube75 \uc774\ub984(\uc608: \"\ucac0\ucac0\ud55c \uce74\uc2a4\ud14c\ub77c\"). \uc124\ubb38 \uc804\u00b7\ud0c8\ud1f4\uba74 null"
                     }
                 }
             },
@@ -7697,6 +7777,64 @@
                         "format": "int64"
                     },
                     "message": {
+                        "type": "string"
+                    }
+                }
+            },
+            "ApiResponseListDiaryRecentReaction": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/DiaryRecentReaction"
+                        }
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": "string"
+                    }
+                }
+            },
+            "DiaryRecentReaction": {
+                "type": "object",
+                "properties": {
+                    "diaryId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "roomId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "emoji": {
+                        "type": "string"
+                    },
+                    "reactedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "reactorId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "reactorBreadName": {
+                        "type": "string"
+                    },
+                    "reactorBreadType": {
+                        "type": "string",
+                        "description": "\ubc18\uc751\ud55c \uc0ac\ub78c\uc758 \ube75 \ud0c0\uc785 id(DiaryFeedItem.authorBreadType\uacfc \uac19\uc740 \uac12)"
+                    },
+                    "diaryAuthorId": {
+                        "type": "integer",
+                        "format": "int64"
+                    },
+                    "diaryAuthorBreadName": {
                         "type": "string"
                     }
                 }

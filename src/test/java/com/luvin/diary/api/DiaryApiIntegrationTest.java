@@ -89,6 +89,8 @@ class DiaryApiIntegrationTest {
     void setUp() {
         cleanDiaryTables();
         owner = createUser("방장", "salt_bread");
+        // 빵 이름은 최신 설문 결과 id로 고른 형용사 + 빵 종류(앱과 같은 규칙, BreadNamesTest).
+        jdbc.update("UPDATE users SET latest_survey_result_id = ? WHERE user_id = ?", OWNER_SURVEY_RESULT, owner.id());
         member = createUser("멤버", null);
         outsider = createUser("외부인", null);
     }
@@ -290,6 +292,7 @@ class DiaryApiIntegrationTest {
         JsonNode item = feed.data().get(0);
         assertEquals("방장", item.get("authorNickname").asText());
         assertEquals("salt_bread", item.get("authorBreadType").asText());
+        assertEquals(OWNER_BREAD_NAME, item.get("authorBreadName").asText());
         assertEquals("🥺", item.get("emoji").asText());
         assertTrue(item.get("liked").asBoolean());
         assertEquals(1, item.get("likeCount").asLong());
@@ -323,6 +326,7 @@ class DiaryApiIntegrationTest {
         assertEquals(200, created.status(), String.valueOf(created.body()));
         assertEquals("방장", created.data().get("authorNickname").asText());
         assertEquals("salt_bread", created.data().get("authorBreadType").asText());
+        assertEquals(OWNER_BREAD_NAME, created.data().get("authorBreadName").asText());
         assertTrue(created.data().get("isMine").asBoolean());
         long commentId = created.data().get("id").asLong();
 
@@ -339,7 +343,64 @@ class DiaryApiIntegrationTest {
         assertEquals(owner.id(), list.get(0).get("userId").asLong());
         assertEquals("멤버", list.get(1).get("authorNickname").asText());
         assertTrue(list.get(1).get("authorBreadType").isNull());  // 설문 전
+        assertTrue(list.get(1).get("authorBreadName").isNull());
         assertTrue(list.get(1).get("isMine").asBoolean());
+    }
+
+    // ------------------------------------------------------------------ 빵 이름 · 반응 알림
+
+    @Test
+    void 멤버_목록과_내_정보에_빵_이름이_있다() {
+        long roomId = createRoomWithMember();
+        JsonNode members = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/members", member, null).data();
+        for (JsonNode m : members) {
+            if (m.get("id").asLong() == owner.id()) {
+                assertEquals(OWNER_BREAD_NAME, m.get("breadName").asText());
+                assertEquals("salt_bread", m.get("breadType").asText());
+            } else {
+                assertTrue(m.get("breadName").isNull());
+                assertTrue(m.get("breadType").isNull());
+            }
+        }
+        // GET /api/users/me는 ApiResponse로 감싸지 않는다.
+        assertEquals(OWNER_BREAD_NAME, call(HttpMethod.GET, "/api/users/me", owner, null).body().get("breadName").asText());
+        assertTrue(call(HttpMethod.GET, "/api/users/me", member, null).body().get("breadName").isNull());
+    }
+
+    @Test
+    void 최근_반응_알림은_내가_속한_방의_다른_사람_반응만_최신순으로_준다() {
+        long roomId = createRoomWithMember();
+        long otherRoom = createRoom(outsider, "남의 방");
+        long ownerDiary = createDiary(owner, roomId).data().get("diaryId").asLong();
+        long memberDiary = createDiary(member, roomId).data().get("diaryId").asLong();
+        long elsewhere = createDiary(outsider, otherRoom).data().get("diaryId").asLong();
+
+        react(member, ownerDiary, "😍");   // 내 일기에 남이 남긴 반응 → 방장에게 보인다
+        react(owner, memberDiary, "🥺");   // 내가 남긴 반응 → 방장에게는 안 보인다
+        react(outsider, elsewhere, "😂");  // 내가 속하지 않은 방 → 안 보인다
+
+        JsonNode forOwner = call(HttpMethod.GET, "/api/diaries/reactions/recent?limit=5", owner, null).data();
+        assertEquals(1, forOwner.size());
+        JsonNode notice = forOwner.get(0);
+        assertEquals(ownerDiary, notice.get("diaryId").asLong());
+        assertEquals(roomId, notice.get("roomId").asLong());
+        assertEquals("😍", notice.get("emoji").asText());
+        assertEquals(member.id(), notice.get("reactorId").asLong());
+        assertTrue(notice.get("reactorBreadName").isNull()); // 설문 전
+        assertEquals(owner.id(), notice.get("diaryAuthorId").asLong());
+        assertEquals(OWNER_BREAD_NAME, notice.get("diaryAuthorBreadName").asText());
+        assertTrue(notice.get("reactedAt").asText().endsWith("+09:00"));
+
+        // 멤버에게는 방장이 멤버 일기에 남긴 반응이 보이고, 반응한 사람의 빵 이름·타입이 있다.
+        JsonNode forMember = call(HttpMethod.GET, "/api/diaries/reactions/recent", member, null).data();
+        assertEquals(1, forMember.size());
+        assertEquals(OWNER_BREAD_NAME, forMember.get(0).get("reactorBreadName").asText());
+        assertEquals("salt_bread", forMember.get(0).get("reactorBreadType").asText());
+
+        // after: 마지막으로 본 반응 시각 뒤의 반응만.
+        String seen = java.net.URLEncoder.encode(notice.get("reactedAt").asText(), StandardCharsets.UTF_8);
+        assertEquals(0, call(HttpMethod.GET, "/api/diaries/reactions/recent?after=" + seen, owner, null).data().size());
+        assertEquals(0, call(HttpMethod.GET, "/api/diaries/reactions/recent", outsider, null).data().size());
     }
 
     // ------------------------------------------------------------------ 달력
@@ -771,8 +832,13 @@ class DiaryApiIntegrationTest {
         assertEquals(200, call(HttpMethod.POST, "/api/diary-rooms/" + roomId + "/questions/" + nine + "/answers",
                 member, Map.of("content", "9시 답")).status());
 
+        assertEquals(200, call(HttpMethod.POST, "/api/diary-rooms/" + roomId + "/questions/" + nine + "/answers",
+                owner, Map.of("content", "방장 답")).status());
+
         Res current = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/questions/current", member, null);
         assertEquals(ten, current.data().get("questionId").asLong());
+        assertEquals(owner.id(), current.data().get("creatorId").asLong());
+        assertEquals(OWNER_BREAD_NAME, current.data().get("creatorBreadName").asText());
         assertEquals("2026-11-02T10:00:00+09:00", current.data().get("slotStartAt").asText());
 
         Res detail = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/questions/" + nine, owner, null);
@@ -781,10 +847,19 @@ class DiaryApiIntegrationTest {
         assertEquals("2026-11-02", detail.data().get("questionDate").asText());
         assertEquals("멤버", detail.data().get("creatorNickname").asText());
         assertTrue(detail.data().get("creatorBreadType").isNull());
-        assertTrue(detail.data().get("myAnswer").isNull());
-        assertEquals("9시 답", detail.data().get("answers").get(0).get("content").asText());
+        assertEquals(member.id(), detail.data().get("creatorId").asLong());
+        assertTrue(detail.data().get("creatorBreadName").isNull()); // 설문 전
+        JsonNode memberAnswer = detail.data().get("answers").get(0);
+        assertEquals("9시 답", memberAnswer.get("content").asText());
+        assertTrue(memberAnswer.get("authorBreadType").isNull());
+        assertTrue(memberAnswer.get("authorBreadName").isNull());
+        JsonNode ownerAnswer = detail.data().get("myAnswer");
+        assertEquals("방장 답", ownerAnswer.get("content").asText());
+        assertEquals("salt_bread", ownerAnswer.get("authorBreadType").asText());
+        assertEquals(OWNER_BREAD_NAME, ownerAnswer.get("authorBreadName").asText());
 
         Res mine = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/questions/" + nine, member, null);
+        assertEquals(2, mine.data().get("answers").size());
         assertEquals("9시 답", mine.data().get("myAnswer").get("content").asText());
 
         Res wrongRoom = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/questions/" + elsewhere, member, null);
@@ -832,6 +907,10 @@ class DiaryApiIntegrationTest {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /** 방장의 최신 설문 결과 id. 빵 이름은 "유쾌한 소금빵"이다. */
+    private static final UUID OWNER_SURVEY_RESULT = UUID.fromString("022c127a-cb46-4400-825e-59deec5dad43");
+    private static final String OWNER_BREAD_NAME = "유쾌한 소금빵";
 
     private TestUser createUser(String nickname, String breadType) {
         String unique = UUID.randomUUID().toString();

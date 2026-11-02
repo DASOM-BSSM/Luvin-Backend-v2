@@ -1,6 +1,7 @@
 package com.luvin.user.dto;
 
 import com.luvin.user.domain.User;
+import com.luvin.user.service.BreadNames;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.UUID;
@@ -20,11 +21,13 @@ public class UserProfileResponse {
     private final UUID latestSurveyResultId;
     @Schema(description = "감정일기 학습 동의. 끄면 일기·댓글·그룹 답을 내 빵 학습에 쓰지 않는다")
     private final boolean learningEnabled;
+    @Schema(description = "내 빵 이름(예: \"쫀쫀한 카스테라\"). 감정일기에서 다른 사람에게 보이는 이름과 같다. 설문 전이면 null")
+    private final String breadName;
 
     public UserProfileResponse(Long memberId, String name, String nickname, String gender,
                                Integer age, String job, String bio,
                                String personalityType, boolean surveyCompleted, UUID latestSurveyResultId,
-                               boolean learningEnabled) {
+                               boolean learningEnabled, String breadName) {
         this.memberId = memberId;
         this.name = name;
         this.nickname = nickname;
@@ -36,6 +39,7 @@ public class UserProfileResponse {
         this.surveyCompleted = surveyCompleted;
         this.latestSurveyResultId = latestSurveyResultId;
         this.learningEnabled = learningEnabled;
+        this.breadName = breadName;
     }
 
     public static UserProfileResponse from(User user, boolean surveyCompleted) {
@@ -43,7 +47,8 @@ public class UserProfileResponse {
                 user.getId(), user.getName(), user.getNickname(),
                 user.getGender(), user.getAge(), user.getJob(), user.getBio(),
                 surveyCompleted ? user.getPersonalityType() : null,
-                surveyCompleted, user.getLatestSurveyResultId(), user.isLearningEnabled());
+                surveyCompleted, user.getLatestSurveyResultId(), user.isLearningEnabled(),
+                surveyCompleted ? BreadNames.of(user) : null);
     }
 
     public Long getMemberId() { return memberId; }
@@ -57,4 +62,5 @@ public class UserProfileResponse {
     public boolean isSurveyCompleted() { return surveyCompleted; }
     public UUID getLatestSurveyResultId() { return latestSurveyResultId; }
     public boolean isLearningEnabled() { return learningEnabled; }
+    public String getBreadName() { return breadName; }
 }
