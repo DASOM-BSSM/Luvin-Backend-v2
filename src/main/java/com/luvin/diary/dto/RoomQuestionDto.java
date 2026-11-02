@@ -1,6 +1,7 @@
 package com.luvin.diary.dto;
 
 import com.luvin.diary.domain.RoomQuestion;
+import com.luvin.user.domain.User;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
@@ -43,40 +44,53 @@ public class RoomQuestionDto {
 
     /**
      * 그룹 질문. content는 status가 ready일 때만 있고, myAnswer·answers도 ready일 때만 채운다(아니면 null·빈 목록).
+     * creator는 생성 버튼을 누른 사람이다. 작성자 정보 규칙은 DiaryFeedItem과 같다: 닉네임은 계정 닉네임(없으면 이름),
+     * 빵 타입은 id(예: "salt_bread", 설문 전이면 null). 탈퇴했으면 둘 다 null.
      */
     @Schema(name = "RoomQuestionView")
     public record QuestionView(
             Long questionId,
             Long roomId,
-            @Schema(description = "이 질문의 날짜(KST). 그룹당 하루 1개")
+            @Schema(description = "이 질문 칸의 날짜(KST). slotStartAt의 날짜와 같다")
             LocalDate questionDate,
+            @Schema(description = "이 질문의 칸 시작 시각(KST 정각, +09:00). 그룹당 칸마다 1개. 칸은 slotStartAt ~ +1시간",
+                    example = "2026-11-02T09:00:00+09:00")
+            OffsetDateTime slotStartAt,
             String content,
             @Schema(allowableValues = {"generating", "ready", "failed"},
                     description = "generating이면 1~3초 간격으로 GET current를 다시 요청. failed면 POST로 다시 생성할 수 있다")
             String status,
             OffsetDateTime createdAt,
+            @Schema(description = "질문을 만든 사람의 닉네임(계정 닉네임, 없으면 이름). 탈퇴했으면 null")
+            String creatorNickname,
+            @Schema(description = "질문을 만든 사람의 빵 타입 id(DiaryFeedItem.authorBreadType과 같은 값). 설문 전·탈퇴면 null")
+            String creatorBreadType,
             @Schema(description = "내 답. 없으면 null")
             AnswerItem myAnswer,
             @Schema(description = "그룹 멤버들의 답(내 답 포함), 작성순")
             List<AnswerItem> answers
     ) {
         public QuestionView {
+            slotStartAt = toKst(slotStartAt);
             createdAt = toKst(createdAt);
         }
 
-        public static QuestionView of(RoomQuestion question, String status, AnswerItem myAnswer,
+        public static QuestionView of(RoomQuestion question, String status, User creator, AnswerItem myAnswer,
                                       List<AnswerItem> answers) {
             return new QuestionView(question.getId(), question.getRoomId(), question.getQuestionDate(),
-                    "ready".equals(status) ? question.getContent() : null, status, question.getCreatedAt(),
+                    question.getSlotStartAt(), "ready".equals(status) ? question.getContent() : null, status,
+                    question.getCreatedAt(),
+                    creator == null ? null : (creator.getNickname() != null ? creator.getNickname() : creator.getName()),
+                    creator == null ? null : creator.getPersonalityType(),
                     myAnswer, answers);
         }
     }
 
-    /** 문서용: 409 ROOM_QUESTION_ALREADY_EXISTS 응답 본문(ApiResponse 형식). data에 이미 있는 오늘 질문이 담긴다. */
+    /** 문서용: 409 ROOM_QUESTION_ALREADY_EXISTS 응답 본문(ApiResponse 형식). data에 이미 있는 이 칸의 질문이 담긴다. */
     @Schema(name = "RoomQuestionAlreadyExistsError")
     public record AlreadyExistsError(
             @Schema(example = "false") boolean success,
-            @Schema(description = "이미 있는 오늘 질문(생성 중 포함)") QuestionView data,
+            @Schema(description = "이미 있는 이 칸의 질문(생성 중 포함)") QuestionView data,
             String message,
             @Schema(allowableValues = {"ROOM_QUESTION_ALREADY_EXISTS"}) String code
     ) {
@@ -87,6 +101,8 @@ public class RoomQuestionDto {
     public record HistoryItem(
             Long questionId,
             LocalDate questionDate,
+            @Schema(description = "이 질문의 칸 시작 시각(KST 정각, +09:00)", example = "2026-11-02T09:00:00+09:00")
+            OffsetDateTime slotStartAt,
             String content,
             @Schema(allowableValues = {"generating", "ready", "failed"})
             String status,
@@ -94,6 +110,7 @@ public class RoomQuestionDto {
             long answerCount
     ) {
         public HistoryItem {
+            slotStartAt = toKst(slotStartAt);
             createdAt = toKst(createdAt);
         }
     }

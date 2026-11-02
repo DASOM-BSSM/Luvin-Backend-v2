@@ -27,6 +27,10 @@ import org.springframework.util.StreamUtils;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -738,6 +742,95 @@ class DiaryApiIntegrationTest {
         assertEquals(401, res.getStatusCode().value());
     }
 
+    // ------------------------------------------------------------------ 그룹 질문
+
+    @Test
+    void 그룹_질문은_KST_정각_칸마다_하나고_같은_칸에_있으면_409와_그_질문을_준다() {
+        long roomId = createRoomWithMember();
+        String slot = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).truncatedTo(ChronoUnit.HOURS)
+                .toOffsetDateTime().toString();
+        long questionId = insertQuestion(roomId, owner.id(), slot);
+
+        Res res = call(HttpMethod.POST, "/api/diary-rooms/" + roomId + "/questions", member, null);
+        assertEquals(409, res.status(), String.valueOf(res.body()));
+        assertEquals("ROOM_QUESTION_ALREADY_EXISTS", res.body().get("code").asText());
+        assertEquals(questionId, res.data().get("questionId").asLong());
+        assertEquals(OffsetDateTime.parse(slot), OffsetDateTime.parse(res.data().get("slotStartAt").asText()));
+        assertTrue(res.data().get("slotStartAt").asText().endsWith("+09:00"));
+        assertEquals("방장", res.data().get("creatorNickname").asText());
+        assertEquals("salt_bread", res.data().get("creatorBreadType").asText());
+    }
+
+    @Test
+    void 지금_질문은_가장_최근_칸이고_지난_질문도_상세로_답까지_볼_수_있다() {
+        long roomId = createRoomWithMember();
+        long otherRoomId = createRoom(owner, "다른방");
+        long nine = insertQuestion(roomId, member.id(), "2026-11-02T09:00:00+09:00");
+        long ten = insertQuestion(roomId, owner.id(), "2026-11-02T10:00:00+09:00");
+        long elsewhere = insertQuestion(otherRoomId, owner.id(), "2026-11-02T10:00:00+09:00");
+        assertEquals(200, call(HttpMethod.POST, "/api/diary-rooms/" + roomId + "/questions/" + nine + "/answers",
+                member, Map.of("content", "9시 답")).status());
+
+        Res current = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/questions/current", member, null);
+        assertEquals(ten, current.data().get("questionId").asLong());
+        assertEquals("2026-11-02T10:00:00+09:00", current.data().get("slotStartAt").asText());
+
+        Res detail = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/questions/" + nine, owner, null);
+        assertEquals(200, detail.status(), String.valueOf(detail.body()));
+        assertEquals("2026-11-02T09:00:00+09:00", detail.data().get("slotStartAt").asText());
+        assertEquals("2026-11-02", detail.data().get("questionDate").asText());
+        assertEquals("멤버", detail.data().get("creatorNickname").asText());
+        assertTrue(detail.data().get("creatorBreadType").isNull());
+        assertTrue(detail.data().get("myAnswer").isNull());
+        assertEquals("9시 답", detail.data().get("answers").get(0).get("content").asText());
+
+        Res mine = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/questions/" + nine, member, null);
+        assertEquals("9시 답", mine.data().get("myAnswer").get("content").asText());
+
+        Res wrongRoom = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/questions/" + elsewhere, member, null);
+        assertEquals(404, wrongRoom.status());
+        assertEquals("ROOM_QUESTION_NOT_FOUND", wrongRoom.body().get("code").asText());
+        assertEquals("ROOM_FORBIDDEN", call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/questions/" + nine,
+                outsider, null).body().get("code").asText());
+        assertEquals("ROOM_NOT_FOUND", call(HttpMethod.GET, "/api/diary-rooms/999999/questions/" + nine,
+                member, null).body().get("code").asText());
+    }
+
+    @Test
+    void 질문을_만든_사람이_탈퇴했으면_creator는_null() {
+        long roomId = createRoomWithMember();
+        long questionId = insertQuestion(roomId, 999_999_999L, "2026-11-02T09:00:00+09:00");
+
+        Res res = call(HttpMethod.GET, "/api/diary-rooms/" + roomId + "/questions/" + questionId, member, null);
+        assertEquals(200, res.status(), String.valueOf(res.body()));
+        assertTrue(res.data().get("creatorNickname").isNull());
+        assertTrue(res.data().get("creatorBreadType").isNull());
+    }
+
+    @Test
+    void 지난_질문_목록은_KST_날짜_범위로_거를_수_있다() {
+        long roomId = createRoomWithMember();
+        insertQuestion(roomId, owner.id(), "2026-11-01T23:00:00+09:00");
+        long midnight = insertQuestion(roomId, owner.id(), "2026-11-02T00:00:00+09:00");
+        long nine = insertQuestion(roomId, owner.id(), "2026-11-02T09:00:00+09:00");
+        insertQuestion(roomId, owner.id(), "2026-11-03T00:00:00+09:00");
+        String base = "/api/diary-rooms/" + roomId + "/questions";
+
+        assertEquals(4, call(HttpMethod.GET, base, member, null).data().size());
+        Res day = call(HttpMethod.GET, base + "?from=2026-11-02&to=2026-11-02", member, null);
+        List<Long> dayIds = new ArrayList<>();
+        day.data().forEach(item -> dayIds.add(item.get("questionId").asLong()));
+        assertEquals(List.of(nine, midnight), dayIds);
+        assertEquals("2026-11-02T09:00:00+09:00", day.data().get(0).get("slotStartAt").asText());
+        assertEquals(2, call(HttpMethod.GET, base + "?from=2026-11-02", member, null).data().size());
+        assertEquals(3, call(HttpMethod.GET, base + "?to=2026-11-02", member, null).data().size());
+
+        Res reversed = call(HttpMethod.GET, base + "?from=2026-11-03&to=2026-11-02", member, null);
+        assertEquals(400, reversed.status());
+        assertEquals("ROOM_QUESTION_RANGE_INVALID", reversed.body().get("code").asText());
+        assertEquals(400, call(HttpMethod.GET, base + "?from=11-02", member, null).status());
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private TestUser createUser(String nickname, String breadType) {
@@ -847,8 +940,8 @@ class DiaryApiIntegrationTest {
     /** 방에 오늘 그룹 질문(ready)과 who의 답, 그 답의 학습 신호를 직접 넣는다. AI 호출 없이 삭제 연쇄만 보려는 것. @return 답 id */
     private long insertRoomAnswer(long roomId, TestUser who) {
         Long questionId = jdbc.queryForObject(
-                "insert into room_question (room_id, question_date, content, status, requested_by, created_at, updated_at) "
-                        + "values (?, current_date, '질문', 'READY', ?, now(), now()) returning id",
+                "insert into room_question (room_id, question_date, slot_start_at, content, status, requested_by, created_at, updated_at) "
+                        + "values (?, current_date, date_trunc('hour', now()), '질문', 'READY', ?, now(), now()) returning id",
                 Long.class, roomId, who.id());
         Long answerId = jdbc.queryForObject(
                 "insert into room_question_answer (question_id, user_id, content, created_at, updated_at) "
@@ -857,6 +950,15 @@ class DiaryApiIntegrationTest {
         jdbc.update("insert into user_learning_signal (user_id, source_type, source_id, created_at) "
                 + "values (?, 'ROOM_ANSWER', ?, now())", who.id(), answerId);
         return answerId;
+    }
+
+    /** ready인 그룹 질문을 slotStartAt 칸에 직접 넣는다(AI 호출 없이). @return 질문 id */
+    private long insertQuestion(long roomId, long requestedBy, String slotStartAt) {
+        return jdbc.queryForObject(
+                "insert into room_question (room_id, question_date, slot_start_at, content, status, requested_by, "
+                        + "created_at, updated_at) values (?, (?::timestamptz at time zone 'Asia/Seoul')::date, "
+                        + "?::timestamptz, '질문', 'READY', ?, now(), now()) returning id",
+                Long.class, roomId, slotStartAt, slotStartAt, requestedBy);
     }
 
     private void cleanDiaryTables() {

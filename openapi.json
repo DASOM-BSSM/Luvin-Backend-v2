@@ -12,12 +12,12 @@
     ],
     "tags": [
         {
-            "name": "\uac10\uc815\uc77c\uae30",
-            "description": "\uc77c\uae30 \uc791\uc131\u00b7\uc870\ud68c\u00b7\uc218\uc815\u00b7\uc0ad\uc81c, \uc774\ubaa8\uc9c0 \ubc18\uc751, \ub0b4 \ubc29\ub4e4 \ud53c\ub4dc"
+            "name": "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38",
+            "description": "\uacf5\uc720\ubc29(\uadf8\ub8f9)\ub9c8\ub2e4 AI\uac00 \ub9cc\ub4dc\ub294 \uc2dc\uac04\ub300(KST \uc815\uac01 \uce78)\ubcc4 1\uac1c \uc9c8\ubb38\uacfc \uba64\ubc84\ub4e4\uc758 \ub2f5"
         },
         {
-            "name": "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38",
-            "description": "\uacf5\uc720\ubc29(\uadf8\ub8f9)\ub9c8\ub2e4 AI\uac00 \ub9cc\ub4dc\ub294 \ud558\ub8e8 1\uac1c \uc9c8\ubb38\uacfc \uba64\ubc84\ub4e4\uc758 \ub2f5"
+            "name": "\uac10\uc815\uc77c\uae30",
+            "description": "\uc77c\uae30 \uc791\uc131\u00b7\uc870\ud68c\u00b7\uc218\uc815\u00b7\uc0ad\uc81c, \uc774\ubaa8\uc9c0 \ubc18\uc751, \ub0b4 \ubc29\ub4e4 \ud53c\ub4dc"
         },
         {
             "name": "AI job \uc9c4\ud589 \uc774\ubca4\ud2b8",
@@ -1262,7 +1262,7 @@
                     "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38"
                 ],
                 "summary": "\uc9c0\ub09c \uadf8\ub8f9 \uc9c8\ubb38 \ubaa9\ub85d",
-                "description": "\ucd5c\uc2e0\uc21c. page\ub294 0\ubd80\ud130, size \uae30\ubcf8 20\u00b7\ucd5c\ub300 50. \ub2f5 \uc218(answerCount) \ud3ec\ud568 \u2014 \ub2f5 \ub0b4\uc6a9\uc740 GET current\ucc98\ub7fc \uc0c1\uc138\uac00 \ud544\uc694\ud558\uba74\n\ub530\ub85c \uc694\uccad\ud55c\ub2e4(\uc9c0\uae08\uc740 current\ub9cc \uc0c1\uc138\ub97c \uc900\ub2e4).\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
+                "description": "\ucd5c\uc2e0\uc21c(`slotStartAt`). page\ub294 0\ubd80\ud130, size \uae30\ubcf8 20\u00b7\ucd5c\ub300 50. \ub2f5 \uc218(answerCount) \ud3ec\ud568 \u2014 \ub2f5 \ub0b4\uc6a9\uc740\nGET `/{questionId}`\ub85c \ub530\ub85c \uc694\uccad\ud55c\ub2e4.\n`from`\u00b7`to`(KST \ub0a0\uc9dc `yyyy-MM-dd`, \ub458 \ub2e4 \ud3ec\ud568)\ub97c \uc8fc\uba74 \uadf8 \ub0a0\uc9dc\uc758 \uce78\ub9cc \uc900\ub2e4. \ud55c\ucabd\ub9cc \uc918\ub3c4 \ub41c\ub2e4(\ub2e4\ub978 \ucabd\uc740 \ub05d\uae4c\uc9c0).\n\uc608: `?from=2026-11-02&to=2026-11-02` \u2192 \uadf8\ub0a0 \uce78\ub4e4(\ucd5c\ub300 24\uac1c).\n\n**400 code**: `ROOM_QUESTION_RANGE_INVALID`(\ub0a0\uc9dc \ud615\uc2dd\uc774 \ud2c0\ub838\uac70\ub098 from\uc774 to\ubcf4\ub2e4 \ub4a4)\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
                 "operationId": "getRoomQuestionHistory",
                 "parameters": [
                     {
@@ -1272,6 +1272,26 @@
                         "schema": {
                             "type": "integer",
                             "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "description": "\uc774 \ub0a0\uc9dc(KST)\ubd80\ud130, \ud3ec\ud568",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "description": "\uc774 \ub0a0\uc9dc(KST)\uae4c\uc9c0, \ud3ec\ud568",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "date"
                         }
                     },
                     {
@@ -1302,6 +1322,22 @@
                             "*/*": {
                                 "schema": {
                                     "$ref": "#/components/schemas/ApiResponseListRoomQuestionHistoryItem"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "code: ROOM_QUESTION_RANGE_INVALID(\ub0a0\uc9dc \ud615\uc2dd\uc774 \ud2c0\ub838\uac70\ub098 from\uc774 to\ubcf4\ub2e4 \ub4a4)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "from\uc740 to\ubcf4\ub2e4 \ub2a6\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_QUESTION_RANGE_INVALID"
                                 }
                             }
                         }
@@ -1345,7 +1381,7 @@
                     "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38"
                 ],
                 "summary": "\uadf8\ub8f9 \uc9c8\ubb38 \uc0dd\uc131",
-                "description": "\uadf8\ub8f9 \uba64\ubc84\uba74 \ub204\uad6c\ub098 \ub204\ub97c \uc218 \uc788\ub2e4. \uadf8\ub8f9\ub2f9 \ud558\ub8e8(KST \uc790\uc815 \uae30\uc900) 1\uac1c.\n**\ube44\ub3d9\uae30**: \ubc14\ub85c 202\uc640 \ud568\uaed8 `status: generating`\uc778 \uc9c8\ubb38\uc744 \ub3cc\ub824\uc900\ub2e4. 1~3\ucd08 \uac04\uaca9\uc73c\ub85c GET current\ub97c \ub2e4\uc2dc \uc694\uccad\ud574\uc11c\n`ready`(content\u00b7answers \ucc44\uc6cc\uc9d0)\ub098 `failed`\ub97c \ud655\uc778\ud55c\ub2e4. `failed`\uba74 \uc774 API\ub97c \ub2e4\uc2dc \ub20c\ub7ec \uc7ac\uc2dc\ub3c4\ud560 \uc218 \uc788\ub2e4.\nAI\uc5d0\ub294 \uadf8\ub8f9 \uc774\ub984\u00b7\uba64\ubc84 \uc218\u00b7\ucd5c\uadfc \uc9c8\ubb38\ub9cc \ub118\uae30\uace0 \uc77c\uae30 \ubcf8\ubb38\uc740 \ub118\uae30\uc9c0 \uc54a\ub294\ub2e4.\n\n**409 code**\n- `ROOM_QUESTION_ALREADY_EXISTS`: \uc624\ub298 \uc9c8\ubb38\uc774 \uc774\ubbf8 \uc788\ub2e4(\uc0dd\uc131 \uc911 \ud3ec\ud568). data\uc5d0 \uadf8 \uc9c8\ubb38(QuestionView)\uc774 \ub2f4\uae34\ub2e4\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
+                "description": "\uadf8\ub8f9 \uba64\ubc84\uba74 \ub204\uad6c\ub098 \ub204\ub97c \uc218 \uc788\ub2e4. \uadf8\ub8f9\ub2f9 KST \uc815\uac01 \uce78(\uc608: 09:00~09:59)\ub9c8\ub2e4 1\uac1c.\n\uce78\uc740 \uc774 API\ub97c \ubd80\ub978 \uc2dc\uac01\uc744 KST \uc815\uac01\uc73c\ub85c \ub0b4\ub9b0 \uac83\uc774\uace0, \uc751\ub2f5 `slotStartAt`\uc5d0 \ub2f4\uae34\ub2e4(\uc608: 09:42\uc5d0 \ub204\ub974\uba74 `09:00:00+09:00`).\n**\ube44\ub3d9\uae30**: \ubc14\ub85c 202\uc640 \ud568\uaed8 `status: generating`\uc778 \uc9c8\ubb38\uc744 \ub3cc\ub824\uc900\ub2e4. 1~3\ucd08 \uac04\uaca9\uc73c\ub85c GET current\ub97c \ub2e4\uc2dc \uc694\uccad\ud574\uc11c\n`ready`(content\u00b7answers \ucc44\uc6cc\uc9d0)\ub098 `failed`\ub97c \ud655\uc778\ud55c\ub2e4. `failed`\uba74 \uc774 API\ub97c \ub2e4\uc2dc \ub20c\ub7ec \uc7ac\uc2dc\ub3c4\ud560 \uc218 \uc788\ub2e4.\nAI\uc5d0\ub294 \uadf8\ub8f9 \uc774\ub984\u00b7\uba64\ubc84 \uc218\u00b7\ucd5c\uadfc \uc9c8\ubb38\ub9cc \ub118\uae30\uace0 \uc77c\uae30 \ubcf8\ubb38\uc740 \ub118\uae30\uc9c0 \uc54a\ub294\ub2e4.\n\n**409 code**\n- `ROOM_QUESTION_ALREADY_EXISTS`: \uc774 \uce78\uc758 \uc9c8\ubb38\uc774 \uc774\ubbf8 \uc788\ub2e4(\uc0dd\uc131 \uc911 \ud3ec\ud568). data\uc5d0 \uadf8 \uc9c8\ubb38(QuestionView)\uc774 \ub2f4\uae34\ub2e4\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
                 "operationId": "create",
                 "parameters": [
                     {
@@ -1370,7 +1406,7 @@
                         }
                     },
                     "409": {
-                        "description": "code: ROOM_QUESTION_ALREADY_EXISTS. \uc624\ub298 \uc9c8\ubb38\uc774 \uc774\ubbf8 \uc788\ub2e4(\uc0dd\uc131 \uc911 \ud3ec\ud568). data\uc5d0 \uadf8 \uc9c8\ubb38",
+                        "description": "code: ROOM_QUESTION_ALREADY_EXISTS. \uc774 \uce78\uc758 \uc9c8\ubb38\uc774 \uc774\ubbf8 \uc788\ub2e4(\uc0dd\uc131 \uc911 \ud3ec\ud568). data\uc5d0 \uadf8 \uc9c8\ubb38",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -3204,13 +3240,101 @@
                 }
             }
         },
+        "/api/diary-rooms/{roomId}/questions/{questionId}": {
+            "get": {
+                "tags": [
+                    "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38"
+                ],
+                "summary": "\uadf8\ub8f9 \uc9c8\ubb38 \uc0c1\uc138",
+                "description": "\uc9c8\ubb38 \ud558\ub098(\uc9c0\ub09c \uc9c8\ubb38 \ud3ec\ud568). \uc751\ub2f5\uc740 GET current\uc640 \uac19\uc740 \ud615\ud0dc\ub2e4(content\u00b7myAnswer\u00b7answers\ub294 `status: ready`\uc77c \ub54c\ub9cc).\n\n**404 code**: `ROOM_QUESTION_NOT_FOUND`(\uc774 \uadf8\ub8f9\uc758 \uc9c8\ubb38\uc774 \uc544\ub2d8)\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
+                "operationId": "getRoomQuestion",
+                "parameters": [
+                    {
+                        "name": "roomId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    },
+                    {
+                        "name": "questionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "format": "int64"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseRoomQuestionView"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8. code: ROOM_FORBIDDEN",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "example": {
+                                    "success": false,
+                                    "data": null,
+                                    "message": "\uacf5\uc720\ubc29 \uba64\ubc84\ub9cc \uc774\uc6a9\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+                                    "code": "ROOM_FORBIDDEN"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "code: ROOM_NOT_FOUND(\uc5c6\ub294 \uadf8\ub8f9) \ub610\ub294 ROOM_QUESTION_NOT_FOUND(\uc774 \uadf8\ub8f9\uc758 \uc9c8\ubb38\uc774 \uc544\ub2d8)",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiErrorResponse"
+                                },
+                                "examples": {
+                                    "ROOM_NOT_FOUND": {
+                                        "description": "ROOM_NOT_FOUND",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uacf5\uc720\ubc29\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                            "code": "ROOM_NOT_FOUND"
+                                        }
+                                    },
+                                    "ROOM_QUESTION_NOT_FOUND": {
+                                        "description": "ROOM_QUESTION_NOT_FOUND",
+                                        "value": {
+                                            "success": false,
+                                            "data": null,
+                                            "message": "\uc9c8\ubb38\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.",
+                                            "code": "ROOM_QUESTION_NOT_FOUND"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/diary-rooms/{roomId}/questions/current": {
             "get": {
                 "tags": [
                     "\uac10\uc815\uc77c\uae30 \uadf8\ub8f9 \uc9c8\ubb38"
                 ],
                 "summary": "\uc9c0\uae08 \uadf8\ub8f9 \uc9c8\ubb38",
-                "description": "\uac00\uc7a5 \ucd5c\uadfc \ub0a0\uc9dc\uc758 \uc9c8\ubb38. \uc9c8\ubb38\uc774 \ud55c \ubc88\ub3c4 \uc5c6\uc73c\uba74 `data: null`.\ncontent\u00b7myAnswer\u00b7answers\ub294 `status: ready`\uc77c \ub54c\ub9cc \ucc44\uc6cc\uc9c4\ub2e4. answers\ub294 \ub0b4 \ub2f5\uc744 \ud3ec\ud568\ud55c \uba64\ubc84 \ub2f5(\uc791\uc131\uc21c)\uc774\ub2e4.\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
+                "description": "\uac00\uc7a5 \ucd5c\uadfc \uce78(`slotStartAt`)\uc758 \uc9c8\ubb38. \uc9c8\ubb38\uc774 \ud55c \ubc88\ub3c4 \uc5c6\uc73c\uba74 `data: null`.\ncontent\u00b7myAnswer\u00b7answers\ub294 `status: ready`\uc77c \ub54c\ub9cc \ucc44\uc6cc\uc9c4\ub2e4. answers\ub294 \ub0b4 \ub2f5\uc744 \ud3ec\ud568\ud55c \uba64\ubc84 \ub2f5(\uc791\uc131\uc21c)\uc774\ub2e4.\n`creatorNickname`\u00b7`creatorBreadType`\uc740 \uc9c8\ubb38\uc744 \ub9cc\ub4e0 \uc0ac\ub78c(\uc2e4\ud328 \ud6c4 \ub2e4\uc2dc \ub204\ub974\uba74 \ub2e4\uc2dc \ub204\ub978 \uc0ac\ub78c)\uc774\uace0 \ud0c8\ud1f4\ud588\uc73c\uba74 null.\n**\uacf5\ud1b5 \uc624\ub958**: 404 `ROOM_NOT_FOUND`(\uc5c6\ub294 \uadf8\ub8f9) / 403 `ROOM_FORBIDDEN`(\uadf8\ub8f9 \uba64\ubc84\uac00 \uc544\ub2d8)\n",
                 "operationId": "getCurrent",
                 "parameters": [
                     {
@@ -4621,7 +4745,7 @@
                     },
                     "data": {
                         "$ref": "#/components/schemas/RoomQuestionView",
-                        "description": "\uc774\ubbf8 \uc788\ub294 \uc624\ub298 \uc9c8\ubb38(\uc0dd\uc131 \uc911 \ud3ec\ud568)"
+                        "description": "\uc774\ubbf8 \uc788\ub294 \uc774 \uce78\uc758 \uc9c8\ubb38(\uc0dd\uc131 \uc911 \ud3ec\ud568)"
                     },
                     "message": {
                         "type": "string"
@@ -4675,7 +4799,13 @@
                     "questionDate": {
                         "type": "string",
                         "format": "date",
-                        "description": "\uc774 \uc9c8\ubb38\uc758 \ub0a0\uc9dc(KST). \uadf8\ub8f9\ub2f9 \ud558\ub8e8 1\uac1c"
+                        "description": "\uc774 \uc9c8\ubb38 \uce78\uc758 \ub0a0\uc9dc(KST). slotStartAt\uc758 \ub0a0\uc9dc\uc640 \uac19\ub2e4"
+                    },
+                    "slotStartAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "\uc774 \uc9c8\ubb38\uc758 \uce78 \uc2dc\uc791 \uc2dc\uac01(KST \uc815\uac01, +09:00). \uadf8\ub8f9\ub2f9 \uce78\ub9c8\ub2e4 1\uac1c. \uce78\uc740 slotStartAt ~ +1\uc2dc\uac04",
+                        "example": "2026-11-02T09:00:00+09:00"
                     },
                     "content": {
                         "type": "string"
@@ -4692,6 +4822,14 @@
                     "createdAt": {
                         "type": "string",
                         "format": "date-time"
+                    },
+                    "creatorNickname": {
+                        "type": "string",
+                        "description": "\uc9c8\ubb38\uc744 \ub9cc\ub4e0 \uc0ac\ub78c\uc758 \ub2c9\ub124\uc784(\uacc4\uc815 \ub2c9\ub124\uc784, \uc5c6\uc73c\uba74 \uc774\ub984). \ud0c8\ud1f4\ud588\uc73c\uba74 null"
+                    },
+                    "creatorBreadType": {
+                        "type": "string",
+                        "description": "\uc9c8\ubb38\uc744 \ub9cc\ub4e0 \uc0ac\ub78c\uc758 \ube75 \ud0c0\uc785 id(DiaryFeedItem.authorBreadType\uacfc \uac19\uc740 \uac12). \uc124\ubb38 \uc804\u00b7\ud0c8\ud1f4\uba74 null"
                     },
                     "myAnswer": {
                         "$ref": "#/components/schemas/RoomQuestionAnswerItem",
@@ -6521,6 +6659,12 @@
                     "questionDate": {
                         "type": "string",
                         "format": "date"
+                    },
+                    "slotStartAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "\uc774 \uc9c8\ubb38\uc758 \uce78 \uc2dc\uc791 \uc2dc\uac01(KST \uc815\uac01, +09:00)",
+                        "example": "2026-11-02T09:00:00+09:00"
                     },
                     "content": {
                         "type": "string"
