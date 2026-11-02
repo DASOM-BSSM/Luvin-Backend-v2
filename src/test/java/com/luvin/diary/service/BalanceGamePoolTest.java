@@ -32,7 +32,10 @@ class BalanceGamePoolTest {
         assertFalse(new BalanceGamePool.Entry("질문?", "", "짧다").isValid());
         assertFalse(new BalanceGamePool.Entry(" ", "길다", "짧다").isValid());
         assertFalse(new BalanceGamePool.Entry("Q. 질문?", "길다", "짧다").isValid());
-        assertFalse(new BalanceGamePool.Entry("가".repeat(26), "길다", "짧다").isValid());
+        assertTrue(new BalanceGamePool.Entry("가".repeat(19) + "?", "길다", "짧다").isValid()); // 20자
+        assertFalse(new BalanceGamePool.Entry("가".repeat(20) + "?", "길다", "짧다").isValid()); // 21자
+        assertTrue(new BalanceGamePool.Entry("사랑만으로 결혼할 수 있다?!", "가능하다", "불가능하다").isValid());
+        assertFalse(new BalanceGamePool.Entry("데이트 계획은", "미리 짠다", "즉흥으로").isValid()); // 물음표 없음
     }
 
     @Test

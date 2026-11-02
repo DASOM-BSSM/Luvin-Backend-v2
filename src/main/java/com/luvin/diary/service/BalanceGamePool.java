@@ -15,20 +15,27 @@ public final class BalanceGamePool {
 
     /** 보기 문구 최대 길이(앞뒤 공백 제외). */
     public static final int OPTION_MAX_LENGTH = 6;
-    /** 질문 문장 최대 길이. 20자 안팎으로 쓴다. */
-    public static final int QUESTION_MAX_LENGTH = 25;
+    /** 질문 문장 최대 길이(공백·문장부호 포함). AI 밸런스 질문 생성 규칙(emodi balance-question)과 같다. */
+    public static final int QUESTION_MAX_LENGTH = 20;
 
     public record Entry(String question, String optionA, String optionB) {
 
-        /** 보기 2개가 각각 1~6자이고 서로 다르며, 질문이 비어 있지 않고 25자 이내이고 "Q."로 시작하지 않는다. */
+        /**
+         * 보기 2개가 각각 1~6자이고 서로 다르며, 질문이 비어 있지 않고 20자 이내이며 "?" 또는 "?!"로 끝나고 "Q."로
+         * 시작하지 않는다.
+         */
         public boolean isValid() {
             return isValidQuestion(question) && isValidOption(optionA) && isValidOption(optionB)
                     && !optionA.strip().equals(optionB.strip());
         }
 
         private static boolean isValidQuestion(String question) {
-            return question != null && !question.isBlank() && question.strip().length() <= QUESTION_MAX_LENGTH
-                    && !question.strip().startsWith("Q.");
+            if (question == null || question.isBlank()) {
+                return false;
+            }
+            String text = question.strip();
+            return text.length() <= QUESTION_MAX_LENGTH && (text.endsWith("?") || text.endsWith("?!"))
+                    && !text.startsWith("Q.");
         }
 
         private static boolean isValidOption(String option) {
