@@ -24,7 +24,10 @@ public class AiStoryDevController {
 
     private final AiSeasonResetWriter resetWriter;
 
-    @Operation(summary = "AI 시즌 초기화(시즌 삭제)", description = """
+    @Operation(summary = "AI 시즌 초기화(시즌 삭제, 토큰 환불)", description = """
+            테스트용. 앱의 시즌 초기화 버튼은 정식 경로 `POST /api/ai/seasons/reset`(환불 없음)을 쓴다.
+            이 경로는 그와 같고, 쓴 토큰을 돌려주는 것만 다르다.
+
             내 AI 시즌을 **시즌 행까지 모두 지운다**. 진행 중이든 완료했든 같고, 시즌이 여러 개면 전부 지운다.
             계정·설문 결과와 빵 유형·감정일기·공유방은 남는다.
 
@@ -39,7 +42,7 @@ public class AiStoryDevController {
             """)
     @PostMapping("/current/story/reset")
     public ApiResponse<AiSeasonResetView> resetSeasons() {
-        AiSeasonResetWriter.Result result = resetWriter.deleteAllSeasons(SecurityUtils.getCurrentUserId());
+        AiSeasonResetWriter.Result result = resetWriter.deleteAllSeasons(SecurityUtils.getCurrentUserId(), true);
         return ApiResponse.ok(new AiSeasonResetView(result.deletedSeasons(), result.refundedTokens(),
                 result.tokenBalance()));
     }

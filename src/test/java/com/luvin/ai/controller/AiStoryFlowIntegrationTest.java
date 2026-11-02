@@ -840,6 +840,39 @@ class AiStoryFlowIntegrationTest {
         jdbcTemplate.update("DELETE FROM user_tokens WHERE member_id = ?", user.id());
     }
 
+    @Test
+    void 시즌_초기화는_시즌을_지우지만_쓴_토큰은_돌려주지_않는다() throws Exception {
+        TestUser user = createUser(26);
+        String surveyResultId = submitSurvey(user);
+        String fromSurvey = "{\"surveyResultId\":\"" + surveyResultId + "\"}";
+        JsonNode created = data(post(user, "/from-survey", fromSurvey));
+        Long seasonPk = seasonRepository.findByMemberIdAndSeasonId(user.id(),
+                UUID.fromString(created.get("seasonId").asText())).orElseThrow().getId();
+        seasonIds.add(seasonPk);
+        readyContent(user, 1);
+        jdbcTemplate.update("INSERT INTO ai_episode_unlocks (season_id, episode_order, tokens_spent, created_at) "
+                + "VALUES (?, 4, 3, now())", seasonPk);
+        jdbcTemplate.update("INSERT INTO user_tokens (member_id, token_balance, free_simulation_count) VALUES (?, 2, 0)",
+                user.id());
+
+        JsonNode reset = data(post(user, "/reset", null));
+        assertEquals(1, reset.get("deletedSeasons").asInt());
+        assertEquals(0, reset.get("refundedTokens").asInt());
+        assertEquals(2, reset.get("tokenBalance").asInt());
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM ai_seasons WHERE member_id = ?",
+                Integer.class, user.id()));
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM token_histories WHERE member_id = ?",
+                Integer.class, user.id()));
+        assertEquals(404, get(user, "/me").statusCode());
+
+        JsonNode recreated = data(post(user, "/from-survey", fromSurvey));
+        seasonIds.add(seasonRepository.findByMemberIdAndSeasonId(user.id(),
+                UUID.fromString(recreated.get("seasonId").asText())).orElseThrow().getId());
+        assertEquals(1, recreated.get("seasonNumber").asInt());
+
+        jdbcTemplate.update("DELETE FROM user_tokens WHERE member_id = ?", user.id());
+    }
+
     // ------------------------------------------------------------------ helpers
 
     /** 4화부터는 회차 열기를 먼저 한다(이 클래스는 토큰 차감을 꺼 둔다). */

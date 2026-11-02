@@ -17,7 +17,9 @@ import com.luvin.ai.dto.EpisodeMessageLikeHttpRequest;
 import com.luvin.ai.dto.MarkSeenHttpRequest;
 import com.luvin.ai.dto.PartnerLetterView;
 import com.luvin.ai.dto.StartNextSeasonRequest;
+import com.luvin.ai.dto.story.AiSeasonResetView;
 import com.luvin.ai.service.AiSeasonOrchestrationService;
+import com.luvin.ai.service.story.AiSeasonResetWriter;
 import com.luvin.common.response.ApiResponse;
 import com.luvin.common.security.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,6 +54,7 @@ import java.util.UUID;
 public class AiSeasonController {
 
     private final AiSeasonOrchestrationService orchestrationService;
+    private final AiSeasonResetWriter resetWriter;
 
     @PostMapping
     public ApiResponse<AiSeasonStatusView> createSeason(@Valid @RequestBody CreateSeasonHttpRequest request) {
@@ -99,6 +102,27 @@ public class AiSeasonController {
         Long memberId = SecurityUtils.getCurrentUserId();
         StartNextSeasonRequest safeRequest = request != null ? request : new StartNextSeasonRequest(null, null);
         return ApiResponse.ok(orchestrationService.startNextSeason(memberId, safeRequest));
+    }
+
+    @Operation(summary = "시즌 초기화", description = """
+            내 AI 시즌을 **시즌 행까지 모두 지우고** 처음부터 다시 시작하게 한다. 진행 중이든 완료했든 같고, 시즌이 여러 개면
+            지난 시즌까지 전부 지운다. 계정·설문 결과와 빵 유형·감정일기·공유방·토큰은 남는다.
+
+            - 지우는 것: 회차 본문·선택 결과 장면·선택 기록·열린 회차·회차 완료 상태, 1:1 장면 좋아요·피드백,
+              회차 정리 기록·관계 기록·회차 쪽지·시즌 편지·최종 리포트, 출연진, 새 시즌 설정, 시즌 생성 입력
+            - 4~10화를 열며 쓴 토큰은 **돌려주지 않는다**(`refundedTokens`는 항상 0, `tokenBalance`는 현재 잔액).
+              새 시즌에서도 4화부터 다시 토큰을 쓴다.
+            - 초기화 전에 돌던 회차 생성·완료·선택 결과 생성은 시즌이 없어져 결과를 버린다.
+            - 시즌이 없으면 아무것도 하지 않고 200(`deletedSeasons` 0).
+
+            초기화 뒤: `GET /api/ai/seasons/me`는 404 `SEASON_NOT_FOUND` → `POST /api/ai/seasons/from-survey`
+            (`surveyResultId`는 최신 설문 결과)로 새 시즌 → `GET /api/ai/seasons/episodes/1/content`로 1화부터 시작.
+            """)
+    @PostMapping("/reset")
+    public ApiResponse<AiSeasonResetView> resetMySeasons() {
+        AiSeasonResetWriter.Result result = resetWriter.deleteAllSeasons(SecurityUtils.getCurrentUserId(), false);
+        return ApiResponse.ok(new AiSeasonResetView(result.deletedSeasons(), result.refundedTokens(),
+                result.tokenBalance()));
     }
 
     /** 이 사용자의 모든 시즌(지난 시즌 포함)을 최신 시즌부터(seasonNumber 내림차순) 반환한다. */
