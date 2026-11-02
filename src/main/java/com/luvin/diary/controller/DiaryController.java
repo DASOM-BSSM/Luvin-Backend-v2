@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Tag(name = "감정일기", description = "일기 작성·조회·수정·삭제, 이모지 반응, 내 방들 피드")
@@ -81,6 +82,26 @@ public class DiaryController {
                                                                  @Valid @RequestBody DiaryDto.ReactionRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
         return ApiResponse.ok(diaryService.toggleReaction(memberId, diaryId, request.emoji()));
+    }
+
+    @Operation(summary = "최근 반응 알림", description = """
+            내가 방장이거나 멤버인 공유방들의 일기에 남긴 반응, 최신순(감정일기 홈 "쫀쫀한 조합들" 맨 위 카드:
+            "{reactorBreadName}님이 {diaryAuthorBreadName}님의 일기에 '{emoji}' 반응을 했습니다.").
+
+            - 내가 남긴 반응은 빼고, 내 일기에 다른 사람이 남긴 반응은 포함한다.
+            - limit: 1~20(기본 1). after(ISO-8601 시각, 선택): 이 시각보다 뒤의 반응만 — 앱이 마지막으로 본 반응의
+              reactedAt을 저장해 두고 넘기면 이미 본 알림을 다시 받지 않는다(서버에 읽음 상태는 없다).
+            - reactedAt은 반응을 남기거나 다른 이모지로 바꾼 시각이다. 반응을 취소하면 목록에서 빠진다.
+            - 빵 이름은 설문 전·탈퇴면 null이다. 없으면 빈 배열.
+            """)
+    @GetMapping("/reactions/recent")
+    public ApiResponse<List<DiaryDto.RecentReaction>> getRecentReactions(
+            @RequestParam(defaultValue = "1") int limit,
+            @RequestParam(required = false)
+            @org.springframework.format.annotation.DateTimeFormat(
+                    iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) OffsetDateTime after) {
+        Long memberId = SecurityUtils.getCurrentUserId();
+        return ApiResponse.ok(diaryService.getRecentReactions(memberId, limit, after));
     }
 
     @Operation(summary = "내 방들 피드", description = "내가 방장이거나 멤버인 모든 공유방의 일기를 최신순으로 최대 50개.")

@@ -2,12 +2,14 @@ package com.luvin.diary.dto;
 
 import com.luvin.diary.domain.RoomQuestion;
 import com.luvin.user.domain.User;
+import com.luvin.user.service.BreadNames;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.UUID;
 
 public class RoomQuestionDto {
 
@@ -26,7 +28,10 @@ public class RoomQuestionDto {
     ) {
     }
 
-    /** 답 하나. authorNickname은 피드와 같이 닉네임이 없으면 이름. JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춘다. */
+    /**
+     * 답 하나. 작성자 정보 규칙은 DiaryFeedItem과 같다: authorNickname은 닉네임이 없으면 이름, authorBreadType은 빵 타입 id,
+     * authorBreadName은 빵 이름(설문 전·탈퇴면 null). JPQL select new로 만들어지므로 필드 순서를 쿼리와 맞춘다.
+     */
     @Schema(name = "RoomQuestionAnswerItem")
     public record AnswerItem(
             Long answerId,
@@ -34,11 +39,23 @@ public class RoomQuestionDto {
             String authorNickname,
             String content,
             OffsetDateTime createdAt,
-            OffsetDateTime updatedAt
+            OffsetDateTime updatedAt,
+            @Schema(description = "작성자 빵 타입 id(DiaryFeedItem.authorBreadType과 같은 값). 설문 전·탈퇴면 null")
+            String authorBreadType,
+            @Schema(description = "작성자 빵 이름(예: \"쫀쫀한 카스테라\"). 설문 전·탈퇴면 null")
+            String authorBreadName
     ) {
         public AnswerItem {
             createdAt = toKst(createdAt);
             updatedAt = toKst(updatedAt);
+        }
+
+        /** JPQL select new용: 작성자의 최신 설문 결과 id로 빵 이름을 만든다. */
+        public AnswerItem(Long answerId, Long authorId, String authorNickname, String content,
+                          OffsetDateTime createdAt, OffsetDateTime updatedAt, String authorBreadType,
+                          UUID authorSurveyResultId) {
+            this(answerId, authorId, authorNickname, content, createdAt, updatedAt, authorBreadType,
+                    BreadNames.of(authorSurveyResultId, authorBreadType));
         }
     }
 
@@ -65,6 +82,10 @@ public class RoomQuestionDto {
             String creatorNickname,
             @Schema(description = "질문을 만든 사람의 빵 타입 id(DiaryFeedItem.authorBreadType과 같은 값). 설문 전·탈퇴면 null")
             String creatorBreadType,
+            @Schema(description = "질문을 만든 사람의 id. 내가 만든 질문인지 알 때 쓴다")
+            Long creatorId,
+            @Schema(description = "질문을 만든 사람의 빵 이름(예: \"쫀쫀한 카스테라\"). 설문 전·탈퇴면 null")
+            String creatorBreadName,
             @Schema(description = "내 답. 없으면 null")
             AnswerItem myAnswer,
             @Schema(description = "그룹 멤버들의 답(내 답 포함), 작성순")
@@ -82,6 +103,7 @@ public class RoomQuestionDto {
                     question.getCreatedAt(),
                     creator == null ? null : (creator.getNickname() != null ? creator.getNickname() : creator.getName()),
                     creator == null ? null : creator.getPersonalityType(),
+                    question.getRequestedBy(), BreadNames.of(creator),
                     myAnswer, answers);
         }
     }

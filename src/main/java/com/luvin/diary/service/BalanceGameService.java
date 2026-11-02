@@ -97,12 +97,13 @@ public class BalanceGameService {
         transactionTemplate.executeWithoutResult(status -> {
             List<String> recent = questionRepository.findRecentContents(date, RECENT_QUESTION_LIMIT);
             BalanceGamePool.Entry entry = BalanceGamePool.pick(date, recent);
-            if (questionRepository.insertForDate(entry.question(), date) == 0) {
+            if (entry == null || questionRepository.insertForDate(entry.question().strip(), date) == 0) {
                 return;
             }
             BalanceGameQuestion question = questionRepository.findByQuestionDate(date).orElseThrow();
-            optionRepository.save(new BalanceGameOption(question, entry.optionA()));
-            optionRepository.save(new BalanceGameOption(question, entry.optionB()));
+            // 찬성 보기 → 반대 보기 순서로 저장한다(응답의 options·results도 보기 id 순서다).
+            optionRepository.save(new BalanceGameOption(question, entry.optionA().strip()));
+            optionRepository.save(new BalanceGameOption(question, entry.optionB().strip()));
         });
     }
 

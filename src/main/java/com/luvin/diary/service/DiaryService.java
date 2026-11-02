@@ -36,6 +36,7 @@ public class DiaryService {
     private final LearningSignalService learningSignalService;
 
     private static final int MY_ROOMS_FEED_LIMIT = 50;
+    static final int RECENT_REACTIONS_MAX = 20;
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 50;
 
@@ -169,6 +170,14 @@ public class DiaryService {
     @Transactional(readOnly = true)
     public List<DiaryDto.FeedItem> getMyRoomsFeed(Long memberId) {
         return diaryRepository.findMyRoomsFeed(memberId, PageRequest.of(0, MY_ROOMS_FEED_LIMIT));
+    }
+
+    /** 내가 속한 방들의 최근 반응(내가 남긴 반응 제외), 최신순 limit개(1~20). after가 있으면 그 뒤의 반응만. */
+    @Transactional(readOnly = true)
+    public List<DiaryDto.RecentReaction> getRecentReactions(Long memberId, int limit, OffsetDateTime after) {
+        PageRequest page = PageRequest.of(0, Math.max(1, Math.min(limit, RECENT_REACTIONS_MAX)));
+        return after == null ? diaryRepository.findRecentReactions(memberId, page)
+                : diaryRepository.findRecentReactionsAfter(memberId, after, page);
     }
 
     private Diary getDiaryEntity(Long diaryId) {
