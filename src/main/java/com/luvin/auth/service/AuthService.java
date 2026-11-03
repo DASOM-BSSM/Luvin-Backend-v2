@@ -52,18 +52,19 @@ public class AuthService {
         boolean isNewUser = false;
 
         if (user == null) {
-            if (appleUser.email() == null || appleUser.email().isBlank()) {
-                // 애플은 email scope를 요청한 앱에는 매 로그인마다 identityToken에 email을 넣어준다.
-                // 비어 있다면 클라이언트가 email scope를 요청하지 않았을 가능성이 높다.
-                throw new InvalidAppleTokenException(
-                        "애플 토큰에 이메일이 없습니다. 클라이언트에서 email scope를 요청했는지 확인해주세요.");
-            }
+            // 사용자는 sub(appleId)로 식별한다. 이메일은 없을 수 있다(이메일 가리기를 고르면 @privaterelay.appleid.com
+            // 주소). 없으면 이메일 없이 가입한다.
+            String email = appleUser.email() == null || appleUser.email().isBlank() ? null : appleUser.email();
 
             // 같은 이메일로 이미 구글로 가입한 계정이 있으면 새 계정을 만들지 않고 연동한다
             // (users.email이 UNIQUE라 새로 만들면 제약 위반으로 500이 난다).
-            user = appleUser.emailVerified()
-                    ? userRepository.findByEmail(appleUser.email()).orElse(null)
+            user = email != null
+                    ? userRepository.findByEmail(email).orElse(null)
                     : null;
+            if (user != null && !appleUser.emailVerified()) {
+                // 인증되지 않은 이메일로는 남의 계정에 붙지 않는다. 같은 이메일로 새로 만들 수도 없어(UNIQUE) 막는다.
+                throw new InvalidAppleTokenException("이미 다른 방법으로 가입한 이메일입니다. 그 방법으로 로그인해주세요.");
+            }
 
             if (user != null) {
                 user.linkAppleId(appleUser.appleId());
@@ -75,7 +76,7 @@ public class AuthService {
                 user = userRepository.save(User.builder()
                         .appleId(appleUser.appleId())
                         .name(displayName)
-                        .email(appleUser.email())
+                        .email(email)
                         .nickname(displayName)
                         .mbti("INFP")
                         .datingStyle("신중형")
@@ -115,9 +116,20 @@ public class AuthService {
 
     private AuthLoginResponse loginWithGoogleUser(GoogleUserInfo googleUser) {
         User user = userRepository.findByGoogleId(googleUser.googleId()).orElse(null);
-        boolean isNewUser = user == null;
+        boolean isNewUser = false;
 
-        if (isNewUser) {
+        if (user == null && googleUser.email() != null) {
+            // 같은 이메일로 애플로 먼저 가입한 계정이 있으면 새 계정을 만들지 않고 연동한다(애플 로그인과 같은 정책,
+            // users.email이 UNIQUE라 새로 만들면 제약 위반으로 500이 난다). 구글 이메일은 GoogleTokenVerifier가 인증된
+            // 것만 통과시킨다.
+            user = userRepository.findByEmail(googleUser.email()).orElse(null);
+            if (user != null) {
+                user.linkGoogleId(googleUser.googleId());
+            }
+        }
+
+        if (user == null) {
+            isNewUser = true;
             user = userRepository.save(User.builder()
                     .googleId(googleUser.googleId())
                     .name(googleUser.name())

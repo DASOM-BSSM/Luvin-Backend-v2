@@ -1,5 +1,6 @@
 package com.luvin.user.service;
 
+import com.luvin.ai.service.story.AiSeasonResetWriter;
 import com.luvin.analysis.repository.AnalysisResultRepository;
 import com.luvin.auth.repository.AppleRefreshTokenRepository;
 import com.luvin.auth.service.AppleOAuthClient;
@@ -36,6 +37,8 @@ public class UserServiceImpl implements UserService {
     private final AppleOAuthClient appleOAuthClient;
     private final DiaryRoomService diaryRoomService;
     private final LearningSignalService learningSignalService;
+    private final AiSeasonResetWriter seasonResetWriter;
+    private final UserDataEraser userDataEraser;
     private final TransactionTemplate transactionTemplate;
 
     public UserServiceImpl(UserRepository userRepository,
@@ -45,6 +48,8 @@ public class UserServiceImpl implements UserService {
                             AppleOAuthClient appleOAuthClient,
                             DiaryRoomService diaryRoomService,
                             LearningSignalService learningSignalService,
+                            AiSeasonResetWriter seasonResetWriter,
+                            UserDataEraser userDataEraser,
                             PlatformTransactionManager transactionManager) {
         this.userRepository = userRepository;
         this.aiCloneRepository = aiCloneRepository;
@@ -53,6 +58,8 @@ public class UserServiceImpl implements UserService {
         this.appleOAuthClient = appleOAuthClient;
         this.diaryRoomService = diaryRoomService;
         this.learningSignalService = learningSignalService;
+        this.seasonResetWriter = seasonResetWriter;
+        this.userDataEraser = userDataEraser;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -119,19 +126,23 @@ public class UserServiceImpl implements UserService {
         });
 
         transactionTemplate.executeWithoutResult(status -> {
-            User user = userRepository.findById(memberId)
-                    .orElseThrow(() -> new UserNotFoundException(memberId));
+            if (!userRepository.existsById(memberId)) {
+                throw new UserNotFoundException(memberId);
+            }
+            // 러빈지옥 시즌을 먼저 지운다 — 시즌 생성 입력이 설문 결과를 참조하고, 초기화가 영속성 컨텍스트를 비운다.
+            seasonResetWriter.deleteAllSeasons(memberId, false);
             // AiClone.user_id는 NOT NULL FK, AnalysisResult.user_id는 nullable FK,
-            // AppleRefreshToken.user_id와 DiaryRoomMember.user_id도 FK라 User 삭제 전에 먼저 지워야 한다(그 외
-            // 도메인은 user_id가 FK 없는 plain 컬럼이라 User 삭제에 영향받지 않는 기존 프로젝트
-            // 전반의 의도된 decoupling 패턴을 따른다).
+            // AppleRefreshToken.user_id와 DiaryRoomMember.user_id도 FK라 User 삭제 전에 먼저 지워야 한다. 그 외
+            // 도메인은 user_id가 FK 없는 plain 컬럼이라 users를 지워도 남으므로 UserDataEraser가 직접 지운다
+            // (개인정보처리방침의 "탈퇴 시 모두 삭제").
             diaryRoomService.removeUserFromAllRooms(memberId);
+            userDataEraser.eraseAll(memberId);
             // 학습 신호·말투 요약·성격 보정은 FK가 없어 users를 지워도 남으므로 직접 지운다(내가 쓴 글에서 나온 개인 데이터).
             learningSignalService.removeAllForUser(memberId);
             aiCloneRepository.deleteByUserId(memberId);
             analysisResultRepository.deleteByUserId(memberId);
             appleRefreshTokenRepository.deleteByUserId(memberId);
-            userRepository.delete(user);
+            userRepository.deleteById(memberId);
         });
     }
 }

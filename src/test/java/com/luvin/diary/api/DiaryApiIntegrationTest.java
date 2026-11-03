@@ -603,6 +603,35 @@ class DiaryApiIntegrationTest {
     }
 
     @Test
+    void 탈퇴하면_남의_방에_쓴_일기와_내_댓글_반응_질문_답이_지워지고_다른_사람_글은_남는다() {
+        long roomId = createRoomWithMember();
+        long memberDiaryId = createDiary(member, roomId).data().get("diaryId").asLong();
+        long ownerDiaryId = createDiary(owner, roomId).data().get("diaryId").asLong();
+        call(HttpMethod.POST, "/api/diaries/" + ownerDiaryId + "/comments", member, Map.of("content", "멤버 댓글"));
+        call(HttpMethod.POST, "/api/diaries/" + memberDiaryId + "/comments", owner, Map.of("content", "방장 댓글"));
+        call(HttpMethod.POST, "/api/diaries/" + ownerDiaryId + "/comments", owner, Map.of("content", "방장 댓글 2"));
+        jdbc.update("insert into diary_reaction (diary_id, user_id, emoji, created_at) values (?, ?, '😍', now())",
+                ownerDiaryId, member.id());
+        jdbc.update("insert into diary_reaction (diary_id, user_id, emoji, created_at) values (?, ?, '😍', now())",
+                memberDiaryId, owner.id());
+        long questionId = insertQuestion(roomId, owner.id(), "2026-11-02T09:00:00+09:00");
+        jdbc.update("insert into room_question_answer (question_id, user_id, content, created_at, updated_at) "
+                + "values (?, ?, '멤버 답', now(), now())", questionId, member.id());
+        jdbc.update("insert into room_question_answer (question_id, user_id, content, created_at, updated_at) "
+                + "values (?, ?, '방장 답', now(), now())", questionId, owner.id());
+
+        assertEquals(200, call(HttpMethod.DELETE, "/api/users/me", member, null).status());
+
+        assertEquals(List.of(ownerDiaryId), jdbc.queryForList("select id from diary", Long.class));
+        assertEquals(List.of("방장 댓글 2"), jdbc.queryForList("select content from diary_comment", String.class));
+        assertEquals(0, count("diary_reaction"));
+        assertEquals(List.of("방장 답"), jdbc.queryForList("select content from room_question_answer", String.class));
+        assertEquals(1, count("room_question"));
+        assertEquals(0, signalCount("DIARY", memberDiaryId));
+        assertEquals(1, signalCount("DIARY", ownerDiaryId));
+    }
+
+    @Test
     void 방장이_직접_추가할_때_방_닉네임을_정할_수_있고_겹치면_409() {
         long roomId = createRoom(owner, "방");
         String members = "/api/diary-rooms/" + roomId + "/members";
@@ -888,7 +917,8 @@ class DiaryApiIntegrationTest {
         insertQuestion(roomId, owner.id(), "2026-11-01T23:00:00+09:00");
         long midnight = insertQuestion(roomId, owner.id(), "2026-11-02T00:00:00+09:00");
         long nine = insertQuestion(roomId, owner.id(), "2026-11-02T09:00:00+09:00");
-        insertQuestion(roomId, owner.id(), "2026-11-03T00:00:00+09:00");
+        // to를 생략하면 오늘(KST)까지라, 먼 미래 칸은 from만 준 조회에 나오지 않는다.
+        insertQuestion(roomId, owner.id(), "2099-12-31T00:00:00+09:00");
         String base = "/api/diary-rooms/" + roomId + "/questions";
 
         assertEquals(4, call(HttpMethod.GET, base, member, null).data().size());

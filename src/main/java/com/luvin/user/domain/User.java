@@ -31,7 +31,8 @@ public class User {
     @Column(nullable = false, length = 50)
     private String name;
 
-    @Column(unique = true, nullable = false, length = 100)
+    /** Apple 로그인은 이메일이 없을 수 있어 비어 있을 수 있다(V22). */
+    @Column(unique = true, length = 100)
     private String email;
 
     @Column(length = 50)
@@ -129,6 +130,13 @@ public class User {
     public void linkAppleId(String appleId) {
         if (this.appleId == null) {
             this.appleId = appleId;
+        }
+    }
+
+    /** 애플로 먼저 가입한 계정에 같은 이메일의 구글 로그인을 연동한다. 이미 다른 구글 계정이 있으면 덮어쓰지 않는다. */
+    public void linkGoogleId(String googleId) {
+        if (this.googleId == null) {
+            this.googleId = googleId;
         }
     }
 
