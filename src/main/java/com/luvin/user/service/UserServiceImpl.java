@@ -84,7 +84,12 @@ public class UserServiceImpl implements UserService {
         user.updateProfile(request.getNickname(), normalizeGender(request.getGender()), request.getAge(),
                 request.getJob(), request.getBio());
         if (request.getLearningEnabled() != null) {
+            boolean turnedOff = user.isLearningEnabled() && !request.getLearningEnabled();
             user.changeLearningEnabled(request.getLearningEnabled());
+            if (turnedOff) {
+                // 학습 동의를 끄면 지금까지 모은 학습 신호와 학습 결과(말투 요약·성격 보정)도 지운다. 다시 켜면 새 글부터 모은다.
+                learningSignalService.removeAllForUser(memberId);
+            }
         }
         // JPA 변경 감지(dirty checking)로 트랜잭션 종료 시 자동 반영 -> save() 호출 불필요
     }

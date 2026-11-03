@@ -632,6 +632,35 @@ class DiaryApiIntegrationTest {
     }
 
     @Test
+    void 학습_동의를_끄면_내_학습_데이터가_지워지고_새_글은_모으지_않는다() {
+        long roomId = createRoomWithMember();
+        long diaryId = createDiary(member, roomId).data().get("diaryId").asLong();
+        long ownerDiaryId = createDiary(owner, roomId).data().get("diaryId").asLong();
+        jdbc.update("insert into user_speech_style (user_id, style_json, update_count, updated_at) "
+                + "values (?, '{}'::jsonb, 1, now())", member.id());
+        jdbc.update("insert into user_personality_adjustment (user_id, deltas_json, update_count, updated_at) "
+                + "values (?, '{}'::jsonb, 1, now())", member.id());
+        assertEquals(1, signalCount("DIARY", diaryId));
+
+        assertEquals(200, call(HttpMethod.PUT, "/api/users/me", member, Map.of("learningEnabled", false)).status());
+
+        assertEquals(0, signalCount("DIARY", diaryId));
+        assertEquals(0, jdbc.queryForObject(
+                "select count(*) from user_speech_style where user_id = ?", Integer.class, member.id()));
+        assertEquals(0, jdbc.queryForObject(
+                "select count(*) from user_personality_adjustment where user_id = ?", Integer.class, member.id()));
+        assertEquals(1, signalCount("DIARY", ownerDiaryId));
+        long newDiaryId = createDiary(member, roomId).data().get("diaryId").asLong();
+        assertEquals(0, signalCount("DIARY", newDiaryId));
+
+        // 다른 프로필 값만 바꾸거나 다시 켜도 지우지 않는다(이미 꺼져 있으면 지울 것도 없다).
+        assertEquals(200, call(HttpMethod.PUT, "/api/users/me", member, Map.of("learningEnabled", true)).status());
+        long againId = createDiary(member, roomId).data().get("diaryId").asLong();
+        assertEquals(200, call(HttpMethod.PUT, "/api/users/me", member, Map.of("nickname", "새닉")).status());
+        assertEquals(1, signalCount("DIARY", againId));
+    }
+
+    @Test
     void 방장이_직접_추가할_때_방_닉네임을_정할_수_있고_겹치면_409() {
         long roomId = createRoom(owner, "방");
         String members = "/api/diary-rooms/" + roomId + "/members";

@@ -13,8 +13,10 @@ public class UserProfileUpdateRequest {
     private Integer age;
     private String job;
     private String bio;
-    /** 감정일기 학습 동의. 보내지 않으면(null) 기존 값을 유지한다. */
-    @Schema(description = "감정일기 학습 동의. 보내지 않으면 기존 값 유지")
+    /** 감정일기 학습 동의. 보내지 않으면(null) 기존 값을 유지한다. 끄면 모아 둔 학습 데이터를 지운다. */
+    @Schema(description = "감정일기 학습 동의(기본 true). 보내지 않으면 기존 값 유지. "
+            + "false로 끄면 감정일기 본문을 러빈지옥 생성(AI)에 보내지 않고, 지금까지 모은 학습 신호·말투 요약·성격 보정을 지운다. "
+            + "다시 켜면 새로 쓴 글부터 다시 모은다.")
     private Boolean learningEnabled;
 
     public UserProfileUpdateRequest() {
