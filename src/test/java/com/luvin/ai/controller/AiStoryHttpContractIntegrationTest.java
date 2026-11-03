@@ -135,6 +135,22 @@ class AiStoryHttpContractIntegrationTest {
     }
 
     @Test
+    void 학습_동의를_끄면_감정일기_본문을_보내지_않는다() throws Exception {
+        setUpUserAndSeason();
+        Long roomId = jdbcTemplate.queryForObject("INSERT INTO diary_room (owner_id, name, invite_code, max_member_count, "
+                + "created_at, updated_at) VALUES (?, '방', ?, 6, now(), now()) RETURNING id", Long.class, userId,
+                String.valueOf(userId % 100000000));
+        jdbcTemplate.update("INSERT INTO diary (user_id, room_id, title, content, created_at, updated_at) "
+                + "VALUES (?, ?, '제목', '비공개 일기', now(), now())", userId, roomId);
+        assertEquals(200, send("PUT", "/api/users/me", "{\"learningEnabled\":false}").statusCode());
+
+        readyContent(1);
+        JsonNode learned = last("/luvin/episode").get("context").get("learnedProfile");
+        assertEquals(List.of(), texts(learned.get("styleSamples")));
+        assertTrue(learned.get("summary").asText().contains("소금빵"));
+    }
+
+    @Test
     void 계약_경로와_camelCase_형식으로_보내고_피드백이_다음_회차_입력에_들어간다() throws Exception {
         setUpUserAndSeason();
         // 감정일기 16개 → 최근 15개가 원문 그대로 learnedProfile.styleSamples로 간다(최근 순).

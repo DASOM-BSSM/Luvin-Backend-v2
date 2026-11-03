@@ -6,6 +6,7 @@ import com.luvin.ai.client.story.StoryTypes;
 import com.luvin.ai.repository.AiSeasonCreationInputRepository;
 import com.luvin.diary.domain.Diary;
 import com.luvin.diary.repository.DiaryRepository;
+import com.luvin.user.domain.User;
 import com.luvin.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -20,7 +21,8 @@ import java.util.Map;
 /**
  * 내 빵 학습 데이터(계약 GenerationContext.learnedProfile). Spring은 LLM을 부르지 않으므로 요약(summary)은
  * 설문 빵 타입과 두드러진 성향 점수로 코드가 만든다. 오늘의 질문 기능이 없어져 answers는 빈 목록으로 보낸다.
- * 감정일기 본문은 원문 그대로 최근 순으로 styleSamples에 담는다(내 빵 말투 참고, 계약 7장).
+ * 감정일기 본문은 원문 그대로 최근 순으로 styleSamples에 담는다(내 빵 말투 참고, 계약 7장). 학습 동의(learningEnabled)를
+ * 끈 사용자는 감정일기를 보내지 않는다(styleSamples 빈 목록).
  * 1:1 장면 피드백·좋아요는 {@link AiStoryStateWriter}가 시즌별로 따로 읽어 채운다.
  */
 @Component
@@ -42,11 +44,12 @@ public class AiLearningDataProvider {
     /** feedbacks/likedMessages는 빈 목록으로 돌려준다 — 호출부가 시즌 기록으로 채운다. */
     @Transactional(readOnly = true)
     public StoryTypes.LearnedProfile load(Long memberId, int seasonNumber) {
-        String personalityType = userRepository.findById(memberId).map(u -> u.getPersonalityType()).orElse(null);
+        User user = userRepository.findById(memberId).orElse(null);
+        String personalityType = user != null ? user.getPersonalityType() : null;
         Map<String, Integer> traits = creationInputRepository.findByMemberIdAndSeasonNumber(memberId, seasonNumber)
                 .map(input -> traitsOf(input.getProfileJson()))
                 .orElse(Map.of());
-        List<String> styleSamples = diaryRepository
+        List<String> styleSamples = user == null || !user.isLearningEnabled() ? List.of() : diaryRepository
                 .findAllByUserIdOrderByCreatedAtDesc(memberId, PageRequest.of(0, STYLE_SAMPLE_LIMIT)).stream()
                 .map(Diary::getContent)
                 .filter(text -> text != null && !text.isBlank())

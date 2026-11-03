@@ -71,7 +71,8 @@ public class User {
 
     /**
      * 감정일기 학습 동의(기본 true). 끄면 새로 쓴 글을 학습 신호로 남기지 않고, 학습 배치와 러빈지옥 회차 생성 입력에서도
-     * 학습 결과(말투·성격 보정·최근 답·감정일기 말투 샘플)를 쓰지 않는다. 기존 행은 Flyway V12가 true로 채운다.
+     * 학습 결과(말투·성격 보정·최근 답·감정일기 말투 샘플)를 쓰지 않으며, 끄는 순간 모아 둔 학습 데이터를 지운다
+     * (UserServiceImpl.updateProfile). 기존 행은 Flyway V12가 true로 채운다.
      */
     @Column(name = "learning_enabled", nullable = false)
     private boolean learningEnabled = true;
