@@ -873,6 +873,60 @@ class AiStoryFlowIntegrationTest {
         jdbcTemplate.update("DELETE FROM user_tokens WHERE member_id = ?", user.id());
     }
 
+    @Test
+    void 탈퇴하면_시즌_설문_토큰_미니게임_밸런스게임_옛_시뮬레이션_기록이_모두_지워진다() throws Exception {
+        TestUser user = createUser(26);
+        TestUser other = createUser(26);
+        String surveyResultId = submitSurvey(user);
+        JsonNode created = data(post(user, "/from-survey", "{\"surveyResultId\":\"" + surveyResultId + "\"}"));
+        Long seasonPk = seasonRepository.findByMemberIdAndSeasonId(user.id(),
+                UUID.fromString(created.get("seasonId").asText())).orElseThrow().getId();
+        seasonIds.add(seasonPk);
+        readyContent(user, 1);
+        for (TestUser u : List.of(user, other)) {
+            jdbcTemplate.update("INSERT INTO user_tokens (member_id, token_balance, free_simulation_count) VALUES (?, 5, 0)",
+                    u.id());
+            jdbcTemplate.update("INSERT INTO token_histories (member_id, type, amount, reason, created_at) "
+                    + "VALUES (?, 'REWARD', 1, '미니게임', now())", u.id());
+            jdbcTemplate.update("INSERT INTO minigame_play_results (member_id, game_id, success, earned_token, played_at) "
+                    + "SELECT ?, min(game_id), true, 1, now() FROM minigames", u.id());
+            jdbcTemplate.update("INSERT INTO daily_question_answers (member_id, daily_question_id, option_id, answered_at) "
+                    + "VALUES (?, 1, 1, now())", u.id());
+            Long episodeId = jdbcTemplate.queryForObject("INSERT INTO episodes (member_id, episode_number, title, status, "
+                    + "created_at) VALUES (?, 1, '옛 회차', 'COMPLETED', now()) RETURNING episode_id", Long.class, u.id());
+            jdbcTemplate.update("INSERT INTO highlights (member_id, episode_id, title, summary, importance, created_at) "
+                    + "VALUES (?, ?, '하이라이트', '요약', 1, now())", u.id(), episodeId);
+            jdbcTemplate.update("INSERT INTO simulation_reports (member_id, summary, advice, created_at) "
+                    + "VALUES (?, '요약', '조언', now())", u.id());
+        }
+
+        assertEquals(200, send(user, "DELETE", "/api/users/me", null).statusCode());
+
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM users WHERE user_id = ?",
+                Integer.class, user.id()));
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM ai_seasons WHERE member_id = ?",
+                Integer.class, user.id()));
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM survey_results r JOIN survey_submissions s "
+                + "ON s.id = r.submission_id WHERE s.member_id = ?", Integer.class, user.id()));
+        for (String table : List.of("ai_season_creation_inputs", "survey_submissions", "user_tokens", "token_histories",
+                "minigame_play_results", "daily_question_answers", "ai_idempotency_keys", "episodes", "highlights",
+                "simulation_reports")) {
+            assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM " + table + " WHERE member_id = ?",
+                    Integer.class, user.id()), table);
+        }
+        // 다른 사람 기록은 남는다.
+        for (String table : List.of("user_tokens", "token_histories", "minigame_play_results", "daily_question_answers",
+                "episodes", "highlights", "simulation_reports")) {
+            assertEquals(1, jdbcTemplate.queryForObject("SELECT count(*) FROM " + table + " WHERE member_id = ?",
+                    Integer.class, other.id()), table);
+        }
+
+        for (String table : List.of("highlights", "episodes", "simulation_reports", "daily_question_answers",
+                "minigame_play_results", "token_histories", "user_tokens")) {
+            jdbcTemplate.update("DELETE FROM " + table + " WHERE member_id = ?", other.id());
+        }
+    }
+
     // ------------------------------------------------------------------ helpers
 
     /** 4화부터는 회차 열기를 먼저 한다(이 클래스는 토큰 차감을 꺼 둔다). */
