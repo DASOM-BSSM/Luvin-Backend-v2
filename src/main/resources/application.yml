@@ -8,10 +8,12 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    # SQL 로그는 기본으로 끈다 — 배포 환경에서 쿼리마다 여러 줄씩 CloudWatch에 쌓여 비용이 들고 오류 로그를 묻는다.
+    # 로컬에서 쿼리를 보고 싶으면 JPA_SHOW_SQL=true로 켠다.
+    show-sql: ${JPA_SHOW_SQL:false}
     properties:
       hibernate:
-        format_sql: true
+        format_sql: ${JPA_SHOW_SQL:false}
 
   # 기존 34개 테이블은 ddl-auto:update가 계속 관리한다(전체 baseline 전환은 별도 범위).
   # 설문 v2용 신규 테이블만 Flyway로 관리 — baseline-on-migrate로 이미 데이터가 있는
