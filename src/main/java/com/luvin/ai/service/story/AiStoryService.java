@@ -45,6 +45,9 @@ import com.luvin.ai.dto.story.AiChoiceOutcomeView;
 import com.luvin.ai.dto.story.AiChoiceStatusView;
 import com.luvin.ai.dto.story.AiEpisodeContentView;
 import com.luvin.ai.dto.story.AiEpisodeUnlockView;
+import com.luvin.ai.service.exception.AiEpisodeCooldownException;
+import com.luvin.push.service.EpisodeReadyNotifier;
+import com.luvin.token.domain.TokenKind;
 import com.luvin.ai.dto.story.AiGenerationProgressView;
 import com.luvin.ai.dto.story.AiSceneBlockView;
 import com.luvin.ai.dto.story.AiStageIntroView;
@@ -73,6 +76,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -131,13 +136,15 @@ public class AiStoryService {
     private final AiEpisodeReleasePolicy releasePolicy;
     private final AiStoryProperties properties;
     private final ExecutorService executor;
+    private final EpisodeReadyNotifier episodeReadyNotifier;
 
     public AiStoryService(AiStoryStateWriter stateWriter, AiStoryClient storyClient,
                           AiSeasonRepository seasonRepository, UserRepository userRepository,
                           OwnerSubjectProvider ownerSubjectProvider,
                           AiLearningDataProvider learningDataProvider, AiBreadCatalog breadCatalog,
                           AiEpisodeReleasePolicy releasePolicy, AiStoryProperties properties,
-                          @Qualifier("aiStoryExecutor") ExecutorService executor) {
+                          @Qualifier("aiStoryExecutor") ExecutorService executor,
+                          EpisodeReadyNotifier episodeReadyNotifier) {
         this.stateWriter = stateWriter;
         this.storyClient = storyClient;
         this.seasonRepository = seasonRepository;
@@ -148,6 +155,7 @@ public class AiStoryService {
         this.releasePolicy = releasePolicy;
         this.properties = properties;
         this.executor = executor;
+        this.episodeReadyNotifier = episodeReadyNotifier;
     }
 
     // ---------------------------------------------------------------- 회차 콘텐츠
@@ -390,15 +398,18 @@ public class AiStoryService {
     // ---------------------------------------------------------------- 회차 열기
 
     /**
-     * 회차 열기. 1~3화는 무료라 차감 없이 열린 응답이고, 4~10화는 처음 열 때만 토큰을 쓴다(이미 연 회차는 같은 응답).
+     * 회차 열기. 1~3화는 무료라 차감 없이 열린 응답이고, 4~10화는 처음 열 때만 토큰을 쓴다(이미 열었거나 끝낸 회차는 같은 응답).
+     * - SALT(소금빵): 앞 회차를 서버가 완료 처리한 뒤 대기 시간(episodeUnlockCooldown, 기본 3일)이 지나야 열 수 있다.
+     *   아직이면 409 EPISODE_COOLDOWN(data.nextUnlockAt).
+     * - BREAD(식빵): 대기와 상관없이 바로 연다.
      * 차감은 생성 전에 하고, 열린 뒤 생성이 실패해도 열린 상태로 남는다. 이전 회차를 완료해야 열 수 있다.
-     * 토큰이 모자라면 409 INSUFFICIENT_TOKENS.
+     * 낸 쪽 토큰이 모자라면 409 INSUFFICIENT_TOKENS(data.balance는 그쪽 잔액).
      */
-    public AiEpisodeUnlockView unlock(Long memberId, int order) {
+    public AiEpisodeUnlockView unlock(Long memberId, int order, TokenKind payWith) {
         validateOrder(order);
         AiSeason season = currentSeason(memberId);
         if (AiStoryCatalog.isFree(order)) {
-            return new AiEpisodeUnlockView(order, true, stateWriter.tokenBalance(memberId));
+            return unlockedView(memberId, order);
         }
         AiStorySnapshot snapshot = startedSnapshot(season);
         boolean opened = snapshot.unlockedOrders().contains(order)
@@ -407,13 +418,18 @@ public class AiStoryService {
             if (snapshot.status() == AiSeasonStatus.COMPLETED) {
                 throw new AiSeasonCompletedException();
             }
-            if (snapshot.content(order - 1).map(c -> !c.completed()).orElse(true)) {
-                throw new AiStoryConflictException(AiStoryConflictException.PREVIOUS_EPISODE_NOT_COMPLETED,
-                        (order - 1) + "화를 먼저 완료해주세요.");
+            AiStorySnapshot.Content previous = snapshot.content(order - 1).filter(AiStorySnapshot.Content::completed)
+                    .orElseThrow(() -> new AiStoryConflictException(
+                            AiStoryConflictException.PREVIOUS_EPISODE_NOT_COMPLETED, (order - 1) + "화를 먼저 완료해주세요."));
+            if (payWith == TokenKind.SALT) {
+                LocalDateTime availableAt = saltUnlockAvailableAt(previous);
+                if (availableAt != null && LocalDateTime.now().isBefore(availableAt)) {
+                    throw new AiEpisodeCooldownException(toOffset(availableAt));
+                }
             }
             try {
                 stateWriter.unlockEpisode(season.getId(), memberId, order, properties.episodeTokenCost(),
-                        properties.tokenChargeEnabled());
+                        properties.tokenChargeEnabled(), payWith);
             } catch (DataIntegrityViolationException concurrentUnlock) {
                 // 같은 회차를 동시에 연 다른 요청이 이겼다 — 그쪽에서 이미 열렸다.
             }
@@ -421,7 +437,41 @@ public class AiStoryService {
         // 연 회차는 앱이 곧 들어오므로 미리 만든다(이미 있거나 만드는 중이면 아무것도 하지 않는다).
         Long seasonPk = season.getId();
         executor.execute(() -> prefetch(memberId, seasonPk, order));
-        return new AiEpisodeUnlockView(order, true, stateWriter.tokenBalance(memberId));
+        return unlockedView(memberId, order);
+    }
+
+    private AiEpisodeUnlockView unlockedView(Long memberId, int order) {
+        AiStoryStateWriter.Balances balances = stateWriter.tokenBalances(memberId);
+        return new AiEpisodeUnlockView(order, true, balances.salt(), balances.bread());
+    }
+
+    /** 앞 회차를 서버가 완료 처리한 시각 + 대기 시간. 완료 시각이 없으면(완료 전) null. */
+    private LocalDateTime saltUnlockAvailableAt(AiStorySnapshot.Content previous) {
+        return previous.completedAt() == null ? null : previous.completedAt().plus(properties.episodeUnlockCooldown());
+    }
+
+    /**
+     * story.nextUnlockAt: 다음 회차(currentOrder)를 소금빵으로 열 수 있게 되는 시각. 1~3화, 이미 연 회차, 끝난 시즌,
+     * 대기가 끝났으면 null.
+     */
+    private OffsetDateTime nextUnlockAt(AiStorySnapshot snapshot, java.util.Set<Integer> unlocked) {
+        Integer order = snapshot.currentOrder();
+        if (order == null || AiStoryCatalog.isFree(order) || unlocked.contains(order)
+                || snapshot.status() == AiSeasonStatus.COMPLETED) {
+            return null;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        return snapshot.content(order - 1)
+                .filter(AiStorySnapshot.Content::completed)
+                .map(this::saltUnlockAvailableAt)
+                .filter(now::isBefore)
+                .map(AiStoryService::toOffset)
+                .orElse(null);
+    }
+
+    /** DB 시각(LocalDateTime, 서버 시간대)을 시간대가 붙은 ISO-8601 값으로 내려준다. */
+    private static OffsetDateTime toOffset(LocalDateTime time) {
+        return time.atZone(ZoneId.systemDefault()).toOffsetDateTime();
     }
 
     /**
@@ -494,7 +544,10 @@ public class AiStoryService {
                 throw new AiStoryInvalidResponseException("본문에 없는 블록이 있습니다.");
             }
             String introJson = saved.introJson() != null ? saved.introJson() : AiStoryJson.write(introView(episode.intro()));
-            stateWriter.saveGenerated(contentPk, round, introJson, stageIntroJson, AiStoryJson.write(blocks));
+            if (stateWriter.saveGenerated(contentPk, round, introJson, stageIntroJson, AiStoryJson.write(blocks))) {
+                // 저장(커밋) 뒤에 보낸다. 알림 실패는 로그만 남기고 생성 결과에는 영향이 없다.
+                episodeReadyNotifier.notifyEpisodeReady(memberId, snapshot.seasonId(), order);
+            }
             if (AiStoryCatalog.pointOf(order) == null) {
                 // 선택이 없는 회차는 본문이 준비되면 쪽지를 미리 만든다(선택 회차는 선택 결과 장면 뒤).
                 prepareEpisodeNote(memberId, seasonPk, order);
@@ -1527,7 +1580,8 @@ public class AiStoryService {
                 .forEach(c -> unlocked.add(c.order()));
         return new AiStoryStateView(snapshot.setting().wireValue(), snapshot.currentOrder(), completedOrders,
                 snapshot.route() == null ? null : snapshot.route().wireValue(), snapshot.romancePartnerId(),
-                choices, breads, List.copyOf(unlocked), properties.episodeTokenCost(), completionOf(snapshot),
+                choices, breads, List.copyOf(unlocked), properties.episodeTokenCost(),
+                nextUnlockAt(snapshot, unlocked), completionOf(snapshot),
                 snapshot.choices().stream()
                         .map(this::choiceStatus)
                         .filter(c -> !AiChoiceStatusView.READY.equals(c.status()))

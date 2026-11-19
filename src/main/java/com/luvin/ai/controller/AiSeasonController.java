@@ -122,7 +122,7 @@ public class AiSeasonController {
     public ApiResponse<AiSeasonResetView> resetMySeasons() {
         AiSeasonResetWriter.Result result = resetWriter.deleteAllSeasons(SecurityUtils.getCurrentUserId(), false);
         return ApiResponse.ok(new AiSeasonResetView(result.deletedSeasons(), result.refundedTokens(),
-                result.tokenBalance()));
+                result.tokenBalance(), result.refundedBreadTokens(), result.breadTokenBalance()));
     }
 
     /** 이 사용자의 모든 시즌(지난 시즌 포함)을 최신 시즌부터(seasonNumber 내림차순) 반환한다. */

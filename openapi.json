@@ -2440,7 +2440,7 @@
                     "\ub7ec\ube48\uc9c0\uc625 \ud68c\ucc28"
                 ],
                 "summary": "\ud68c\ucc28 \uc5f4\uae30",
-                "description": "1~3\ud654\ub294 \ubb34\ub8cc\ub77c \ucc28\uac10 \uc5c6\uc774 \uc5f4\ub9b0 \uc751\ub2f5\uc774\ub2e4. 4~10\ud654\ub294 \ucc98\uc74c \uc5f4 \ub54c\ub9cc \ud1a0\ud070(`story.episodeTokenCost`)\uc744 \uc4f0\uace0, \uc774\ubbf8 \uc5f0 \ud68c\ucc28\ub294\n\ucc28\uac10 \uc5c6\uc774 \uac19\uc740 \uc751\ub2f5\uc774\ub2e4. \ucc28\uac10\uc740 \uc0dd\uc131 \uc804\uc5d0 \ud558\uace0, \uc5f4\ub9b0 \ub4a4 \uc0dd\uc131\uc774 \uc2e4\ud328\ud574\ub3c4 \uc5f4\ub9b0 \uc0c1\ud0dc\ub85c \ub0a8\ub294\ub2e4.\n\uc21c\uc11c: \uc774\uc804 \ud68c\ucc28 \uc644\ub8cc \u2192 \ud68c\ucc28 \uc5f4\uae30 \u2192 content \uc694\uccad. \uc5f4\uc9c0 \uc54a\uc740 4~10\ud654\uc758 content\ub294 409 `EPISODE_NOT_UNLOCKED`.\n\uc5f4\ub9ac\uba74 \uc11c\ubc84\uac00 \uadf8 \ud68c\ucc28 \uc0dd\uc131\uc744 \ubc14\ub85c \uc2dc\uc791\ud55c\ub2e4(content \uc694\uccad \uc804\uc5d0 \ubbf8\ub9ac \ub9cc\ub4e0\ub2e4).\n\n**\uc624\ub958**: 409 `INSUFFICIENT_TOKENS`(data: required, balance \u2014 \ubbf8\ub2c8\uac8c\uc784\uc73c\ub85c \uc548\ub0b4), `PREVIOUS_EPISODE_NOT_COMPLETED`,\n`STORY_NOT_STARTED`, `SEASON_COMPLETED`\n",
+                "description": "body `{ \"payWith\": \"SALT\" | \"BREAD\" }` \u2014 body\ub098 payWith\ub97c \uc0dd\ub7b5\ud558\uba74 SALT.\n- `SALT`(\uc18c\uae08\ube75): \uc55e \ud68c\ucc28\ub97c \uc11c\ubc84\uac00 \uc644\ub8cc \ucc98\ub9ac\ud55c \uc2dc\uac01\ubd80\ud130 \ub300\uae30 \uc2dc\uac04(\uae30\ubcf8 3\uc77c, `story.nextUnlockAt`)\uc774 \uc9c0\ub098\uc57c \uc5f4 \uc218 \uc788\ub2e4.\n  \uc544\uc9c1\uc774\uba74 409 `EPISODE_COOLDOWN`(data.nextUnlockAt).\n- `BREAD`(\uc2dd\ube75): \ub300\uae30\uc640 \uc0c1\uad00\uc5c6\uc774 \ubc14\ub85c \uc5f0\ub2e4.\n\uc5b4\ub290 \ucabd\uc774\ub4e0 4~10\ud654\ub97c \ucc98\uc74c \uc5f4 \ub54c\ub9cc `story.episodeTokenCost`(\uae30\ubcf8 5)\uac1c\ub97c \uc4f4\ub2e4. 1~3\ud654, \uc774\ubbf8 \uc5f4\uc5c8\uac70\ub098 \ub05d\ub0b8 \ud68c\ucc28\ub294\npayWith\uc640 \uc0c1\uad00\uc5c6\uc774 \ucc28\uac10 \uc5c6\uc774 \uc5f4\ub9b0 \uc751\ub2f5\uc774\ub2e4. \uc751\ub2f5 `tokenBalance`(\uc18c\uae08\ube75)\u00b7`breadTokenBalance`(\uc2dd\ube75)\ub294 \uc5f4\uace0 \ub09c \ub4a4 \uc794\uc561.\n\ucc28\uac10\uc740 \uc0dd\uc131 \uc804\uc5d0 \ud558\uace0, \uc5f4\ub9b0 \ub4a4 \uc0dd\uc131\uc774 \uc2e4\ud328\ud574\ub3c4 \uc5f4\ub9b0 \uc0c1\ud0dc\ub85c \ub0a8\ub294\ub2e4.\n\uc21c\uc11c: \uc774\uc804 \ud68c\ucc28 \uc644\ub8cc \u2192 \ud68c\ucc28 \uc5f4\uae30 \u2192 content \uc694\uccad. \uc5f4\uc9c0 \uc54a\uc740 4~10\ud654\uc758 content\ub294 409 `EPISODE_NOT_UNLOCKED`.\n\uc5f4\ub9ac\uba74 \uc11c\ubc84\uac00 \uadf8 \ud68c\ucc28 \uc0dd\uc131\uc744 \ubc14\ub85c \uc2dc\uc791\ud558\uace0, \uc0dd\uc131\uc774 \ub05d\ub098\uba74 \ud478\uc2dc \uc54c\ub9bc(EPISODE_READY)\uc744 \ubcf4\ub0b8\ub2e4.\n\n**\uc624\ub958**: 409 `INSUFFICIENT_TOKENS`(data: required, balance \u2014 payWith\ub85c \ub0b8 \ucabd \uc794\uc561), `EPISODE_COOLDOWN`\n(data: nextUnlockAt), `PREVIOUS_EPISODE_NOT_COMPLETED`, `STORY_NOT_STARTED`, `SEASON_COMPLETED` /\n400 payWith\uac00 SALT\u00b7BREAD\uac00 \uc544\ub2d8\n",
                 "operationId": "unlock",
                 "parameters": [
                     {
@@ -2453,6 +2453,15 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AiEpisodeUnlockHttpRequest"
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -2465,7 +2474,7 @@
                         }
                     },
                     "409": {
-                        "description": "INSUFFICIENT_TOKENS\uba74 data\uc5d0 required(\ud544\uc694 \ud1a0\ud070)\u00b7balance(\ud604\uc7ac \uc794\uc561). \ub2e4\ub978 409 code\ub294 data\uac00 null",
+                        "description": "INSUFFICIENT_TOKENS\uba74 data\uc5d0 required(\ud544\uc694 \ud1a0\ud070)\u00b7balance(\ub0b8 \ucabd \uc794\uc561), EPISODE_COOLDOWN\uc774\uba74 data\uc5d0 nextUnlockAt. \ub2e4\ub978 409 code\ub294 data\uac00 null",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -4213,6 +4222,68 @@
                     }
                 }
             }
+        },
+        "/api/push-tokens": {
+            "post": {
+                "tags": [
+                    "\ud478\uc2dc \ud1a0\ud070"
+                ],
+                "summary": "\uae30\uae30 \ud478\uc2dc \ud1a0\ud070 \ub4f1\ub85d",
+                "description": "body `{ token, platform }` \u2014 token\uc740 Expo \ud478\uc2dc \ud1a0\ud070(`ExponentPushToken[...]`), platform\uc740 `ios` | `android`.\n\uac19\uc740 \ud1a0\ud070\uc740 \ub36e\uc5b4\uc4f4\ub2e4(\ub2e4\ub978 \uacc4\uc815\uc73c\ub85c \ub4f1\ub85d\ub3fc \uc788\ub358 \ud1a0\ud070\uc774\uba74 \uc774 \uacc4\uc815\uc73c\ub85c \uc62e\uae34\ub2e4). \uae30\uae30 \uc5ec\ub7ec \ub300\ub97c \ub4f1\ub85d\ud560 \uc218 \uc788\ub2e4.\n\ub85c\uadf8\uc778 \uc9c1\ud6c4\u00b7\uc571 \uc2dc\uc791 \ub54c \ubd88\ub7ec\ub3c4 \ub41c\ub2e4. \ud68c\uc6d0 \ud0c8\ud1f4 \ub54c \uc11c\ubc84\uac00 \uc9c0\uc6b0\uace0, Expo\uac00 DeviceNotRegistered\ub97c \ub3cc\ub824\uc900 \ud1a0\ud070\ub3c4 \uc9c0\uc6b4\ub2e4.\n\n**\uc624\ub958**: 400 token\uc774 Expo \ud478\uc2dc \ud1a0\ud070\uc774 \uc544\ub2c8\uac70\ub098 platform\uc774 ios\u00b7android\uac00 \uc544\ub2d8\n",
+                "operationId": "register",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PushTokenRegisterRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseVoid"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "tags": [
+                    "\ud478\uc2dc \ud1a0\ud070"
+                ],
+                "summary": "\uae30\uae30 \ud478\uc2dc \ud1a0\ud070 \uc0ad\uc81c(\ub85c\uadf8\uc544\uc6c3)",
+                "description": "body `{ token }`. \ub85c\uadf8\uc544\uc6c3 API(POST /api/auth/logout)\ubcf4\ub2e4 **\uba3c\uc800** \ubd80\ub978\ub2e4(\ub85c\uadf8\uc544\uc6c3 \ub4a4\uc5d0\ub294 \uc778\uc99d\uc774 \uc5c6\uc5b4 401).\n\ub0b4 \ud1a0\ud070\uc774 \uc544\ub2c8\uac70\ub098 \uc5c6\uc73c\uba74 \uc544\ubb34\uac83\ub3c4 \ud558\uc9c0 \uc54a\uace0 200\uc774\ub2e4.\n",
+                "operationId": "unregister",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PushTokenDeleteRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "content": {
+                            "*/*": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ApiResponseVoid"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -5367,6 +5438,14 @@
                     "tokenBalance": {
                         "type": "integer",
                         "format": "int32"
+                    },
+                    "refundedBreadTokens": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "breadTokenBalance": {
+                        "type": "integer",
+                        "format": "int32"
                     }
                 }
             },
@@ -5801,6 +5880,13 @@
                         "type": "integer",
                         "format": "int32"
                     },
+                    "nextUnlockAt": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
                     "completion": {
                         "type": [
                             "object",
@@ -5979,6 +6065,10 @@
                         "type": "boolean"
                     },
                     "tokenBalance": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "breadTokenBalance": {
                         "type": "integer",
                         "format": "int32"
                     }
@@ -6607,6 +6697,10 @@
                         "format": "int32"
                     },
                     "freeSimulationCount": {
+                        "type": "integer",
+                        "format": "int32"
+                    },
+                    "breadTokenBalance": {
                         "type": "integer",
                         "format": "int32"
                     }
@@ -7858,6 +7952,50 @@
                     },
                     "diaryAuthorBreadName": {
                         "type": "string"
+                    }
+                }
+            },
+            "PushTokenRegisterRequest": {
+                "type": "object",
+                "properties": {
+                    "token": {
+                        "type": "string",
+                        "example": "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]",
+                        "maxLength": 255,
+                        "minLength": 0,
+                        "pattern": "^Expo(nent)?PushToken\\[[^\\]\\s]+\\]$"
+                    },
+                    "platform": {
+                        "type": "string",
+                        "enum": [
+                            "ios",
+                            "android"
+                        ],
+                        "minLength": 1,
+                        "pattern": "(?i)ios|android"
+                    }
+                }
+            },
+            "AiEpisodeUnlockHttpRequest": {
+                "type": "object",
+                "properties": {
+                    "payWith": {
+                        "type": "string",
+                        "default": "SALT",
+                        "enum": [
+                            "SALT",
+                            "BREAD"
+                        ]
+                    }
+                }
+            },
+            "PushTokenDeleteRequest": {
+                "type": "object",
+                "properties": {
+                    "token": {
+                        "type": "string",
+                        "maxLength": 255,
+                        "minLength": 0
                     }
                 }
             }

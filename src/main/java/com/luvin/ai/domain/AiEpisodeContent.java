@@ -95,6 +95,10 @@ public class AiEpisodeContent {
     @Column(name = "failure_reported_at")
     private LocalDateTime failureReportedAt;
 
+    /** 생성 완료 푸시(EPISODE_READY)를 보낸 시각. 같은 회차에 두 번 보내지 않게 한다. */
+    @Column(name = "ready_notified_at")
+    private LocalDateTime readyNotifiedAt;
+
     /** 회차 완료를 백그라운드에서 시작한 시각. 완료되면 completedAt이 생긴다. */
     @Column(name = "completion_requested_at")
     private LocalDateTime completionRequestedAt;
@@ -254,6 +258,15 @@ public class AiEpisodeContent {
         this.status = AiStoryContentStatus.READY;
         this.errorCode = null;
         this.generatedAt = LocalDateTime.now();
+    }
+
+    /** 생성 완료 푸시를 이번에 처음 보낸다면 true(보낸 것으로 기록한다). 이미 보냈으면 false. */
+    public boolean claimReadyNotification() {
+        if (readyNotifiedAt != null) {
+            return false;
+        }
+        this.readyNotifiedAt = LocalDateTime.now();
+        return true;
     }
 
     public void markFailed(String errorCode) {

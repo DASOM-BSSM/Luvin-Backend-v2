@@ -39,6 +39,7 @@ import com.luvin.ai.service.exception.AiInsufficientTokensException;
 import com.luvin.ai.service.exception.AiSeasonNotFoundException;
 import com.luvin.token.domain.TokenHistory;
 import com.luvin.token.domain.TokenHistoryType;
+import com.luvin.token.domain.TokenKind;
 import com.luvin.token.domain.UserToken;
 import com.luvin.token.repository.TokenHistoryRepository;
 import com.luvin.token.repository.UserTokenRepository;
@@ -295,7 +296,8 @@ public class AiStoryStateWriter {
                         c.getSummaryJson(), c.getRequestedAt(), c.isCompleted(), c.getCompletionRequestedAt(),
                         c.getCompletionErrorCode(), c.getGenerationStage(),
                         Boolean.TRUE.equals(c.getGenerationRegenerating()), c.getCompletionStage(),
-                        Boolean.TRUE.equals(c.getCompletionRegenerating()), c.getTotalBlocks(), c.currentRevision()))
+                        Boolean.TRUE.equals(c.getCompletionRegenerating()), c.getTotalBlocks(), c.currentRevision(),
+                        c.getCompletedAt()))
                 .toList();
         return new AiStorySnapshot(season.getId(), season.getSeasonId(), season.getMemberId(), season.getSeasonNumber(),
                 season.getStatus(), season.getSetting(), season.getCurrentOrder(), season.getRoute(),
@@ -333,12 +335,20 @@ public class AiStoryStateWriter {
         return new GenerationTicket(existing.getId(), false, existing.currentGenerationRound());
     }
 
-    /** 생성 결과 저장. 아직 생성 중이고 같은 생성 회차일 때만 저장한다(늦게 끝난 이전 회차 결과는 버린다). */
+    /**
+     * 생성 결과 저장. 아직 생성 중이고 같은 생성 회차일 때만 저장한다(늦게 끝난 이전 회차 결과는 버린다).
+     *
+     * @return 이번에 저장했고 생성 완료 푸시를 아직 보내지 않았으면 true — 호출부가 커밋 뒤 한 번 보낸다
+     */
     @Transactional
-    public void saveGenerated(Long contentPk, int round, String introJson, String stageIntroJson, String blocksJson) {
-        contentRepository.findById(contentPk)
+    public boolean saveGenerated(Long contentPk, int round, String introJson, String stageIntroJson, String blocksJson) {
+        return contentRepository.findById(contentPk)
                 .filter(c -> isCurrentGeneration(c, round))
-                .ifPresent(c -> c.markReady(introJson, stageIntroJson, blocksJson));
+                .map(c -> {
+                    c.markReady(introJson, stageIntroJson, blocksJson);
+                    return c.claimReadyNotification();
+                })
+                .orElse(false);
     }
 
     /** prefetched면 앱이 기다리지 않던 미리 생성의 실패라, 다음 GET content가 실패를 보여 주지 않고 바로 다시 생성한다. */
@@ -787,29 +797,32 @@ public class AiStoryStateWriter {
     // ---------------------------------------------------------------- 회차 열기(토큰)
 
     /**
-     * 4~10화를 연다. 처음 열 때만 토큰을 차감하고(charge=false면 차감 없이 기록만), 열린 기록과 차감을 한 트랜잭션에서 한다.
-     * 이미 연 회차면 아무것도 하지 않는다. 같은 회차를 동시에 두 번 열면 unique 제약 위반
+     * 4~10화를 연다. 처음 열 때만 payWith 종류의 토큰을 차감하고(charge=false면 차감 없이 기록만), 열린 기록과 차감을 한
+     * 트랜잭션에서 한다. 이미 연 회차면 아무것도 하지 않는다. 같은 회차를 동시에 두 번 열면 unique 제약 위반
      * (DataIntegrityViolationException)으로 이 트랜잭션 전체가 롤백된다 — 호출부가 다시 읽어 열린 상태로 응답한다.
      *
-     * @throws com.luvin.ai.service.exception.AiInsufficientTokensException 토큰이 부족할 때(409 INSUFFICIENT_TOKENS)
+     * @throws com.luvin.ai.service.exception.AiInsufficientTokensException payWith 쪽 토큰이 부족할 때(409 INSUFFICIENT_TOKENS,
+     *                                                                     balance는 그쪽 잔액)
      */
     @Transactional
-    public void unlockEpisode(Long seasonPk, Long memberId, int order, int cost, boolean charge) {
+    public void unlockEpisode(Long seasonPk, Long memberId, int order, int cost, boolean charge, TokenKind payWith) {
         if (unlockRepository.existsBySeason_IdAndEpisodeOrder(seasonPk, order)) {
             return;
         }
         int spent = charge ? cost : 0;
-        unlockRepository.saveAndFlush(new AiEpisodeUnlock(seasonRepository.getReferenceById(seasonPk), order, spent));
+        unlockRepository.saveAndFlush(
+                new AiEpisodeUnlock(seasonRepository.getReferenceById(seasonPk), order, spent, payWith));
         if (spent == 0) {
             return;
         }
         UserToken userToken = userTokenRepository.findByMemberId(memberId)
                 .orElseGet(() -> userTokenRepository.save(new UserToken(memberId, 0, 0)));
-        if (userToken.getTokenBalance() < spent) {
-            throw new AiInsufficientTokensException(spent, userToken.getTokenBalance());
+        if (userToken.balanceOf(payWith) < spent) {
+            throw new AiInsufficientTokensException(spent, userToken.balanceOf(payWith));
         }
-        userToken.use(spent);
-        tokenHistoryRepository.save(new TokenHistory(memberId, TokenHistoryType.USE, -spent, "러빈지옥 " + order + "화 열기"));
+        userToken.use(payWith, spent);
+        tokenHistoryRepository.save(new TokenHistory(memberId, TokenHistoryType.USE, -spent,
+                "러빈지옥 " + order + "화 열기" + (payWith == TokenKind.BREAD ? "(식빵)" : "")));
     }
 
     @Transactional(readOnly = true)
@@ -817,9 +830,15 @@ public class AiStoryStateWriter {
         return unlockRepository.findAllBySeason_Id(seasonPk).stream().map(AiEpisodeUnlock::getEpisodeOrder).toList();
     }
 
+    /** 소금빵·식빵 잔액. */
+    public record Balances(int salt, int bread) {
+    }
+
     @Transactional(readOnly = true)
-    public int tokenBalance(Long memberId) {
-        return userTokenRepository.findByMemberId(memberId).map(UserToken::getTokenBalance).orElse(0);
+    public Balances tokenBalances(Long memberId) {
+        return userTokenRepository.findByMemberId(memberId)
+                .map(t -> new Balances(t.getTokenBalance(), t.getBreadTokenBalance()))
+                .orElse(new Balances(0, 0));
     }
 
     @Transactional(readOnly = true)

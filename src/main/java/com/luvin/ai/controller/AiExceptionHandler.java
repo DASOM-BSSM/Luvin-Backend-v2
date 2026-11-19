@@ -13,7 +13,9 @@ import com.luvin.ai.client.exception.AiUnclassifiedConflictException;
 import com.luvin.ai.client.exception.AiValidationException;
 import com.luvin.ai.client.exception.AiVersionSupersededException;
 import com.luvin.ai.dto.AiInsufficientTokensView;
+import com.luvin.ai.dto.story.AiEpisodeCooldownView;
 import com.luvin.ai.service.exception.AiCandidateInvalidException;
+import com.luvin.ai.service.exception.AiEpisodeCooldownException;
 import com.luvin.ai.service.exception.AiEpisodeProgressionException;
 import com.luvin.ai.service.exception.AiFeedbackAlreadySubmittedException;
 import com.luvin.ai.service.exception.AiInputValidationException;
@@ -105,6 +107,13 @@ public class AiExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error(e.getMessage(), "INSUFFICIENT_TOKENS",
                         new AiInsufficientTokensView(e.getRequired(), e.getBalance())));
+    }
+
+    @ExceptionHandler(AiEpisodeCooldownException.class)
+    public ResponseEntity<ApiResponse<AiEpisodeCooldownView>> handleEpisodeCooldown(AiEpisodeCooldownException e) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(e.getMessage(), AiEpisodeCooldownException.CODE,
+                        new AiEpisodeCooldownView(e.getNextUnlockAt())));
     }
 
     @ExceptionHandler(AiStoryConflictException.class)

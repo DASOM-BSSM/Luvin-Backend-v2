@@ -490,7 +490,9 @@ class AiStoryFlowIntegrationTest {
         assertEquals(2, story.get("currentOrder").asInt());
         assertEquals(List.of(1), intList(story.get("completedOrders")));
         assertEquals(List.of(1, 2, 3), intList(story.get("unlockedOrders")));
-        assertEquals(1, story.get("episodeTokenCost").asInt());
+        assertEquals(5, story.get("episodeTokenCost").asInt());
+        // 이 클래스는 대기 시간을 0으로 둔다(테스트 공통 설정) — 대기가 없으면 nextUnlockAt은 null이다.
+        assertTrue(story.get("nextUnlockAt").isNull());
         assertEquals("blocks", data(get(user, "")).get(0).get("episodeFormat").asText());
     }
 

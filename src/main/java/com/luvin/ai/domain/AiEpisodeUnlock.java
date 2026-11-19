@@ -2,6 +2,8 @@ package com.luvin.ai.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -10,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import com.luvin.token.domain.TokenKind;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -42,13 +45,23 @@ public class AiEpisodeUnlock {
     @Column(name = "tokens_spent", nullable = false)
     private int tokensSpent;
 
+    /** 낸 토큰 종류. 식빵 도입 전 기록은 null이고 소금빵으로 본다({@link #paidKind()}). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "paid_with", length = 10)
+    private TokenKind paidWith;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
-    public AiEpisodeUnlock(AiSeason season, int episodeOrder, int tokensSpent) {
+    public AiEpisodeUnlock(AiSeason season, int episodeOrder, int tokensSpent, TokenKind paidWith) {
         this.season = season;
         this.episodeOrder = episodeOrder;
         this.tokensSpent = tokensSpent;
+        this.paidWith = paidWith;
         this.createdAt = LocalDateTime.now();
+    }
+
+    public TokenKind paidKind() {
+        return paidWith == null ? TokenKind.SALT : paidWith;
     }
 }
