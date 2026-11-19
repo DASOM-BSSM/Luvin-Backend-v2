@@ -15,7 +15,7 @@ import java.util.List;
  * FK 없는 plain 컬럼으로 들고 있어 users를 지워도 남기 때문이다.
  *
  * - 지우는 것: 성향 테스트 응답·결과, 밸런스 게임 응답, 남의 방에 쓴 일기(딸린 댓글·반응 포함)와 어디서든 쓴 댓글·이모지 반응·
- *   그룹 질문 답, 미니게임 기록, 토큰·토큰 내역, AI 요청 멱등 키, 기존 시뮬레이션(5화 흐름) 기록
+ *   그룹 질문 답, 미니게임 기록, 토큰·토큰 내역, AI 요청 멱등 키, 기기 푸시 토큰, 기존 시뮬레이션(5화 흐름) 기록
  * - 러빈지옥 시즌·내가 만든 공유방·학습 신호·AI 분신·분석 결과·Apple 토큰은 호출부가 각자의 서비스로 지운다.
  * - 그룹 질문(room_question)은 방 전체의 질문이라 남긴다. 만든 사람(requested_by)만 탈퇴한 id로 남고, 조회 때 creator가 null이다.
  */
@@ -32,7 +32,7 @@ public class UserDataEraser {
     /** member_id로 바로 지우는 테이블. */
     static final List<String> MEMBER_TABLES = List.of(
             "survey_answers", "daily_question_answers", "minigame_play_results", "user_tokens", "token_histories",
-            "ai_idempotency_keys");
+            "ai_idempotency_keys", "push_tokens");
 
     private final LearningSignalService learningSignalService;
     @PersistenceContext

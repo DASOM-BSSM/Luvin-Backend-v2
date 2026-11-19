@@ -44,6 +44,6 @@ public class AiStoryDevController {
     public ApiResponse<AiSeasonResetView> resetSeasons() {
         AiSeasonResetWriter.Result result = resetWriter.deleteAllSeasons(SecurityUtils.getCurrentUserId(), true);
         return ApiResponse.ok(new AiSeasonResetView(result.deletedSeasons(), result.refundedTokens(),
-                result.tokenBalance()));
+                result.tokenBalance(), result.refundedBreadTokens(), result.breadTokenBalance()));
     }
 }

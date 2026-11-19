@@ -57,7 +57,9 @@ public record AiStorySnapshot(
                           /** 블록 단위 생성의 전체 블록 수(선택 결과 제외). 블록 단위로 만들지 않았으면 null */
                           Integer totalBlocks,
                           /** 앱에 나간 블록을 버리고 처음부터 다시 만든 횟수 */
-                          int revision) {
+                          int revision,
+                          /** 서버가 회차 완료 처리를 끝낸 시각(완료 전이면 null). 다음 회차 소금빵 대기의 기준이다 */
+                          LocalDateTime completedAt) {
 
         /** 완료를 시작했고 아직 끝나지도, 실패하지도 않았다. */
         public boolean completing() {

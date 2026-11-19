@@ -4,6 +4,7 @@ import com.luvin.ai.dto.AiMessageLikeView;
 import com.luvin.ai.dto.story.AiChoiceHttpRequest;
 import com.luvin.ai.dto.story.AiChoiceOutcomeView;
 import com.luvin.ai.dto.story.AiEpisodeContentView;
+import com.luvin.ai.dto.story.AiEpisodeUnlockHttpRequest;
 import com.luvin.ai.dto.story.AiEpisodeUnlockView;
 import com.luvin.ai.dto.story.AiStoryFeedbackHttpRequest;
 import com.luvin.ai.dto.story.AiStoryFeedbackView;
@@ -12,6 +13,7 @@ import com.luvin.ai.dto.story.AiStoryStateView;
 import com.luvin.ai.service.story.AiStoryService;
 import com.luvin.common.response.ApiResponse;
 import com.luvin.common.security.SecurityUtils;
+import com.luvin.token.domain.TokenKind;
 import com.luvin.ai.dto.AiInsufficientTokensErrorView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -74,23 +76,32 @@ public class AiStoryController {
     }
 
     @Operation(summary = "회차 열기", description = """
-            1~3화는 무료라 차감 없이 열린 응답이다. 4~10화는 처음 열 때만 토큰(`story.episodeTokenCost`)을 쓰고, 이미 연 회차는
-            차감 없이 같은 응답이다. 차감은 생성 전에 하고, 열린 뒤 생성이 실패해도 열린 상태로 남는다.
+            body `{ "payWith": "SALT" | "BREAD" }` — body나 payWith를 생략하면 SALT.
+            - `SALT`(소금빵): 앞 회차를 서버가 완료 처리한 시각부터 대기 시간(기본 3일, `story.nextUnlockAt`)이 지나야 열 수 있다.
+              아직이면 409 `EPISODE_COOLDOWN`(data.nextUnlockAt).
+            - `BREAD`(식빵): 대기와 상관없이 바로 연다.
+            어느 쪽이든 4~10화를 처음 열 때만 `story.episodeTokenCost`(기본 5)개를 쓴다. 1~3화, 이미 열었거나 끝낸 회차는
+            payWith와 상관없이 차감 없이 열린 응답이다. 응답 `tokenBalance`(소금빵)·`breadTokenBalance`(식빵)는 열고 난 뒤 잔액.
+            차감은 생성 전에 하고, 열린 뒤 생성이 실패해도 열린 상태로 남는다.
             순서: 이전 회차 완료 → 회차 열기 → content 요청. 열지 않은 4~10화의 content는 409 `EPISODE_NOT_UNLOCKED`.
-            열리면 서버가 그 회차 생성을 바로 시작한다(content 요청 전에 미리 만든다).
+            열리면 서버가 그 회차 생성을 바로 시작하고, 생성이 끝나면 푸시 알림(EPISODE_READY)을 보낸다.
 
-            **오류**: 409 `INSUFFICIENT_TOKENS`(data: required, balance — 미니게임으로 안내), `PREVIOUS_EPISODE_NOT_COMPLETED`,
-            `STORY_NOT_STARTED`, `SEASON_COMPLETED`
+            **오류**: 409 `INSUFFICIENT_TOKENS`(data: required, balance — payWith로 낸 쪽 잔액), `EPISODE_COOLDOWN`
+            (data: nextUnlockAt), `PREVIOUS_EPISODE_NOT_COMPLETED`, `STORY_NOT_STARTED`, `SEASON_COMPLETED` /
+            400 payWith가 SALT·BREAD가 아님
             """)
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", useReturnTypeSchema = true)
     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409",
-            description = "INSUFFICIENT_TOKENS면 data에 required(필요 토큰)·balance(현재 잔액). 다른 409 code는 data가 null",
+            description = "INSUFFICIENT_TOKENS면 data에 required(필요 토큰)·balance(낸 쪽 잔액), EPISODE_COOLDOWN이면 "
+                    + "data에 nextUnlockAt. 다른 409 code는 data가 null",
             content = @Content(mediaType = "application/json",
                     schema = @Schema(implementation = AiInsufficientTokensErrorView.class)))
     @PostMapping("/{order}/unlock")
-    public ApiResponse<AiEpisodeUnlockView> unlock(@PathVariable("order") int order) {
+    public ApiResponse<AiEpisodeUnlockView> unlock(@PathVariable("order") int order,
+                                                   @RequestBody(required = false) AiEpisodeUnlockHttpRequest request) {
         Long memberId = SecurityUtils.getCurrentUserId();
-        return ApiResponse.ok(storyService.unlock(memberId, order));
+        TokenKind payWith = request == null ? TokenKind.SALT : request.payWithOrDefault();
+        return ApiResponse.ok(storyService.unlock(memberId, order, payWith));
     }
 
     @Operation(summary = "선택 처리 (3·5·6·8화)", description = """

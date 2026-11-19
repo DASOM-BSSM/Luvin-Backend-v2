@@ -1,6 +1,7 @@
 package com.luvin.ai.dto.story;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -20,6 +21,11 @@ public record AiStoryStateView(
         List<Integer> unlockedOrders,
         /** 4~10화를 처음 열 때 쓰는 토큰 수. */
         int episodeTokenCost,
+        /**
+         * 다음 회차(currentOrder)를 소금빵으로 열 수 있게 되는 시각(ISO-8601, 시간대 포함) = 앞 회차를 서버가 완료 처리한
+         * 시각 + 대기 시간(기본 3일). 1~3화, 이미 연 회차, 대기가 끝났으면 null. 식빵으로는 대기 없이 열 수 있다.
+         */
+        @Schema(types = {"string", "null"}, format = "date-time") OffsetDateTime nextUnlockAt,
         /** 진행 중이거나 실패한 회차 완료(POST complete). 없으면 null. */
         @Schema(types = {"object", "null"}) Completion completion,
         /**

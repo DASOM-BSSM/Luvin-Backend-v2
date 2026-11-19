@@ -4,6 +4,7 @@ import com.luvin.ai.domain.AiSeason;
 import com.luvin.ai.repository.AiSeasonRepository;
 import com.luvin.token.domain.TokenHistory;
 import com.luvin.token.domain.TokenHistoryType;
+import com.luvin.token.domain.TokenKind;
 import com.luvin.token.domain.UserToken;
 import com.luvin.token.repository.TokenHistoryRepository;
 import com.luvin.token.repository.UserTokenRepository;
@@ -43,22 +44,25 @@ public class AiSeasonResetWriter {
     @PersistenceContext
     private EntityManager entityManager;
 
-    /** 지운 시즌 수, 돌려준 토큰, 초기화 뒤 토큰 잔액. 시즌이 없거나 환불하지 않으면 refundedTokens는 0이다. */
-    public record Result(int deletedSeasons, int refundedTokens, int tokenBalance) {
+    /**
+     * 지운 시즌 수, 돌려준 소금빵·식빵, 초기화 뒤 소금빵·식빵 잔액. 시즌이 없거나 환불하지 않으면 돌려준 양은 0이다.
+     * 회차를 연 토큰은 낸 종류(paid_with, 이전 기록은 소금빵)로 돌려준다.
+     */
+    public record Result(int deletedSeasons, int refundedTokens, int tokenBalance, int refundedBreadTokens,
+                         int breadTokenBalance) {
     }
 
     @Transactional
     public Result deleteAllSeasons(Long memberId, boolean refund) {
         List<AiSeason> seasons = seasonRepository.findAllByMemberIdOrderBySeasonNumberDesc(memberId);
         int refunded = 0;
+        int refundedBread = 0;
         for (AiSeason season : seasons) {
             // 같은 시즌을 쓰는 다른 쓰기(출연진 배정·새 시즌 설정 반영 등)와 겹치지 않게 잠근 뒤 지운다.
             seasonRepository.findWithLockById(season.getId());
             if (refund) {
-                refunded += ((Number) entityManager.createNativeQuery(
-                                "SELECT COALESCE(SUM(tokens_spent), 0) FROM ai_episode_unlocks WHERE season_id = :seasonPk")
-                        .setParameter("seasonPk", season.getId())
-                        .getSingleResult()).intValue();
+                refunded += spentOn(season.getId(), false);
+                refundedBread += spentOn(season.getId(), true);
             }
             for (String table : SEASON_TABLES) {
                 entityManager.createNativeQuery("DELETE FROM " + table + " WHERE season_id = :seasonPk")
@@ -74,13 +78,30 @@ public class AiSeasonResetWriter {
                 .executeUpdate();
         entityManager.clear();
 
-        if (refunded > 0) {
-            UserToken userToken = userTokenRepository.findByMemberId(memberId)
-                    .orElseGet(() -> userTokenRepository.save(new UserToken(memberId, 0, 0)));
-            userToken.earn(refunded);
-            tokenHistoryRepository.save(new TokenHistory(memberId, TokenHistoryType.REWARD, refunded, REFUND_REASON));
+        refund(memberId, TokenKind.SALT, refunded);
+        refund(memberId, TokenKind.BREAD, refundedBread);
+        UserToken balances = userTokenRepository.findByMemberId(memberId).orElse(null);
+        return new Result(seasons.size(), refunded, balances == null ? 0 : balances.getTokenBalance(),
+                refundedBread, balances == null ? 0 : balances.getBreadTokenBalance());
+    }
+
+    private int spentOn(Long seasonPk, boolean bread) {
+        String kind = bread ? "paid_with = 'BREAD'" : "(paid_with IS NULL OR paid_with <> 'BREAD')";
+        return ((Number) entityManager.createNativeQuery(
+                        "SELECT COALESCE(SUM(tokens_spent), 0) FROM ai_episode_unlocks WHERE season_id = :seasonPk AND "
+                                + kind)
+                .setParameter("seasonPk", seasonPk)
+                .getSingleResult()).intValue();
+    }
+
+    private void refund(Long memberId, TokenKind kind, int amount) {
+        if (amount <= 0) {
+            return;
         }
-        int balance = userTokenRepository.findByMemberId(memberId).map(UserToken::getTokenBalance).orElse(0);
-        return new Result(seasons.size(), refunded, balance);
+        UserToken userToken = userTokenRepository.findByMemberId(memberId)
+                .orElseGet(() -> userTokenRepository.save(new UserToken(memberId, 0, 0)));
+        userToken.earn(kind, amount);
+        tokenHistoryRepository.save(new TokenHistory(memberId, TokenHistoryType.REWARD, amount,
+                kind == TokenKind.BREAD ? REFUND_REASON + "(식빵)" : REFUND_REASON));
     }
 }

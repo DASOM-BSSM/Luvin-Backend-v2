@@ -56,6 +56,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -63,7 +65,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 가짜 FastAPI는 요청을 계약 타입으로 읽어 stub 로직으로 답하면서 받은 원문 JSON을 남긴다.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = LuvinBackendV2Application.class)
-@TestPropertySource(properties = {"app.ai.story.client=http", "app.ai.story.job-poll-interval=50ms"})
+@TestPropertySource(properties = {"app.ai.story.client=http", "app.ai.story.job-poll-interval=50ms",
+        "app.ai.story.episode-unlock-cooldown=3d", "app.push.client=expo"})
 class AiStoryHttpContractIntegrationTest {
 
     private static final ObjectMapper CONTRACT = AiStoryConfig.STORY_OBJECT_MAPPER;
@@ -74,11 +77,14 @@ class AiStoryHttpContractIntegrationTest {
     private static final Map<String, Map<String, Object>> JOBS = new java.util.concurrent.ConcurrentHashMap<>();
     /** 받은 Idempotency-Key(접수 순서대로, 다시 접수한 것 포함). */
     private static final List<String> JOB_KEYS = Collections.synchronizedList(new ArrayList<>());
+    /** 가짜 Expo 푸시 서비스가 받은 메시지(받은 순서대로). */
+    private static final List<JsonNode> PUSHED = Collections.synchronizedList(new ArrayList<>());
     private static final HttpServer FAKE_FASTAPI = startFakeFastApi();
 
     @DynamicPropertySource
     static void aiBaseUrl(DynamicPropertyRegistry registry) {
         registry.add("app.ai.base-url", () -> "http://localhost:" + FAKE_FASTAPI.getAddress().getPort());
+        registry.add("app.push.expo-url", () -> "http://localhost:" + FAKE_FASTAPI.getAddress().getPort() + "/push/send");
     }
 
     @AfterAll
@@ -102,11 +108,14 @@ class AiStoryHttpContractIntegrationTest {
     private PlatformTransactionManager transactionManager;
     @Autowired
     private UserTokenRepository userTokenRepository;
+    @Autowired
+    private com.luvin.ai.service.story.AiStoryService storyService;
 
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
     private final ObjectMapper json = new ObjectMapper();
     private Long userId;
     private Long seasonPk;
+    private UUID seasonUuid;
     private String token;
 
     @AfterEach
@@ -118,6 +127,7 @@ class AiStoryHttpContractIntegrationTest {
         jdbcTemplate.update("DELETE FROM diary_room WHERE owner_id = ?", userId);
         jdbcTemplate.update("DELETE FROM user_tokens WHERE member_id = ?", userId);
         jdbcTemplate.update("DELETE FROM token_histories WHERE member_id = ?", userId);
+        jdbcTemplate.update("DELETE FROM push_tokens WHERE member_id = ?", userId);
         userRepository.deleteById(userId);
         RECEIVED.clear();
     }
@@ -300,13 +310,24 @@ class AiStoryHttpContractIntegrationTest {
     }
 
     @Test
-    void 사화부터는_회차를_열어야_하고_처음_열_때만_토큰을_쓴다() throws Exception {
+    void 사화부터는_소금빵은_대기가_끝나야_식빵은_바로_열고_처음_열_때만_토큰을_쓴다() throws Exception {
         setUpUserAndSeason();
+        String device = "ExponentPushToken[ok-" + UUID.randomUUID() + "]";
+        String gone = "ExponentPushToken[Gone-" + UUID.randomUUID() + "]";
+        assertEquals(200, registerPushToken(device, "ios").statusCode());
+        assertEquals(200, registerPushToken(device, "android").statusCode()); // 같은 토큰은 덮어쓴다
+        assertEquals(200, registerPushToken(gone, "android").statusCode());
+        assertEquals(400, registerPushToken("fcm-device-token", "ios").statusCode());
+        assertEquals(400, registerPushToken(device, "web").statusCode());
+        assertEquals("ANDROID", jdbcTemplate.queryForObject("SELECT platform FROM push_tokens WHERE token = ?",
+                String.class, device));
+
         for (int order = 1; order <= 3; order++) {
             // 1~3화는 무료: 열기를 불러도 차감 없이 열린 응답이다.
             JsonNode free = json.readTree(send("POST", "/api/ai/seasons/episodes/" + order + "/unlock", null).body())
                     .get("data");
             assertTrue(free.get("unlocked").asBoolean());
+            assertEquals(0, free.get("breadTokenBalance").asInt());
             readyContent(order);
             if (order == 3) {
                 send("POST", "/api/ai/seasons/episodes/3/choices", "{\"pointId\":1,\"breadId\":null}");
@@ -320,34 +341,135 @@ class AiStoryHttpContractIntegrationTest {
         // 미리 만든 회차를 앱이 받아도 다시 만들지 않는다(2·3화 본문 요청은 한 번씩).
         assertEquals(1, episodeRequests(2));
         assertEquals(1, episodeRequests(3));
+        // 생성이 끝날 때마다 모든 기기로 한 번 보내고, DeviceNotRegistered를 받은 토큰은 지운다.
+        awaitPush(device, 3);
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM push_tokens WHERE token = ?",
+                Integer.class, gone));
+        JsonNode push = pushes(device).get(0);
+        assertEquals("새 에피소드가 구워졌어요 🥐", push.get("title").asText());
+        assertEquals("1화가 준비됐어요. 지금 확인해 보세요!", push.get("body").asText());
+        assertEquals("EPISODE_READY", push.get("data").get("type").asText());
+        assertEquals(1, push.get("data").get("order").asInt());
+        assertEquals(seasonUuid.toString(), push.get("data").get("seasonId").asText());
 
+        // 3화를 끝낸 뒤 3일이 지나야 소금빵으로 4화를 열 수 있다. 기준은 서버가 완료 처리한 시각이다.
+        java.time.LocalDateTime completedAt = jdbcTemplate.queryForObject("SELECT completed_at FROM ai_episode_contents "
+                + "WHERE season_id = ? AND episode_order = 3", java.time.LocalDateTime.class, seasonPk);
+        com.luvin.ai.dto.story.AiStoryStateView story = myStory();
+        java.time.OffsetDateTime nextUnlockAt = story.nextUnlockAt();
+        assertEquals(completedAt.plusDays(3).atZone(java.time.ZoneId.systemDefault()).toInstant(),
+                nextUnlockAt.toInstant());
+        assertEquals(5, story.episodeTokenCost());
+
+        HttpResponse<String> waiting = unlock(4, "SALT");
+        assertEquals(409, waiting.statusCode());
+        JsonNode cooldown = json.readTree(waiting.body());
+        assertEquals("EPISODE_COOLDOWN", cooldown.get("code").asText());
+        assertEquals(nextUnlockAt.toInstant(),
+                java.time.OffsetDateTime.parse(cooldown.get("data").get("nextUnlockAt").asText()).toInstant());
+        // body 없이 보내면 소금빵으로 본다(이전 앱 호환).
+        assertEquals("EPISODE_COOLDOWN", json.readTree(
+                send("POST", "/api/ai/seasons/episodes/4/unlock", null).body()).get("code").asText());
+
+        HttpResponse<String> poor = unlock(4, "BREAD");
+        assertEquals(409, poor.statusCode());
+        JsonNode insufficient = json.readTree(poor.body());
+        assertEquals("INSUFFICIENT_TOKENS", insufficient.get("code").asText());
+        assertEquals(5, insufficient.get("data").get("required").asInt());
+        assertEquals(0, insufficient.get("data").get("balance").asInt());
+        assertEquals(400, unlock(4, "GOLD").statusCode());
+        // 열지 않은 4화는 미리 만들지 않는다.
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM ai_episode_contents WHERE season_id = ? "
+                + "AND episode_order = 4", Integer.class, seasonPk));
         HttpResponse<String> locked = send("GET", "/api/ai/seasons/episodes/4/content", null);
         assertEquals(409, locked.statusCode());
         assertEquals("EPISODE_NOT_UNLOCKED", json.readTree(locked.body()).get("code").asText());
 
-        HttpResponse<String> poor = send("POST", "/api/ai/seasons/episodes/4/unlock", null);
-        assertEquals(409, poor.statusCode());
-        assertEquals("INSUFFICIENT_TOKENS", json.readTree(poor.body()).get("code").asText());
-        // 열지 않은 4화는 미리 만들지 않는다.
-        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM ai_episode_contents WHERE season_id = ? "
-                + "AND episode_order = 4", Integer.class, seasonPk));
-
-        userTokenRepository.save(new UserToken(userId, 3, 0));
-        JsonNode opened = json.readTree(send("POST", "/api/ai/seasons/episodes/4/unlock", null).body()).get("data");
-        assertEquals(2, opened.get("tokenBalance").asInt());
-        // 연 직후 서버가 4화를 미리 만든다.
+        // 식빵은 대기와 상관없이 바로 연다. 소금빵은 건드리지 않는다.
+        userTokenRepository.save(new UserToken(userId, 7, 0));
+        jdbcTemplate.update("UPDATE user_tokens SET bread_token_balance = 6 WHERE member_id = ?", userId);
+        JsonNode me = json.readTree(send("GET", "/api/tokens/me", null).body());
+        assertEquals(7, me.get("tokenBalance").asInt());
+        assertEquals(6, me.get("breadTokenBalance").asInt());
+        JsonNode opened = json.readTree(unlock(4, "BREAD").body()).get("data");
+        assertEquals(4, opened.get("order").asInt());
+        assertTrue(opened.get("unlocked").asBoolean());
+        assertEquals(7, opened.get("tokenBalance").asInt());
+        assertEquals(1, opened.get("breadTokenBalance").asInt());
+        // 연 직후 서버가 4화를 미리 만들고, 끝나면 알린다.
         awaitPrefetched(4);
-        // 이미 연 회차는 다시 차감하지 않는다.
-        JsonNode again = json.readTree(send("POST", "/api/ai/seasons/episodes/4/unlock", null).body()).get("data");
-        assertEquals(2, again.get("tokenBalance").asInt());
+        awaitPush(device, 4);
+        // 이미 연 회차는 어느 쪽으로 보내도(대기 중인 소금빵이라도) 차감 없이 열린 응답이다.
+        JsonNode again = json.readTree(unlock(4, "SALT").body()).get("data");
+        assertEquals(7, again.get("tokenBalance").asInt());
+        assertEquals(1, again.get("breadTokenBalance").asInt());
+        assertNull(myStory().nextUnlockAt());
         assertEquals(1, jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM token_histories WHERE member_id = ? AND reason = '러빈지옥 4화 열기'",
+                "SELECT count(*) FROM token_histories WHERE member_id = ? AND reason = '러빈지옥 4화 열기(식빵)'",
                 Integer.class, userId));
         assertEquals("ready", readyContent(4).get("status").asText());
         assertEquals(1, episodeRequests(4));
+
+        // 4화를 끝내면 다시 3일을 기다린다. 대기가 지나면 소금빵 5개로 연다.
+        complete(4);
+        assertNotNull(myStory().nextUnlockAt());
+        assertEquals("EPISODE_COOLDOWN", json.readTree(unlock(5, "SALT").body()).get("code").asText());
+        passCooldown(4);
+        assertNull(myStory().nextUnlockAt());
+        JsonNode salt = json.readTree(unlock(5, "SALT").body()).get("data");
+        assertEquals(2, salt.get("tokenBalance").asInt());
+        assertEquals(1, salt.get("breadTokenBalance").asInt());
+        awaitPrefetched(5);
+        awaitPush(device, 5);
+        // 회차마다 한 번씩만 보냈다.
+        for (int order = 1; order <= 5; order++) {
+            int o = order;
+            assertEquals(1, pushes(device).stream().filter(p -> p.get("data").get("order").asInt() == o).count(),
+                    order + "화 알림 수");
+        }
+
+        // 로그아웃: 내 토큰을 지운다.
+        assertEquals(200, send("DELETE", "/api/push-tokens", "{\"token\":\"" + device + "\"}").statusCode());
+        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM push_tokens WHERE member_id = ?",
+                Integer.class, userId));
     }
 
     // ------------------------------------------------------------------ helpers
+
+    private HttpResponse<String> unlock(int order, String payWith) throws Exception {
+        return send("POST", "/api/ai/seasons/episodes/" + order + "/unlock", "{\"payWith\":\"" + payWith + "\"}");
+    }
+
+    private HttpResponse<String> registerPushToken(String pushToken, String platform) throws Exception {
+        return send("POST", "/api/push-tokens",
+                "{\"token\":\"" + pushToken + "\",\"platform\":\"" + platform + "\"}");
+    }
+
+    /** GET /api/ai/seasons/me의 story와 같은 값. 이 클래스의 가짜 FastAPI는 시즌 조회(GET /v1/seasons)를 받지 않아 직접 읽는다. */
+    private com.luvin.ai.dto.story.AiStoryStateView myStory() {
+        return storyService.stateOf(seasonPk);
+    }
+
+    /** 그 회차를 끝낸 지 3일이 넘은 것으로 만든다. */
+    private void passCooldown(int completedOrder) {
+        jdbcTemplate.update("UPDATE ai_episode_contents SET completed_at = completed_at - interval '3 days 1 minute' "
+                + "WHERE season_id = ? AND episode_order = ? AND completed_at IS NOT NULL", seasonPk, completedOrder);
+    }
+
+    private static List<JsonNode> pushes(String pushToken) {
+        synchronized (PUSHED) {
+            return PUSHED.stream().filter(p -> p.get("to").asText().equals(pushToken)).toList();
+        }
+    }
+
+    /** 생성 완료 알림은 회차를 저장한 뒤 보내므로 READY보다 조금 늦게 온다. */
+    private static void awaitPush(String pushToken, int order) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 10_000;
+        while (pushes(pushToken).stream().noneMatch(p -> p.get("data").get("order").asInt() == order)) {
+            assertTrue(System.currentTimeMillis() < deadline, order + "화 알림이 오지 않았습니다.");
+            Thread.sleep(100);
+        }
+    }
 
     /** 앱이 GET content를 부르지 않아도 그 회차가 만들어져 READY가 된다. */
     private void awaitPrefetched(int order) throws InterruptedException {
@@ -376,6 +498,7 @@ class AiStoryHttpContractIntegrationTest {
         token = jwtTokenProvider.createAccessToken(new AuthenticatedUser(user.getId(), user.getEmail(), user.getNickname()));
         AiSeason season = seasonRepository.save(new AiSeason(userId, 1, UUID.randomUUID(), 1, 1, null));
         seasonPk = season.getId();
+        seasonUuid = season.getSeasonId();
         characterRepository.save(new AiSeasonCharacter(season, UUID.randomUUID(), AiCharacterRole.REPRESENTATIVE, "female"));
         for (int i = 0; i < 3; i++) {
             characterRepository.save(new AiSeasonCharacter(season, UUID.randomUUID(), AiCharacterRole.CANDIDATE, "male"));
@@ -384,9 +507,11 @@ class AiStoryHttpContractIntegrationTest {
 
     private JsonNode readyContent(int order) throws Exception {
         if (order > 3 && userTokenRepository.findByMemberId(userId).isEmpty()) {
-            userTokenRepository.save(new UserToken(userId, 20, 0));
+            userTokenRepository.save(new UserToken(userId, 100, 0)); // 4~10화를 모두 열 만큼(회차당 5)
         }
         if (order > 3) {
+            // 소금빵 대기(3일)가 지난 것으로 만든다 — 대기 동작 자체는 회차 열기 테스트에서 확인한다.
+            passCooldown(order - 1);
             send("POST", "/api/ai/seasons/episodes/" + order + "/unlock", null);
         }
         long deadline = System.currentTimeMillis() + 10_000;
@@ -514,6 +639,7 @@ class AiStoryHttpContractIntegrationTest {
         try {
             HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
             server.createContext("/luvin/", AiStoryHttpContractIntegrationTest::handle);
+            server.createContext("/push/", AiStoryHttpContractIntegrationTest::handlePush);
             server.start();
             return server;
         } catch (IOException e) {
@@ -533,6 +659,20 @@ class AiStoryHttpContractIntegrationTest {
             return;
         }
         respond(exchange, 200, answer(path, raw));
+    }
+
+    /** 가짜 Expo 푸시 전송 API. 토큰에 "Gone"이 들어 있으면 DeviceNotRegistered ticket을 돌려준다(순서는 요청과 같다). */
+    private static void handlePush(HttpExchange exchange) throws IOException {
+        JsonNode messages = CONTRACT.readTree(exchange.getRequestBody().readAllBytes());
+        List<Map<String, Object>> tickets = new ArrayList<>();
+        for (JsonNode message : messages) {
+            PUSHED.add(message);
+            tickets.add(message.get("to").asText().contains("Gone")
+                    ? Map.of("status", "error", "message", "not registered",
+                            "details", Map.of("error", "DeviceNotRegistered"))
+                    : Map.of("status", "ok", "id", UUID.randomUUID().toString()));
+        }
+        respond(exchange, 200, Map.of("data", tickets));
     }
 
     private static void handleJob(HttpExchange exchange, String path, byte[] raw) throws IOException {
