@@ -843,6 +843,49 @@ class AiStoryFlowIntegrationTest {
     }
 
     @Test
+    void 개발_전용_경로로_소금빵_회차_열기_대기_시간을_재배포_없이_바꾸고_되돌린다() throws Exception {
+        TestUser user = createUser(22);
+        String path = "/api/dev/ai/story/settings/episode-unlock-cooldown";
+        try {
+            // 이 테스트 설정은 대기를 끈다(0s). 바꾼 적이 없으면 설정값을 쓰는 중이다.
+            JsonNode initial = data(send(user, "GET", path, null));
+            assertEquals("PT0S", initial.get("cooldown").asText());
+            assertFalse(initial.get("overridden").asBoolean());
+            assertEquals("PT0S", initial.get("defaultCooldown").asText());
+
+            JsonNode changed = data(send(user, "PUT", path, "{\"cooldown\":\"24h\"}"));
+            assertEquals("PT24H", changed.get("cooldown").asText());
+            assertEquals(86400, changed.get("cooldownSeconds").asLong());
+            assertTrue(changed.get("overridden").asBoolean());
+            assertEquals("PT0S", changed.get("defaultCooldown").asText());
+            assertEquals("PT24H", data(send(user, "GET", path, null)).get("cooldown").asText());
+            assertEquals("PT24H", jdbcTemplate.queryForObject(
+                    "SELECT setting_value FROM ai_story_settings WHERE setting_key = 'episode-unlock-cooldown'",
+                    String.class));
+            // ISO 형식도 받는다.
+            assertEquals("PT36H", data(send(user, "PUT", path, "{\"cooldown\":\"PT36H\"}")).get("cooldown").asText());
+
+            for (String invalid : List.of("\"하루\"", "\"-1h\"", "\"31d\"", "\"\"", "null")) {
+                HttpResponse<String> rejected = send(user, "PUT", path, "{\"cooldown\":" + invalid + "}");
+                assertEquals(400, rejected.statusCode(), invalid);
+                assertEquals("INVALID_COOLDOWN", error(rejected).get("code").asText(), invalid);
+            }
+            // 거부해도 이전 값을 그대로 쓴다.
+            assertEquals("PT36H", data(send(user, "GET", path, null)).get("cooldown").asText());
+
+            JsonNode reset = data(send(user, "DELETE", path, null));
+            assertEquals("PT0S", reset.get("cooldown").asText());
+            assertFalse(reset.get("overridden").asBoolean());
+            assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM ai_story_settings", Integer.class));
+            // 바꾼 적이 없어도 되돌리기는 200이다.
+            assertFalse(data(send(user, "DELETE", path, null)).get("overridden").asBoolean());
+        } finally {
+            // 같은 DB를 쓰는 다른 테스트에 바꾼 대기 시간이 남지 않게 한다.
+            send(user, "DELETE", path, null);
+        }
+    }
+
+    @Test
     void 시즌_초기화는_시즌을_지우지만_쓴_토큰은_돌려주지_않는다() throws Exception {
         TestUser user = createUser(26);
         String surveyResultId = submitSurvey(user);
