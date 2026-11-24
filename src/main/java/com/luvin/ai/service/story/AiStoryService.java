@@ -75,6 +75,7 @@ import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -137,7 +138,6 @@ public class AiStoryService {
     private final AiStoryProperties properties;
     private final ExecutorService executor;
     private final EpisodeReadyNotifier episodeReadyNotifier;
-    private final AiEpisodeCooldownSettings cooldownSettings;
 
     public AiStoryService(AiStoryStateWriter stateWriter, AiStoryClient storyClient,
                           AiSeasonRepository seasonRepository, UserRepository userRepository,
@@ -145,8 +145,7 @@ public class AiStoryService {
                           AiLearningDataProvider learningDataProvider, AiBreadCatalog breadCatalog,
                           AiEpisodeReleasePolicy releasePolicy, AiStoryProperties properties,
                           @Qualifier("aiStoryExecutor") ExecutorService executor,
-                          EpisodeReadyNotifier episodeReadyNotifier,
-                          AiEpisodeCooldownSettings cooldownSettings) {
+                          EpisodeReadyNotifier episodeReadyNotifier) {
         this.stateWriter = stateWriter;
         this.storyClient = storyClient;
         this.seasonRepository = seasonRepository;
@@ -158,7 +157,6 @@ public class AiStoryService {
         this.properties = properties;
         this.executor = executor;
         this.episodeReadyNotifier = episodeReadyNotifier;
-        this.cooldownSettings = cooldownSettings;
     }
 
     // ---------------------------------------------------------------- 회차 콘텐츠
@@ -402,7 +400,7 @@ public class AiStoryService {
 
     /**
      * 회차 열기. 1~3화는 무료라 차감 없이 열린 응답이고, 4~10화는 처음 열 때만 토큰을 쓴다(이미 열었거나 끝낸 회차는 같은 응답).
-     * - SALT(소금빵): 앞 회차를 서버가 완료 처리한 뒤 대기 시간({@link AiEpisodeCooldownSettings}, 기본 3일)이 지나야 열 수 있다.
+     * - SALT(소금빵): 앞 회차를 서버가 완료 처리한 날의 다음 자정(Asia/Seoul 00:00, {@link AiEpisodeUnlockSchedule})부터 열 수 있다.
      *   아직이면 409 EPISODE_COOLDOWN(data.nextUnlockAt).
      * - BREAD(식빵): 대기와 상관없이 바로 연다.
      * 차감은 생성 전에 하고, 열린 뒤 생성이 실패해도 열린 상태로 남는다. 이전 회차를 완료해야 열 수 있다.
@@ -425,9 +423,9 @@ public class AiStoryService {
                     .orElseThrow(() -> new AiStoryConflictException(
                             AiStoryConflictException.PREVIOUS_EPISODE_NOT_COMPLETED, (order - 1) + "화를 먼저 완료해주세요."));
             if (payWith == TokenKind.SALT) {
-                LocalDateTime availableAt = saltUnlockAvailableAt(previous);
-                if (availableAt != null && LocalDateTime.now().isBefore(availableAt)) {
-                    throw new AiEpisodeCooldownException(toOffset(availableAt));
+                OffsetDateTime waitingUntil = saltWaitingUntil(previous, Instant.now());
+                if (waitingUntil != null) {
+                    throw new AiEpisodeCooldownException(waitingUntil);
                 }
             }
             try {
@@ -448,9 +446,9 @@ public class AiStoryService {
         return new AiEpisodeUnlockView(order, true, balances.salt(), balances.bread());
     }
 
-    /** 앞 회차를 서버가 완료 처리한 시각 + 대기 시간. 완료 시각이 없으면(완료 전) null. */
-    private LocalDateTime saltUnlockAvailableAt(AiStorySnapshot.Content previous) {
-        return previous.completedAt() == null ? null : previous.completedAt().plus(cooldownSettings.current());
+    /** 소금빵으로 열려면 기다려야 하는 시각(앞 회차 완료 다음 자정, KST). 완료 전이거나 이미 열 수 있으면 null. */
+    private static OffsetDateTime saltWaitingUntil(AiStorySnapshot.Content previous, Instant now) {
+        return AiEpisodeUnlockSchedule.waitingUntil(previous.completedAt(), ZoneId.systemDefault(), now);
     }
 
     /**
@@ -463,18 +461,11 @@ public class AiStoryService {
                 || snapshot.status() == AiSeasonStatus.COMPLETED) {
             return null;
         }
-        LocalDateTime now = LocalDateTime.now();
+        Instant now = Instant.now();
         return snapshot.content(order - 1)
                 .filter(AiStorySnapshot.Content::completed)
-                .map(this::saltUnlockAvailableAt)
-                .filter(now::isBefore)
-                .map(AiStoryService::toOffset)
+                .map(previous -> saltWaitingUntil(previous, now))
                 .orElse(null);
-    }
-
-    /** DB 시각(LocalDateTime, 서버 시간대)을 시간대가 붙은 ISO-8601 값으로 내려준다. */
-    private static OffsetDateTime toOffset(LocalDateTime time) {
-        return time.atZone(ZoneId.systemDefault()).toOffsetDateTime();
     }
 
     /**

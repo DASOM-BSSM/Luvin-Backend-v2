@@ -66,7 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = LuvinBackendV2Application.class)
 @TestPropertySource(properties = {"app.ai.story.client=http", "app.ai.story.job-poll-interval=50ms",
-        "app.ai.story.episode-unlock-cooldown=3d", "app.push.client=expo"})
+        "app.push.client=expo"})
 class AiStoryHttpContractIntegrationTest {
 
     private static final ObjectMapper CONTRACT = AiStoryConfig.STORY_OBJECT_MAPPER;
@@ -110,8 +110,6 @@ class AiStoryHttpContractIntegrationTest {
     private UserTokenRepository userTokenRepository;
     @Autowired
     private com.luvin.ai.service.story.AiStoryService storyService;
-    @Autowired
-    private com.luvin.ai.service.story.AiEpisodeCooldownSettings cooldownSettings;
 
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
     private final ObjectMapper json = new ObjectMapper();
@@ -122,8 +120,6 @@ class AiStoryHttpContractIntegrationTest {
 
     @AfterEach
     void tearDown() {
-        // 같은 DB를 쓰는 다른 테스트에 바꾼 대기 시간이 남지 않게 한다.
-        cooldownSettings.reset();
         deleteSeason(seasonPk, List.of("ai_season_choices", "ai_bread_relations", "ai_episode_contents",
                 "ai_season_story_reports", "partner_letters", "ai_story_feedbacks", "ai_story_message_likes",
                 "ai_season_characters", "ai_episode_unlocks"));
@@ -356,21 +352,22 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals(1, push.get("data").get("order").asInt());
         assertEquals(seasonUuid.toString(), push.get("data").get("seasonId").asText());
 
-        // 3화를 끝낸 뒤 3일이 지나야 소금빵으로 4화를 열 수 있다. 기준은 서버가 완료 처리한 시각이다.
+        // 3화를 끝낸 날의 다음 자정(Asia/Seoul)부터 소금빵으로 4화를 열 수 있다. 기준은 서버가 완료 처리한 시각이다.
         java.time.LocalDateTime completedAt = jdbcTemplate.queryForObject("SELECT completed_at FROM ai_episode_contents "
                 + "WHERE season_id = ? AND episode_order = 3", java.time.LocalDateTime.class, seasonPk);
         com.luvin.ai.dto.story.AiStoryStateView story = myStory();
         java.time.OffsetDateTime nextUnlockAt = story.nextUnlockAt();
-        assertEquals(completedAt.plusDays(3).atZone(java.time.ZoneId.systemDefault()).toInstant(),
-                nextUnlockAt.toInstant());
+        assertEquals(nextMidnightKst(completedAt), nextUnlockAt);
+        assertEquals("+09:00", nextUnlockAt.getOffset().getId());
         assertEquals(5, story.episodeTokenCost());
 
         HttpResponse<String> waiting = unlock(4, "SALT");
         assertEquals(409, waiting.statusCode());
         JsonNode cooldown = json.readTree(waiting.body());
         assertEquals("EPISODE_COOLDOWN", cooldown.get("code").asText());
-        assertEquals(nextUnlockAt.toInstant(),
-                java.time.OffsetDateTime.parse(cooldown.get("data").get("nextUnlockAt").asText()).toInstant());
+        // 409의 nextUnlockAt은 story.nextUnlockAt과 같은 값이다(오프셋 포함 ISO-8601).
+        assertEquals(nextUnlockAt, java.time.OffsetDateTime.parse(cooldown.get("data").get("nextUnlockAt").asText()));
+        assertTrue(cooldown.get("data").get("nextUnlockAt").asText().endsWith("+09:00"));
         // body 없이 보내면 소금빵으로 본다(이전 앱 호환).
         assertEquals("EPISODE_COOLDOWN", json.readTree(
                 send("POST", "/api/ai/seasons/episodes/4/unlock", null).body()).get("code").asText());
@@ -414,26 +411,23 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals("ready", readyContent(4).get("status").asText());
         assertEquals(1, episodeRequests(4));
 
-        // 4화를 끝내면 다시 3일을 기다린다. 대기가 지나면 소금빵 5개로 연다.
+        // 4화를 끝내면 다시 다음 자정까지 기다린다.
         complete(4);
         assertNotNull(myStory().nextUnlockAt());
         assertEquals("EPISODE_COOLDOWN", json.readTree(unlock(5, "SALT").body()).get("code").asText());
 
-        // 대기 시간은 재배포 없이 바꾼다. 이미 끝낸 회차에도 바로 적용된다(완료 시각 + 새 대기 시간).
-        java.time.LocalDateTime completed4 = jdbcTemplate.queryForObject("SELECT completed_at FROM ai_episode_contents "
-                + "WHERE season_id = ? AND episode_order = 4", java.time.LocalDateTime.class, seasonPk);
-        var day = cooldownSettings.change("24h");
-        assertEquals(java.time.Duration.ofHours(24), day.cooldown());
-        assertTrue(day.overridden());
-        assertEquals(java.time.Duration.ofDays(3), day.fallback());
-        assertEquals(completed4.plusHours(24).atZone(java.time.ZoneId.systemDefault()).toInstant(),
-                myStory().nextUnlockAt().toInstant());
-        assertEquals("EPISODE_COOLDOWN", json.readTree(unlock(5, "SALT").body()).get("code").asText());
-        // 되돌리면 설정값(3일)으로 돌아간다.
-        assertEquals(java.time.Duration.ofDays(3), cooldownSettings.reset().cooldown());
-        assertEquals(completed4.plusDays(3).atZone(java.time.ZoneId.systemDefault()).toInstant(),
-                myStory().nextUnlockAt().toInstant());
-        passCooldown(4);
+        // 자정 경계: 오늘(KST) 00:00 정각·00:01에 끝냈으면 내일 00:00까지 409, 어제 23:59에 끝냈으면 지금 열린다.
+        java.time.LocalDate today = java.time.LocalDate.now(KST);
+        java.time.OffsetDateTime tomorrow = today.plusDays(1).atStartOfDay(KST).toOffsetDateTime();
+        for (java.time.LocalTime time : List.of(java.time.LocalTime.MIDNIGHT, java.time.LocalTime.of(0, 1))) {
+            setCompletedAtKst(4, today.atTime(time));
+            assertEquals(tomorrow, myStory().nextUnlockAt(), time.toString());
+            HttpResponse<String> beforeMidnight = unlock(5, "SALT");
+            assertEquals(409, beforeMidnight.statusCode(), time.toString());
+            assertEquals(tomorrow, java.time.OffsetDateTime.parse(
+                    json.readTree(beforeMidnight.body()).get("data").get("nextUnlockAt").asText()), time.toString());
+        }
+        setCompletedAtKst(4, today.minusDays(1).atTime(23, 59));
         assertNull(myStory().nextUnlockAt());
         JsonNode salt = json.readTree(unlock(5, "SALT").body()).get("data");
         assertEquals(2, salt.get("tokenBalance").asInt());
@@ -469,10 +463,27 @@ class AiStoryHttpContractIntegrationTest {
         return storyService.stateOf(seasonPk);
     }
 
-    /** 그 회차를 끝낸 지 3일이 넘은 것으로 만든다. */
+    private static final java.time.ZoneId KST = java.time.ZoneId.of("Asia/Seoul");
+
+    /** 그 회차를 어제 끝낸 것으로 만든다 — 다음 자정(오늘 00:00 KST)이 지나 소금빵으로 열 수 있다. */
     private void passCooldown(int completedOrder) {
-        jdbcTemplate.update("UPDATE ai_episode_contents SET completed_at = completed_at - interval '3 days 1 minute' "
+        jdbcTemplate.update("UPDATE ai_episode_contents SET completed_at = completed_at - interval '1 day' "
                 + "WHERE season_id = ? AND episode_order = ? AND completed_at IS NOT NULL", seasonPk, completedOrder);
+    }
+
+    /** 그 회차의 완료 시각을 KST 시각으로 바꾼다(DB에는 서버 시간대 LocalDateTime으로 들어간다). */
+    private void setCompletedAtKst(int completedOrder, java.time.LocalDateTime kst) {
+        java.time.LocalDateTime server = kst.atZone(KST).withZoneSameInstant(java.time.ZoneId.systemDefault())
+                .toLocalDateTime();
+        assertEquals(1, jdbcTemplate.update("UPDATE ai_episode_contents SET completed_at = ? "
+                + "WHERE season_id = ? AND episode_order = ? AND completed_at IS NOT NULL", server, seasonPk,
+                completedOrder));
+    }
+
+    /** 완료 시각(서버 시간대)이 속한 날(KST)의 다음 자정. */
+    private static java.time.OffsetDateTime nextMidnightKst(java.time.LocalDateTime completedAtServer) {
+        return completedAtServer.atZone(java.time.ZoneId.systemDefault()).withZoneSameInstant(KST).toLocalDate()
+                .plusDays(1).atStartOfDay(KST).toOffsetDateTime();
     }
 
     private static List<JsonNode> pushes(String pushToken) {
@@ -529,7 +540,7 @@ class AiStoryHttpContractIntegrationTest {
             userTokenRepository.save(new UserToken(userId, 100, 0)); // 4~10화를 모두 열 만큼(회차당 5)
         }
         if (order > 3) {
-            // 소금빵 대기(3일)가 지난 것으로 만든다 — 대기 동작 자체는 회차 열기 테스트에서 확인한다.
+            // 소금빵 대기(다음 자정)가 지난 것으로 만든다 — 대기 동작 자체는 회차 열기 테스트에서 확인한다.
             passCooldown(order - 1);
             send("POST", "/api/ai/seasons/episodes/" + order + "/unlock", null);
         }

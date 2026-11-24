@@ -491,7 +491,7 @@ class AiStoryFlowIntegrationTest {
         assertEquals(List.of(1), intList(story.get("completedOrders")));
         assertEquals(List.of(1, 2, 3), intList(story.get("unlockedOrders")));
         assertEquals(5, story.get("episodeTokenCost").asInt());
-        // 이 클래스는 대기 시간을 0으로 둔다(테스트 공통 설정) — 대기가 없으면 nextUnlockAt은 null이다.
+        // 2화는 무료 회차라 기다리지 않는다 — nextUnlockAt은 null이다.
         assertTrue(story.get("nextUnlockAt").isNull());
         assertEquals("blocks", data(get(user, "")).get(0).get("episodeFormat").asText());
     }
@@ -843,49 +843,6 @@ class AiStoryFlowIntegrationTest {
     }
 
     @Test
-    void 개발_전용_경로로_소금빵_회차_열기_대기_시간을_재배포_없이_바꾸고_되돌린다() throws Exception {
-        TestUser user = createUser(22);
-        String path = "/api/dev/ai/story/settings/episode-unlock-cooldown";
-        try {
-            // 이 테스트 설정은 대기를 끈다(0s). 바꾼 적이 없으면 설정값을 쓰는 중이다.
-            JsonNode initial = data(send(user, "GET", path, null));
-            assertEquals("PT0S", initial.get("cooldown").asText());
-            assertFalse(initial.get("overridden").asBoolean());
-            assertEquals("PT0S", initial.get("defaultCooldown").asText());
-
-            JsonNode changed = data(send(user, "PUT", path, "{\"cooldown\":\"24h\"}"));
-            assertEquals("PT24H", changed.get("cooldown").asText());
-            assertEquals(86400, changed.get("cooldownSeconds").asLong());
-            assertTrue(changed.get("overridden").asBoolean());
-            assertEquals("PT0S", changed.get("defaultCooldown").asText());
-            assertEquals("PT24H", data(send(user, "GET", path, null)).get("cooldown").asText());
-            assertEquals("PT24H", jdbcTemplate.queryForObject(
-                    "SELECT setting_value FROM ai_story_settings WHERE setting_key = 'episode-unlock-cooldown'",
-                    String.class));
-            // ISO 형식도 받는다.
-            assertEquals("PT36H", data(send(user, "PUT", path, "{\"cooldown\":\"PT36H\"}")).get("cooldown").asText());
-
-            for (String invalid : List.of("\"하루\"", "\"-1h\"", "\"31d\"", "\"\"", "null")) {
-                HttpResponse<String> rejected = send(user, "PUT", path, "{\"cooldown\":" + invalid + "}");
-                assertEquals(400, rejected.statusCode(), invalid);
-                assertEquals("INVALID_COOLDOWN", error(rejected).get("code").asText(), invalid);
-            }
-            // 거부해도 이전 값을 그대로 쓴다.
-            assertEquals("PT36H", data(send(user, "GET", path, null)).get("cooldown").asText());
-
-            JsonNode reset = data(send(user, "DELETE", path, null));
-            assertEquals("PT0S", reset.get("cooldown").asText());
-            assertFalse(reset.get("overridden").asBoolean());
-            assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM ai_story_settings", Integer.class));
-            // 바꾼 적이 없어도 되돌리기는 200이다.
-            assertFalse(data(send(user, "DELETE", path, null)).get("overridden").asBoolean());
-        } finally {
-            // 같은 DB를 쓰는 다른 테스트에 바꾼 대기 시간이 남지 않게 한다.
-            send(user, "DELETE", path, null);
-        }
-    }
-
-    @Test
     void 시즌_초기화는_시즌을_지우지만_쓴_토큰은_돌려주지_않는다() throws Exception {
         TestUser user = createUser(26);
         String surveyResultId = submitSurvey(user);
@@ -974,9 +931,15 @@ class AiStoryFlowIntegrationTest {
 
     // ------------------------------------------------------------------ helpers
 
-    /** 4화부터는 회차 열기를 먼저 한다(이 클래스는 토큰 차감을 꺼 둔다). */
+    /**
+     * 4화부터는 회차 열기를 먼저 한다(이 클래스는 토큰 차감을 꺼 둔다). 앞 회차를 어제 끝낸 것으로 만들어 소금빵 대기
+     * (다음 자정)를 지난다 — 대기 동작 자체는 AiStoryHttpContractIntegrationTest에서 확인한다.
+     */
     private JsonNode readyContent(TestUser user, int order) throws Exception {
         if (order > 3) {
+            jdbcTemplate.update("UPDATE ai_episode_contents c SET completed_at = c.completed_at - interval '1 day' "
+                    + "FROM ai_seasons s WHERE c.season_id = s.id AND s.member_id = ? AND c.episode_order = ? "
+                    + "AND c.completed_at IS NOT NULL", user.id(), order - 1);
             HttpResponse<String> unlocked = post(user, "/episodes/" + order + "/unlock", null);
             assertEquals(200, unlocked.statusCode(), unlocked.body());
         }
