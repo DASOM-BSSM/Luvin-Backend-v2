@@ -2,7 +2,7 @@ package com.luvin.ai.service.exception;
 
 import java.time.OffsetDateTime;
 
-/** 소금빵으로 4~10화를 열려는데 앞 회차를 끝낸 뒤 대기 시간이 아직 지나지 않았다(409 EPISODE_COOLDOWN). */
+/** 소금빵으로 4~10화를 열려는데 앞 회차를 끝낸 다음 자정(KST)이 아직 오지 않았다(409 EPISODE_COOLDOWN). */
 public class AiEpisodeCooldownException extends RuntimeException {
 
     public static final String CODE = "EPISODE_COOLDOWN";

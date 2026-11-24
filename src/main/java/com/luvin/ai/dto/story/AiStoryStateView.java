@@ -22,8 +22,8 @@ public record AiStoryStateView(
         /** 4~10화를 처음 열 때 쓰는 토큰 수. */
         int episodeTokenCost,
         /**
-         * 다음 회차(currentOrder)를 소금빵으로 열 수 있게 되는 시각(ISO-8601, 시간대 포함) = 앞 회차를 서버가 완료 처리한
-         * 시각 + 대기 시간(기본 3일). 1~3화, 이미 연 회차, 대기가 끝났으면 null. 식빵으로는 대기 없이 열 수 있다.
+         * 다음 회차(currentOrder)를 소금빵으로 열 수 있게 되는 시각(ISO-8601, +09:00) = 앞 회차를 서버가 완료 처리한 날의
+         * 다음 자정(Asia/Seoul 00:00). 1~3화, 이미 연 회차, 끝난 시즌, 대기가 끝났으면 null. 식빵으로는 대기 없이 열 수 있다.
          */
         @Schema(types = {"string", "null"}, format = "date-time") OffsetDateTime nextUnlockAt,
         /** 진행 중이거나 실패한 회차 완료(POST complete). 없으면 null. */
