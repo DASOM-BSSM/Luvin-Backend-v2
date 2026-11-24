@@ -137,6 +137,7 @@ public class AiStoryService {
     private final AiStoryProperties properties;
     private final ExecutorService executor;
     private final EpisodeReadyNotifier episodeReadyNotifier;
+    private final AiEpisodeCooldownSettings cooldownSettings;
 
     public AiStoryService(AiStoryStateWriter stateWriter, AiStoryClient storyClient,
                           AiSeasonRepository seasonRepository, UserRepository userRepository,
@@ -144,7 +145,8 @@ public class AiStoryService {
                           AiLearningDataProvider learningDataProvider, AiBreadCatalog breadCatalog,
                           AiEpisodeReleasePolicy releasePolicy, AiStoryProperties properties,
                           @Qualifier("aiStoryExecutor") ExecutorService executor,
-                          EpisodeReadyNotifier episodeReadyNotifier) {
+                          EpisodeReadyNotifier episodeReadyNotifier,
+                          AiEpisodeCooldownSettings cooldownSettings) {
         this.stateWriter = stateWriter;
         this.storyClient = storyClient;
         this.seasonRepository = seasonRepository;
@@ -156,6 +158,7 @@ public class AiStoryService {
         this.properties = properties;
         this.executor = executor;
         this.episodeReadyNotifier = episodeReadyNotifier;
+        this.cooldownSettings = cooldownSettings;
     }
 
     // ---------------------------------------------------------------- 회차 콘텐츠
@@ -399,7 +402,7 @@ public class AiStoryService {
 
     /**
      * 회차 열기. 1~3화는 무료라 차감 없이 열린 응답이고, 4~10화는 처음 열 때만 토큰을 쓴다(이미 열었거나 끝낸 회차는 같은 응답).
-     * - SALT(소금빵): 앞 회차를 서버가 완료 처리한 뒤 대기 시간(episodeUnlockCooldown, 기본 3일)이 지나야 열 수 있다.
+     * - SALT(소금빵): 앞 회차를 서버가 완료 처리한 뒤 대기 시간({@link AiEpisodeCooldownSettings}, 기본 3일)이 지나야 열 수 있다.
      *   아직이면 409 EPISODE_COOLDOWN(data.nextUnlockAt).
      * - BREAD(식빵): 대기와 상관없이 바로 연다.
      * 차감은 생성 전에 하고, 열린 뒤 생성이 실패해도 열린 상태로 남는다. 이전 회차를 완료해야 열 수 있다.
@@ -447,7 +450,7 @@ public class AiStoryService {
 
     /** 앞 회차를 서버가 완료 처리한 시각 + 대기 시간. 완료 시각이 없으면(완료 전) null. */
     private LocalDateTime saltUnlockAvailableAt(AiStorySnapshot.Content previous) {
-        return previous.completedAt() == null ? null : previous.completedAt().plus(properties.episodeUnlockCooldown());
+        return previous.completedAt() == null ? null : previous.completedAt().plus(cooldownSettings.current());
     }
 
     /**

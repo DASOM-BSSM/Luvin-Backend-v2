@@ -110,6 +110,8 @@ class AiStoryHttpContractIntegrationTest {
     private UserTokenRepository userTokenRepository;
     @Autowired
     private com.luvin.ai.service.story.AiStoryService storyService;
+    @Autowired
+    private com.luvin.ai.service.story.AiEpisodeCooldownSettings cooldownSettings;
 
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).build();
     private final ObjectMapper json = new ObjectMapper();
@@ -120,6 +122,8 @@ class AiStoryHttpContractIntegrationTest {
 
     @AfterEach
     void tearDown() {
+        // 같은 DB를 쓰는 다른 테스트에 바꾼 대기 시간이 남지 않게 한다.
+        cooldownSettings.reset();
         deleteSeason(seasonPk, List.of("ai_season_choices", "ai_bread_relations", "ai_episode_contents",
                 "ai_season_story_reports", "partner_letters", "ai_story_feedbacks", "ai_story_message_likes",
                 "ai_season_characters", "ai_episode_unlocks"));
@@ -414,6 +418,21 @@ class AiStoryHttpContractIntegrationTest {
         complete(4);
         assertNotNull(myStory().nextUnlockAt());
         assertEquals("EPISODE_COOLDOWN", json.readTree(unlock(5, "SALT").body()).get("code").asText());
+
+        // 대기 시간은 재배포 없이 바꾼다. 이미 끝낸 회차에도 바로 적용된다(완료 시각 + 새 대기 시간).
+        java.time.LocalDateTime completed4 = jdbcTemplate.queryForObject("SELECT completed_at FROM ai_episode_contents "
+                + "WHERE season_id = ? AND episode_order = 4", java.time.LocalDateTime.class, seasonPk);
+        var day = cooldownSettings.change("24h");
+        assertEquals(java.time.Duration.ofHours(24), day.cooldown());
+        assertTrue(day.overridden());
+        assertEquals(java.time.Duration.ofDays(3), day.fallback());
+        assertEquals(completed4.plusHours(24).atZone(java.time.ZoneId.systemDefault()).toInstant(),
+                myStory().nextUnlockAt().toInstant());
+        assertEquals("EPISODE_COOLDOWN", json.readTree(unlock(5, "SALT").body()).get("code").asText());
+        // 되돌리면 설정값(3일)으로 돌아간다.
+        assertEquals(java.time.Duration.ofDays(3), cooldownSettings.reset().cooldown());
+        assertEquals(completed4.plusDays(3).atZone(java.time.ZoneId.systemDefault()).toInstant(),
+                myStory().nextUnlockAt().toInstant());
         passCooldown(4);
         assertNull(myStory().nextUnlockAt());
         JsonNode salt = json.readTree(unlock(5, "SALT").body()).get("data");

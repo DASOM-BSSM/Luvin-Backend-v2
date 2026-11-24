@@ -77,7 +77,7 @@ public class AiStoryController {
 
     @Operation(summary = "회차 열기", description = """
             body `{ "payWith": "SALT" | "BREAD" }` — body나 payWith를 생략하면 SALT.
-            - `SALT`(소금빵): 앞 회차를 서버가 완료 처리한 시각부터 대기 시간(기본 3일, `story.nextUnlockAt`)이 지나야 열 수 있다.
+            - `SALT`(소금빵): 앞 회차를 서버가 완료 처리한 시각부터 대기 시간(기본 3일, 서버에서 재배포 없이 바꿀 수 있음, `story.nextUnlockAt`)이 지나야 열 수 있다.
               아직이면 409 `EPISODE_COOLDOWN`(data.nextUnlockAt).
             - `BREAD`(식빵): 대기와 상관없이 바로 연다.
             어느 쪽이든 4~10화를 처음 열 때만 `story.episodeTokenCost`(기본 5)개를 쓴다. 1~3화, 이미 열었거나 끝낸 회차는
