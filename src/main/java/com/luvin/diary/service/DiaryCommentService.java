@@ -30,6 +30,7 @@ public class DiaryCommentService {
     private final DiaryRoomRepository diaryRoomRepository;
     private final LearningSignalService learningSignalService;
     private final UserRepository userRepository;
+    private final DiaryPushNotifier pushNotifier;
 
     // 1. 댓글 작성
     @Transactional
@@ -44,6 +45,8 @@ public class DiaryCommentService {
         DiaryComment comment = new DiaryComment(memberId, requestDto.getContent(), diary);
         DiaryComment savedComment = diaryCommentRepository.save(comment);
         learningSignalService.record(memberId, LearningSourceType.COMMENT, savedComment.getId());
+        // 일기 작성자에게 알린다(자기 일기에 단 댓글은 보내지 않는다). 커밋 뒤에 보낸다.
+        pushNotifier.diaryCommented(diary.getRoom().getId(), diaryId, diary.getUserId(), memberId);
 
         return DiaryCommentDto.Response.of(savedComment, userRepository.findById(memberId).orElse(null), memberId);
     }

@@ -71,6 +71,7 @@ public class RoomQuestionService {
     private final AiStoryProperties storyProperties;
     private final TransactionTemplate transactionTemplate;
     private final ExecutorService executor;
+    private final DiaryPushNotifier pushNotifier;
 
     public RoomQuestionService(RoomQuestionRepository questionRepository,
                                RoomQuestionAnswerRepository answerRepository,
@@ -81,7 +82,8 @@ public class RoomQuestionService {
                                OwnerSubjectProvider ownerSubjectProvider,
                                AiStoryProperties storyProperties,
                                TransactionTemplate transactionTemplate,
-                               @Qualifier("aiStoryExecutor") ExecutorService executor) {
+                               @Qualifier("aiStoryExecutor") ExecutorService executor,
+                               DiaryPushNotifier pushNotifier) {
         this.questionRepository = questionRepository;
         this.answerRepository = answerRepository;
         this.roomRepository = roomRepository;
@@ -92,6 +94,7 @@ public class RoomQuestionService {
         this.storyProperties = storyProperties;
         this.transactionTemplate = transactionTemplate;
         this.executor = executor;
+        this.pushNotifier = pushNotifier;
     }
 
     /**
@@ -146,9 +149,14 @@ public class RoomQuestionService {
             if (statusOf(question) != RoomQuestionStatus.READY) {
                 throw new CodedApiException(HttpStatus.CONFLICT, ROOM_QUESTION_NOT_READY, "아직 질문이 준비되지 않았습니다.");
             }
+            boolean firstAnswer = answerRepository.findByQuestionIdAndUserId(questionId, memberId).isEmpty();
             answerRepository.upsert(questionId, memberId, content);
             answerRepository.findByQuestionIdAndUserId(questionId, memberId).ifPresent(answer ->
                     learningSignalService.record(memberId, LearningSourceType.ROOM_ANSWER, answer.getId()));
+            if (firstAnswer) {
+                // 처음 올린 답만 알린다(수정은 알리지 않는다). 커밋 뒤에 보낸다.
+                pushNotifier.questionAnswered(roomId, memberId);
+            }
             return view(question, memberId);
         });
     }
@@ -214,7 +222,13 @@ public class RoomQuestionService {
             if (content.isEmpty() || content.length() > QUESTION_MAX_LENGTH) {
                 throw new IllegalStateException("AI 그룹 질문이 비었거나 너무 깁니다. length=" + content.length());
             }
-            transactionTemplate.executeWithoutResult(status -> questionRepository.markReady(questionId, content));
+            Long requestedBy = transactionTemplate.execute(status -> questionRepository.markReady(questionId, content) == 1
+                    ? questionRepository.findById(questionId).map(RoomQuestion::getRequestedBy).orElse(null)
+                    : null);
+            if (requestedBy != null) {
+                // 질문이 준비된 뒤 알린다(생성 중이거나 실패한 질문은 알리지 않는다). 만든 사람은 질문 버튼을 마지막으로 누른 사람이다.
+                pushNotifier.questionCreated(roomId, requestedBy);
+            }
         } catch (RuntimeException e) {
             log.warn("room question generation failed: questionId={}, cause={}", questionId, e.getMessage());
             transactionTemplate.executeWithoutResult(status -> questionRepository.markFailed(questionId));

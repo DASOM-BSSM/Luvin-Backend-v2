@@ -84,7 +84,7 @@ public class AiStoryController {
             payWith와 상관없이 차감 없이 열린 응답이다. 응답 `tokenBalance`(소금빵)·`breadTokenBalance`(식빵)는 열고 난 뒤 잔액.
             차감은 생성 전에 하고, 열린 뒤 생성이 실패해도 열린 상태로 남는다.
             순서: 이전 회차 완료 → 회차 열기 → content 요청. 열지 않은 4~10화의 content는 409 `EPISODE_NOT_UNLOCKED`.
-            열리면 서버가 그 회차 생성을 바로 시작하고, 생성이 끝나면 푸시 알림(EPISODE_READY)을 보낸다.
+            열리면 서버가 그 회차 생성을 바로 시작한다. 생성 완료 푸시는 보내지 않는다(앱이 공개 시각에 기기 알림을 직접 건다).
 
             **오류**: 409 `INSUFFICIENT_TOKENS`(data: required, balance — payWith로 낸 쪽 잔액), `EPISODE_COOLDOWN`
             (data: nextUnlockAt), `PREVIOUS_EPISODE_NOT_COMPLETED`, `STORY_NOT_STARTED`, `SEASON_COMPLETED` /

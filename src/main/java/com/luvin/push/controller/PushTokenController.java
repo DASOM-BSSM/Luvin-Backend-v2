@@ -15,11 +15,30 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "푸시 토큰")
+@Tag(name = "푸시 토큰", description = PushTokenController.PUSH_CATALOG)
 @RestController
 @RequestMapping("/api/push-tokens")
 @RequiredArgsConstructor
 public class PushTokenController {
+
+    /** 서버가 보내는 푸시 목록(앱과 맞춘 계약). type 이름과 data 형식은 바꾸지 않는다. */
+    static final String PUSH_CATALOG = """
+            서버가 보내는 푸시(Expo). 알림을 누르면 앱은 `data`를 받는다. **type 이름과 data 형식은 앱과 맞춘 계약이라 바꾸지 않는다.**
+
+            | type | 언제 | 누구에게 | data | 문구 |
+            |---|---|---|---|---|
+            | `QUESTION_CREATED` | 그룹원이 만든 그룹 질문이 준비됐을 때 | 같은 그룹의 다른 멤버 전원 | `{ type, roomId }` | "○○님이 질문을 만들었어요" |
+            | `QUESTION_ANSWERED` | 그룹원이 질문에 답을 처음 올렸을 때(수정은 보내지 않음) | 같은 그룹의 다른 멤버 전원 | `{ type, roomId }` | "○○님이 답변을 올렸어요" |
+            | `DIARY_COMMENT` | 내 일기(1시간 기분)에 댓글이 달렸을 때 | 그 일기 작성자 | `{ type, roomId, diaryId }` | "○○님이 내 기분에 댓글을 남겼어요" |
+
+            - 공통
+              - 본인이 한 행동은 본인에게 보내지 않는다.
+              - 알림 제목은 그룹 이름, ○○는 그룹 닉네임(없으면 계정 닉네임)이다.
+              - `roomId`·`diaryId`는 숫자다.
+              - Android `channelId`는 `diary-activity`("감정일기 소식" 채널)다.
+            - **발송 시간 제한(모든 푸시)**: 한국 시간(KST) 06:00~23:59에만 보낸다. 00:00~05:59에 생긴 알림은 보내지 않고 버린다(아침에 몰아서 보내지 않음).
+            - 러빈지옥 회차 생성 완료 푸시(`EPISODE_READY`)는 보내지 않는다. 앱이 회차 공개 시각(`story.nextUnlockAt`)에 기기 알림을 직접 건다.
+            """;
 
     private final PushTokenService pushTokenService;
 

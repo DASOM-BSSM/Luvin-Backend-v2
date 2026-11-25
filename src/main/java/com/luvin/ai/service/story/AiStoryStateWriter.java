@@ -337,18 +337,12 @@ public class AiStoryStateWriter {
 
     /**
      * 생성 결과 저장. 아직 생성 중이고 같은 생성 회차일 때만 저장한다(늦게 끝난 이전 회차 결과는 버린다).
-     *
-     * @return 이번에 저장했고 생성 완료 푸시를 아직 보내지 않았으면 true — 호출부가 커밋 뒤 한 번 보낸다
      */
     @Transactional
-    public boolean saveGenerated(Long contentPk, int round, String introJson, String stageIntroJson, String blocksJson) {
-        return contentRepository.findById(contentPk)
+    public void saveGenerated(Long contentPk, int round, String introJson, String stageIntroJson, String blocksJson) {
+        contentRepository.findById(contentPk)
                 .filter(c -> isCurrentGeneration(c, round))
-                .map(c -> {
-                    c.markReady(introJson, stageIntroJson, blocksJson);
-                    return c.claimReadyNotification();
-                })
-                .orElse(false);
+                .ifPresent(c -> c.markReady(introJson, stageIntroJson, blocksJson));
     }
 
     /** prefetched면 앱이 기다리지 않던 미리 생성의 실패라, 다음 GET content가 실패를 보여 주지 않고 바로 다시 생성한다. */

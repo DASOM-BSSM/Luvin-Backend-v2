@@ -91,6 +91,9 @@ public class ExpoPushClient implements PushClient {
             message.put("title", m.title());
             message.put("body", m.body());
             message.put("data", m.data());
+            if (m.channelId() != null) {
+                message.put("channelId", m.channelId());
+            }
             message.put("sound", "default");
             message.put("priority", "high");
             body.add(message);

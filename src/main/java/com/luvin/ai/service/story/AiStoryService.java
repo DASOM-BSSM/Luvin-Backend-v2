@@ -46,7 +46,6 @@ import com.luvin.ai.dto.story.AiChoiceStatusView;
 import com.luvin.ai.dto.story.AiEpisodeContentView;
 import com.luvin.ai.dto.story.AiEpisodeUnlockView;
 import com.luvin.ai.service.exception.AiEpisodeCooldownException;
-import com.luvin.push.service.EpisodeReadyNotifier;
 import com.luvin.token.domain.TokenKind;
 import com.luvin.ai.dto.story.AiGenerationProgressView;
 import com.luvin.ai.dto.story.AiSceneBlockView;
@@ -137,15 +136,13 @@ public class AiStoryService {
     private final AiEpisodeReleasePolicy releasePolicy;
     private final AiStoryProperties properties;
     private final ExecutorService executor;
-    private final EpisodeReadyNotifier episodeReadyNotifier;
 
     public AiStoryService(AiStoryStateWriter stateWriter, AiStoryClient storyClient,
                           AiSeasonRepository seasonRepository, UserRepository userRepository,
                           OwnerSubjectProvider ownerSubjectProvider,
                           AiLearningDataProvider learningDataProvider, AiBreadCatalog breadCatalog,
                           AiEpisodeReleasePolicy releasePolicy, AiStoryProperties properties,
-                          @Qualifier("aiStoryExecutor") ExecutorService executor,
-                          EpisodeReadyNotifier episodeReadyNotifier) {
+                          @Qualifier("aiStoryExecutor") ExecutorService executor) {
         this.stateWriter = stateWriter;
         this.storyClient = storyClient;
         this.seasonRepository = seasonRepository;
@@ -156,7 +153,6 @@ public class AiStoryService {
         this.releasePolicy = releasePolicy;
         this.properties = properties;
         this.executor = executor;
-        this.episodeReadyNotifier = episodeReadyNotifier;
     }
 
     // ---------------------------------------------------------------- 회차 콘텐츠
@@ -538,10 +534,7 @@ public class AiStoryService {
                 throw new AiStoryInvalidResponseException("본문에 없는 블록이 있습니다.");
             }
             String introJson = saved.introJson() != null ? saved.introJson() : AiStoryJson.write(introView(episode.intro()));
-            if (stateWriter.saveGenerated(contentPk, round, introJson, stageIntroJson, AiStoryJson.write(blocks))) {
-                // 저장(커밋) 뒤에 보낸다. 알림 실패는 로그만 남기고 생성 결과에는 영향이 없다.
-                episodeReadyNotifier.notifyEpisodeReady(memberId, snapshot.seasonId(), order);
-            }
+            stateWriter.saveGenerated(contentPk, round, introJson, stageIntroJson, AiStoryJson.write(blocks));
             if (AiStoryCatalog.pointOf(order) == null) {
                 // 선택이 없는 회차는 본문이 준비되면 쪽지를 미리 만든다(선택 회차는 선택 결과 장면 뒤).
                 prepareEpisodeNote(memberId, seasonPk, order);

@@ -313,10 +313,8 @@ class AiStoryHttpContractIntegrationTest {
     void 사화부터는_소금빵은_대기가_끝나야_식빵은_바로_열고_처음_열_때만_토큰을_쓴다() throws Exception {
         setUpUserAndSeason();
         String device = "ExponentPushToken[ok-" + UUID.randomUUID() + "]";
-        String gone = "ExponentPushToken[Gone-" + UUID.randomUUID() + "]";
         assertEquals(200, registerPushToken(device, "ios").statusCode());
         assertEquals(200, registerPushToken(device, "android").statusCode()); // 같은 토큰은 덮어쓴다
-        assertEquals(200, registerPushToken(gone, "android").statusCode());
         assertEquals(400, registerPushToken("fcm-device-token", "ios").statusCode());
         assertEquals(400, registerPushToken(device, "web").statusCode());
         assertEquals("ANDROID", jdbcTemplate.queryForObject("SELECT platform FROM push_tokens WHERE token = ?",
@@ -341,16 +339,6 @@ class AiStoryHttpContractIntegrationTest {
         // 미리 만든 회차를 앱이 받아도 다시 만들지 않는다(2·3화 본문 요청은 한 번씩).
         assertEquals(1, episodeRequests(2));
         assertEquals(1, episodeRequests(3));
-        // 생성이 끝날 때마다 모든 기기로 한 번 보내고, DeviceNotRegistered를 받은 토큰은 지운다.
-        awaitPush(device, 3);
-        assertEquals(0, jdbcTemplate.queryForObject("SELECT count(*) FROM push_tokens WHERE token = ?",
-                Integer.class, gone));
-        JsonNode push = pushes(device).get(0);
-        assertEquals("새 에피소드가 구워졌어요 🥐", push.get("title").asText());
-        assertEquals("1화가 준비됐어요. 지금 확인해 보세요!", push.get("body").asText());
-        assertEquals("EPISODE_READY", push.get("data").get("type").asText());
-        assertEquals(1, push.get("data").get("order").asInt());
-        assertEquals(seasonUuid.toString(), push.get("data").get("seasonId").asText());
 
         // 3화를 끝낸 날의 다음 자정(Asia/Seoul)부터 소금빵으로 4화를 열 수 있다. 기준은 서버가 완료 처리한 시각이다.
         java.time.LocalDateTime completedAt = jdbcTemplate.queryForObject("SELECT completed_at FROM ai_episode_contents "
@@ -397,9 +385,8 @@ class AiStoryHttpContractIntegrationTest {
         assertTrue(opened.get("unlocked").asBoolean());
         assertEquals(7, opened.get("tokenBalance").asInt());
         assertEquals(1, opened.get("breadTokenBalance").asInt());
-        // 연 직후 서버가 4화를 미리 만들고, 끝나면 알린다.
+        // 연 직후 서버가 4화를 미리 만든다.
         awaitPrefetched(4);
-        awaitPush(device, 4);
         // 이미 연 회차는 어느 쪽으로 보내도(대기 중인 소금빵이라도) 차감 없이 열린 응답이다.
         JsonNode again = json.readTree(unlock(4, "SALT").body()).get("data");
         assertEquals(7, again.get("tokenBalance").asInt());
@@ -433,13 +420,8 @@ class AiStoryHttpContractIntegrationTest {
         assertEquals(2, salt.get("tokenBalance").asInt());
         assertEquals(1, salt.get("breadTokenBalance").asInt());
         awaitPrefetched(5);
-        awaitPush(device, 5);
-        // 회차마다 한 번씩만 보냈다.
-        for (int order = 1; order <= 5; order++) {
-            int o = order;
-            assertEquals(1, pushes(device).stream().filter(p -> p.get("data").get("order").asInt() == o).count(),
-                    order + "화 알림 수");
-        }
+        // 회차 생성이 끝나도 푸시는 보내지 않는다(LUV-127 — 앱이 회차 공개 시각에 기기 알림을 직접 건다).
+        assertTrue(pushes(device).isEmpty(), String.valueOf(pushes(device)));
 
         // 로그아웃: 내 토큰을 지운다.
         assertEquals(200, send("DELETE", "/api/push-tokens", "{\"token\":\"" + device + "\"}").statusCode());
@@ -489,15 +471,6 @@ class AiStoryHttpContractIntegrationTest {
     private static List<JsonNode> pushes(String pushToken) {
         synchronized (PUSHED) {
             return PUSHED.stream().filter(p -> p.get("to").asText().equals(pushToken)).toList();
-        }
-    }
-
-    /** 생성 완료 알림은 회차를 저장한 뒤 보내므로 READY보다 조금 늦게 온다. */
-    private static void awaitPush(String pushToken, int order) throws InterruptedException {
-        long deadline = System.currentTimeMillis() + 10_000;
-        while (pushes(pushToken).stream().noneMatch(p -> p.get("data").get("order").asInt() == order)) {
-            assertTrue(System.currentTimeMillis() < deadline, order + "화 알림이 오지 않았습니다.");
-            Thread.sleep(100);
         }
     }
 
