@@ -14,7 +14,7 @@ public interface PushTokenRepository extends JpaRepository<PushToken, Long> {
 
     Optional<PushToken> findByToken(String token);
 
-    List<PushToken> findAllByMemberId(Long memberId);
+    List<PushToken> findAllByMemberIdIn(Collection<Long> memberIds);
 
     @Modifying
     @Query("DELETE FROM PushToken p WHERE p.memberId = :memberId AND p.token = :token")

@@ -44,9 +44,13 @@ public class PushTokenService {
         pushTokenRepository.deleteByMemberIdAndToken(memberId, token);
     }
 
+    /** 여러 사람의 기기 토큰(사람마다 여러 기기일 수 있다). */
     @Transactional(readOnly = true)
-    public List<String> tokensOf(Long memberId) {
-        return pushTokenRepository.findAllByMemberId(memberId).stream().map(PushToken::getToken).toList();
+    public List<String> tokensOf(Collection<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return List.of();
+        }
+        return pushTokenRepository.findAllByMemberIdIn(memberIds).stream().map(PushToken::getToken).toList();
     }
 
     /** Expo가 DeviceNotRegistered를 돌려준 토큰. */
