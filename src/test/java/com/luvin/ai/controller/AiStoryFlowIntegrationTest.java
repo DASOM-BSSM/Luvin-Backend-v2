@@ -843,6 +843,49 @@ class AiStoryFlowIntegrationTest {
     }
 
     @Test
+    void 개발_전용_일괄_열기는_4화부터_10화까지_토큰과_하루_대기_없이_연다() throws Exception {
+        TestUser user = createUser(26);
+        String surveyResultId = submitSurvey(user);
+        JsonNode created = data(post(user, "/from-survey", "{\"surveyResultId\":\"" + surveyResultId + "\"}"));
+        Long seasonPk = seasonRepository.findByMemberIdAndSeasonId(user.id(),
+                UUID.fromString(created.get("seasonId").asText())).orElseThrow().getId();
+        seasonIds.add(seasonPk);
+
+        JsonNode unlocked = data(send(user, "POST", "/api/dev/ai/seasons/current/story/unlock-all", null));
+        assertEquals(List.of(4, 5, 6, 7, 8, 9, 10), intList(unlocked.get("unlockedOrders")));
+        // 다시 불러도 같은 결과다.
+        JsonNode again = data(send(user, "POST", "/api/dev/ai/seasons/current/story/unlock-all", null));
+        assertEquals(List.of(4, 5, 6, 7, 8, 9, 10), intList(again.get("unlockedOrders")));
+        assertEquals(0, jdbcTemplate.queryForObject(
+                "SELECT coalesce(sum(tokens_spent), 0) FROM ai_episode_unlocks WHERE season_id = ?",
+                Integer.class, seasonPk));
+
+        // 앞 회차를 방금 끝내도(소금빵이면 다음 자정까지 대기) 회차 열기 없이 바로 다음 회차로 넘어간다.
+        for (int order = 1; order <= 10; order++) {
+            awaitReady(user, order);
+            Integer point = switch (order) {
+                case 3 -> 1;
+                case 5 -> 2;
+                case 6 -> 3;
+                case 8 -> 4;
+                default -> null;
+            };
+            if (point != null) {
+                choose(user, order, point, null);
+            }
+            complete(user, order);
+            if (order >= 3 && order < 10) {
+                assertTrue(data(get(user, "/me")).get("story").get("nextUnlockAt").isNull(), order + "화 뒤");
+            }
+        }
+        assertEquals("COMPLETED", jdbcTemplate.queryForObject("SELECT status FROM ai_seasons WHERE id = ?",
+                String.class, seasonPk));
+
+        // 끝난 시즌은 일괄 열기를 하지 않는다.
+        assertEquals(409, send(user, "POST", "/api/dev/ai/seasons/current/story/unlock-all", null).statusCode());
+    }
+
+    @Test
     void 시즌_초기화는_시즌을_지우지만_쓴_토큰은_돌려주지_않는다() throws Exception {
         TestUser user = createUser(26);
         String surveyResultId = submitSurvey(user);
@@ -943,6 +986,11 @@ class AiStoryFlowIntegrationTest {
             HttpResponse<String> unlocked = post(user, "/episodes/" + order + "/unlock", null);
             assertEquals(200, unlocked.statusCode(), unlocked.body());
         }
+        return awaitReady(user, order);
+    }
+
+    /** 회차 열기 없이 본문이 ready가 될 때까지 기다린다. */
+    private JsonNode awaitReady(TestUser user, int order) throws Exception {
         long deadline = System.currentTimeMillis() + 10_000;
         while (true) {
             HttpResponse<String> res = get(user, "/episodes/" + order + "/content");
