@@ -437,6 +437,35 @@ public class AiStoryService {
         return unlockedView(memberId, order);
     }
 
+    /**
+     * 개발 전용(시연용): 지금 시즌의 4~10화 중 아직 안 연 회차를 토큰 없이 모두 연다. 소금빵 하루 대기도 건너뛴다.
+     * 이전 회차 완료 조건은 그대로라 1화부터 차례로 플레이해야 한다. 연 기록은 tokens_spent 0이라 시즌 초기화 때 환불도 없다.
+     * 다음 회차의 이전 회차가 이미 끝나 있으면 바로 미리 생성한다. 끝난 시즌은 409 SEASON_COMPLETED.
+     */
+    public List<Integer> unlockAllForDev(Long memberId) {
+        AiSeason season = currentSeason(memberId);
+        AiStorySnapshot snapshot = stateWriter.snapshot(season.getId());
+        if (snapshot.status() == AiSeasonStatus.COMPLETED) {
+            throw new AiSeasonCompletedException();
+        }
+        for (int order = AiStoryCatalog.LAST_FREE_ORDER + 1; order <= AiStoryCatalog.FINAL_ORDER; order++) {
+            if (snapshot.unlockedOrders().contains(order)) {
+                continue;
+            }
+            try {
+                stateWriter.unlockEpisode(season.getId(), memberId, order, 0, false, TokenKind.SALT);
+            } catch (DataIntegrityViolationException concurrentUnlock) {
+                // 같은 회차를 동시에 연 다른 요청이 이겼다 — 그쪽에서 이미 열렸다.
+            }
+        }
+        Integer next = snapshot.currentOrder();
+        if (next != null) {
+            Long seasonPk = season.getId();
+            executor.execute(() -> prefetch(memberId, seasonPk, next));
+        }
+        return stateWriter.findUnlockedOrders(season.getId()).stream().sorted().toList();
+    }
+
     private AiEpisodeUnlockView unlockedView(Long memberId, int order) {
         AiStoryStateWriter.Balances balances = stateWriter.tokenBalances(memberId);
         return new AiEpisodeUnlockView(order, true, balances.salt(), balances.bread());
@@ -1040,9 +1069,8 @@ public class AiStoryService {
                 stateWriter.completeEpisode(seasonPk, order, round, summary.episodeSummary(), changes, episodeNote,
                         reportJson);
                 // 무료 회차(2·3화)는 완료 직후 다음 회차를 미리 만든다. 4화부터는 열 때(unlock) 시작한다.
-                if (AiStoryCatalog.isFree(order + 1)) {
-                    prefetch(memberId, seasonPk, order + 1);
-                }
+                // 개발 전용 일괄 열기로 미리 열어 둔 4~10화도 완료 직후 만든다(열지 않은 회차는 prefetch가 거른다).
+                prefetch(memberId, seasonPk, order + 1);
                 return;
             } catch (ObjectOptimisticLockingFailureException e) {
                 if (attempt >= SAVE_ATTEMPTS) {
